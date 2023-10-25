@@ -52,8 +52,8 @@ mod tests {
 
         #[test]
         fn test_value() {
-            let expression = lex_and_parse("5").unwrap();
-            assert_eq!(expression, Expression::Value(5))
+            let expression = lex_and_parse("57").unwrap();
+            assert_eq!(expression, Expression::Value(57))
         }
     }
 }
