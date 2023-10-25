@@ -14,6 +14,7 @@ pub enum Operator {
 }
 
 impl Token {
+    #[allow(unused)]
     pub fn add() -> Self {
         Token::Operator {
             operator: Operator::Add,
@@ -32,14 +33,14 @@ pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
             let value = consume_number(digit, &mut bytes)?;
             tokens.push(Token::Number(value));
         } else if let Some(operator) = parse_operator(letter) {
-            tokens.push(Token::Operator { operator })
+            tokens.push(Token::Operator { operator });
+            bytes.next();
         } else {
             return Err(format!(
                 "unsupported expression starting with byte {} ('{}')",
                 letter, letter as char
             ))?;
         }
-        bytes.next();
     }
 
     Ok(tokens)
@@ -72,7 +73,6 @@ pub fn consume_number(first_digit: i64, iter: &mut Peekable<Bytes>) -> Result<i6
         }
         return Ok(accumulated);
     }
-    unreachable!()
 }
 
 fn maybe_add_digit(mut accumulated: i64, new_digit: i64) -> Result<i64, AnyError> {
@@ -99,8 +99,30 @@ mod tests {
     }
 
     #[test]
+    fn test_several_digits() {
+        let tokens = lex("57").unwrap();
+        assert_eq!(tokens, vec![Token::Number(57)])
+    }
+    #[test]
     fn test_operator() {
         let tokens = lex("+").unwrap();
         assert_eq!(tokens, vec![Token::add()])
+    }
+
+    #[test]
+    fn test_adding_numbers() {
+        let tokens = lex("5+7+12+34").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Number(5),
+                Token::add(),
+                Token::Number(7),
+                Token::add(),
+                Token::Number(12),
+                Token::add(),
+                Token::Number(34)
+            ]
+        );
     }
 }

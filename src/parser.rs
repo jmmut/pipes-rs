@@ -6,13 +6,15 @@ pub enum Expression {
     Nothing,
     Value(i64),
     Operation {
-        operands: Vec<Expression>,
         operator: Operator,
+        operands: Vec<Expression>,
     },
     Operator {
         operator: Operator,
     },
 }
+
+pub type Expressions = Vec<Expression>;
 
 pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
     let mut iter = tokens.into_iter();
@@ -58,8 +60,8 @@ mod tests {
         assert_eq!(
             expression,
             Expression::Operation {
+                operator: Operator::Add,
                 operands: vec![Expression::Value(5), Expression::Value(7)],
-                operator: Operator::Add
             }
         )
     }
