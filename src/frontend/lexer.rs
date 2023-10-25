@@ -11,6 +11,7 @@ pub enum Token {
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Operator {
     Add,
+    Substract,
     Ignore,
 }
 
@@ -58,6 +59,7 @@ pub fn parse_digit(letter: u8) -> Option<i64> {
 pub fn parse_operator(letter: u8) -> Option<Operator> {
     match letter {
         b'+' => Some(Operator::Add),
+        b'-' => Some(Operator::Substract),
         b';' => Some(Operator::Ignore),
         _ => None,
     }

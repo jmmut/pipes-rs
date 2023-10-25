@@ -24,6 +24,10 @@ fn evaluate_applied_transformation(
                 let value = evaluate(operand)?;
                 accumulated += value;
             }
+            Operator::Substract => {
+                let value = evaluate(operand)?;
+                accumulated -= value;
+            }
             Operator::Ignore => {
                 accumulated = evaluate(operand)?;
             }
@@ -42,6 +46,13 @@ mod tests {
         let expression = lex_and_parse("23+5+1000").unwrap();
         let result = evaluate(expression);
         assert_eq!(result.unwrap(), 1028);
+    }
+
+    #[test]
+    fn test_substreaction() {
+        let expression = lex_and_parse("23-5+1000-10").unwrap();
+        let result = evaluate(expression);
+        assert_eq!(result.unwrap(), 1008);
     }
     #[test]
     fn test_ignore() {
