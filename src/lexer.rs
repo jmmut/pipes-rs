@@ -14,8 +14,8 @@ pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
     let mut bytes = code_text.as_ref().bytes().peekable();
     while let Some(letter) = bytes.peek() {
         let letter = *letter;
-        if parse_digit(letter).is_some() {
-            let value = consume_number(&mut bytes)?;
+        if let Some(digit) = parse_digit(letter) {
+            let value = consume_number(digit, &mut bytes)?;
             tokens.push(Token::Number(value));
         } else {
             return Err(format!(
@@ -37,17 +37,19 @@ pub fn parse_digit(letter: u8) -> Option<i64> {
     }
 }
 
-pub fn consume_number(iter: &mut Peekable<Bytes>) -> Result<i64, AnyError> {
-    let mut accumulated: i64 = 0;
-    while let Some(letter) = iter.peek() {
-        if let Some(new_digit) = parse_digit(*letter) {
-            accumulated = maybe_add_digit(accumulated, new_digit)?;
-            iter.next();
-        } else {
-            break;
+pub fn consume_number(first_digit: i64, iter: &mut Peekable<Bytes>) -> Result<i64, AnyError> {
+    let mut accumulated: i64 = first_digit;
+    loop {
+        iter.next();
+        if let Some(letter) = iter.peek() {
+            if let Some(new_digit) = parse_digit(*letter) {
+                accumulated = maybe_add_digit(accumulated, new_digit)?;
+                continue;
+            }
         }
+        return Ok(accumulated);
     }
-    Ok(accumulated)
+    unreachable!()
 }
 
 fn maybe_add_digit(mut accumulated: i64, new_digit: i64) -> Result<i64, AnyError> {
