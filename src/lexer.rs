@@ -13,6 +13,14 @@ pub enum Operator {
     Add,
 }
 
+impl Token {
+    pub fn add() -> Self {
+        Token::Operator {
+            operator: Operator::Add,
+        }
+    }
+}
+
 pub type Tokens = Vec<Token>;
 
 pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
@@ -93,11 +101,6 @@ mod tests {
     #[test]
     fn test_operator() {
         let tokens = lex("+").unwrap();
-        assert_eq!(
-            tokens,
-            vec![Token::Operator {
-                operator: Operator::Add
-            }]
-        )
+        assert_eq!(tokens, vec![Token::add()])
     }
 }

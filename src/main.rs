@@ -33,7 +33,7 @@ fn interpret() -> Result<Expression, AnyError> {
 
 fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
     let tokens = lex(code_text);
-    let expression = parse(&tokens?);
+    let expression = parse(tokens?);
     expression
 }
 
