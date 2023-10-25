@@ -5,8 +5,6 @@ use crate::frontend::lex_and_parse;
 
 mod evaluate;
 mod frontend;
-mod lexer;
-mod parser;
 
 pub type AnyError = Box<dyn std::error::Error>;
 

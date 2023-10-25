@@ -1,5 +1,5 @@
-use crate::lexer::Operator;
-use crate::parser::{Expression, Expressions};
+use crate::frontend::lexer::Operator;
+use crate::frontend::parser::{Expression, Expressions};
 use crate::AnyError;
 
 pub fn evaluate(expression: Expression) -> Result<i64, AnyError> {

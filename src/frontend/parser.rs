@@ -1,4 +1,4 @@
-use crate::lexer::{Operator, Token, Tokens};
+use crate::frontend::lexer::{Operator, Token, Tokens};
 use crate::AnyError;
 
 #[derive(PartialEq, Debug)]
@@ -7,7 +7,7 @@ pub enum Expression {
     Value(i64),
     Operation {
         operator: Operator,
-        operands: Vec<Expression>,
+        operands: Expressions,
     },
     Operator {
         operator: Operator,
