@@ -2,9 +2,15 @@ use crate::AnyError;
 use std::iter::Peekable;
 use std::str::Bytes;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Token {
     Number(i64),
+    Operator { operator: Operator },
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Operator {
+    Add,
 }
 
 pub type Tokens = Vec<Token>;
@@ -17,6 +23,8 @@ pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
         if let Some(digit) = parse_digit(letter) {
             let value = consume_number(digit, &mut bytes)?;
             tokens.push(Token::Number(value));
+        } else if let Some(operator) = parse_operator(letter) {
+            tokens.push(Token::Operator { operator })
         } else {
             return Err(format!(
                 "unsupported expression starting with byte {} ('{}')",
@@ -34,6 +42,13 @@ pub fn parse_digit(letter: u8) -> Option<i64> {
         return Some((letter - b'0') as i64);
     } else {
         None
+    }
+}
+
+pub fn parse_operator(letter: u8) -> Option<Operator> {
+    match letter {
+        b'+' => Some(Operator::Add),
+        _ => None,
     }
 }
 
@@ -73,5 +88,16 @@ mod tests {
     #[test]
     fn test_overflow_positive() {
         lex("9223372036854775808").expect_err("should have failed");
+    }
+
+    #[test]
+    fn test_operator() {
+        let tokens = lex("+").unwrap();
+        assert_eq!(
+            tokens,
+            vec![Token::Operator {
+                operator: Operator::Add
+            }]
+        )
     }
 }
