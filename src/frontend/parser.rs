@@ -24,7 +24,7 @@ pub enum Expression {
 #[derive(PartialEq, Debug)]
 pub struct Transformation {
     pub operator: Operator,
-    pub expression: Expression,
+    pub operand: Expression,
 }
 
 // pub type Expressions = Vec<Expression>;
@@ -47,14 +47,11 @@ pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
             _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
         };
         if let Some(token) = iter.next() {
-            let expression = match token {
+            let operand = match token {
                 Token::Number(n) => Expression::Value(n),
                 _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
             };
-            transformations.push(Transformation {
-                operator,
-                expression,
-            });
+            transformations.push(Transformation { operator, operand });
         } else {
             return Err(format!(
                 "unfinished operation after operator {:?}",
@@ -87,7 +84,7 @@ mod tests {
                 initial: Box::new(Expression::Value(5)),
                 transformations: vec![Transformation {
                     operator: Operator::Add,
-                    expression: Expression::Value(7)
+                    operand: Expression::Value(7)
                 }],
             }
         )
@@ -104,15 +101,15 @@ mod tests {
                 transformations: vec![
                     Transformation {
                         operator: Operator::Add,
-                        expression: Expression::Value(7)
+                        operand: Expression::Value(7)
                     },
                     Transformation {
                         operator: Operator::Add,
-                        expression: Expression::Value(12)
+                        operand: Expression::Value(12)
                     },
                     Transformation {
                         operator: Operator::Add,
-                        expression: Expression::Value(34)
+                        operand: Expression::Value(34)
                     },
                 ],
             }

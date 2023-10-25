@@ -8,24 +8,20 @@ pub fn evaluate(expression: Expression) -> Result<i64, AnyError> {
         Expression::AppliedTransformation {
             initial,
             transformations,
-        } => evaluate_transformation(initial, transformations),
+        } => evaluate_applied_transformation(initial, transformations),
         _ => Err(format!("Can't evaluate expression {:?}", expression))?,
     }
 }
 
-fn evaluate_transformation(
+fn evaluate_applied_transformation(
     initial: Box<Expression>,
     transformations: Transformations,
 ) -> Result<i64, AnyError> {
     let mut accumulated = evaluate(*initial)?;
-    for Transformation {
-        operator,
-        expression,
-    } in transformations
-    {
+    for Transformation { operator, operand } in transformations {
         match operator {
             Operator::Add => {
-                let value = evaluate(expression)?;
+                let value = evaluate(operand)?;
                 accumulated += value;
             }
         }
