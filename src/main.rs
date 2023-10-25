@@ -12,6 +12,9 @@ pub type AnyError = Box<dyn std::error::Error>;
 #[command(version, about, long_about = None)]
 struct Args {
     code_string: String,
+
+    #[arg(short, long)]
+    prettify: bool,
 }
 
 fn main() -> Result<(), AnyError> {
@@ -25,9 +28,16 @@ fn main() -> Result<(), AnyError> {
     Ok(())
 }
 fn interpret() -> Result<(), AnyError> {
-    let Args { code_string } = Args::parse();
+    let Args {
+        code_string,
+        prettify,
+    } = Args::parse();
     let expression = lex_and_parse(code_string)?;
-    println!("Expression: {:?}", expression);
+    if prettify {
+        println!("Expression: {:#?}", expression);
+    } else {
+        println!("Expression: {:?}", expression);
+    }
     let result = evaluate(expression)?;
     println!("{}", result);
     Ok(())

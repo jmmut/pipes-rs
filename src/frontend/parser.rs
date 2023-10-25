@@ -5,6 +5,7 @@ use crate::AnyError;
 pub enum Expression {
     Nothing,
     Value(i64),
+    Identifier(String),
     // Operator {
     //     operator: Operator,
     // },
@@ -20,6 +21,8 @@ pub enum Expression {
         transformations: Transformations,
     },
 }
+
+// pub type Identifier = String;
 
 #[derive(PartialEq, Debug)]
 pub struct Transformation {
@@ -43,12 +46,13 @@ pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
     let mut transformations = Vec::new();
     while let Some(token) = iter.next() {
         let operator = match token {
-            Token::Operator { operator } => operator,
+            Token::Operator(operator) => operator,
             _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
         };
         if let Some(token) = iter.next() {
             let operand = match token {
                 Token::Number(n) => Expression::Value(n),
+                Token::Identifier(name) => Expression::Identifier(name),
                 _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
             };
             transformations.push(Transformation { operator, operand });
@@ -112,6 +116,23 @@ mod tests {
                         operand: Expression::Value(34)
                     },
                 ],
+            }
+        );
+    }
+
+    #[test]
+    fn test_call() {
+        let tokens = lex("5|print_char").unwrap();
+        let expression = parse(tokens).unwrap();
+
+        assert_eq!(
+            expression,
+            Expression::AppliedTransformation {
+                initial: Box::new(Expression::Value(5)),
+                transformations: vec![Transformation {
+                    operator: Operator::Call,
+                    operand: Expression::Identifier("print_char".to_string()),
+                }],
             }
         );
     }

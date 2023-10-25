@@ -2,10 +2,11 @@ use crate::AnyError;
 use std::iter::Peekable;
 use std::str::Bytes;
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Token {
     Number(i64),
-    Operator { operator: Operator },
+    Operator(Operator),
+    Identifier(String),
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -13,14 +14,13 @@ pub enum Operator {
     Add,
     Substract,
     Ignore,
+    Call,
 }
 
 impl Token {
     #[allow(unused)]
     pub fn add() -> Self {
-        Token::Operator {
-            operator: Operator::Add,
-        }
+        Token::Operator(Operator::Add)
     }
 }
 
@@ -35,8 +35,11 @@ pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
             let value = consume_number(digit, &mut bytes)?;
             tokens.push(Token::Number(value));
         } else if let Some(operator) = parse_operator(letter) {
-            tokens.push(Token::Operator { operator });
+            tokens.push(Token::Operator(operator));
             bytes.next();
+        } else if let Some(letter) = parse_letter(letter) {
+            let name = consume_identifier(letter, &mut bytes)?;
+            tokens.push(Token::Identifier(name));
         } else {
             return Err(format!(
                 "unsupported expression starting with byte {} ('{}')",
@@ -49,11 +52,26 @@ pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
 }
 
 pub fn parse_digit(letter: u8) -> Option<i64> {
-    if letter >= b'0' && letter <= b'9' {
+    if is_digit(letter) {
         return Some((letter - b'0') as i64);
     } else {
         None
     }
+}
+
+fn is_digit(letter: u8) -> bool {
+    letter >= b'0' && letter <= b'9'
+}
+
+pub fn parse_letter(letter: u8) -> Option<u8> {
+    if letter >= b'a' && letter <= b'z' || letter >= b'A' && letter <= b'Z' || letter == b'_' {
+        return Some(letter);
+    } else {
+        None
+    }
+}
+pub fn parse_alphanum(letter: u8) -> Option<u8> {
+    parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
 }
 
 pub fn parse_operator(letter: u8) -> Option<Operator> {
@@ -61,6 +79,7 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
         b'+' => Some(Operator::Add),
         b'-' => Some(Operator::Substract),
         b';' => Some(Operator::Ignore),
+        b'|' => Some(Operator::Call),
         _ => None,
     }
 }
@@ -91,6 +110,23 @@ fn maybe_add_digit(mut accumulated: i64, new_digit: i64) -> Result<i64, AnyError
             Ok(accumulated + new_digit)
         }
     };
+}
+
+pub fn consume_identifier(
+    first_letter: u8,
+    iter: &mut Peekable<Bytes>,
+) -> Result<String, AnyError> {
+    let mut accumulated = vec![first_letter];
+    loop {
+        iter.next();
+        if let Some(letter) = iter.peek() {
+            if let Some(new_letter) = parse_alphanum(*letter) {
+                accumulated.push(new_letter);
+                continue;
+            }
+        }
+        return Ok(String::from_utf8(accumulated)?);
+    }
 }
 
 #[cfg(test)]
@@ -124,6 +160,20 @@ mod tests {
                 Token::Number(7),
                 Token::add(),
                 Token::Number(12),
+                Token::add(),
+                Token::Number(34)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_identifier() {
+        let tokens = lex("5asdf12+34").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Number(5),
+                Token::Identifier("asdf12".to_string()),
                 Token::add(),
                 Token::Number(34)
             ]
