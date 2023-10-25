@@ -5,27 +5,42 @@ use crate::AnyError;
 pub enum Expression {
     Nothing,
     Value(i64),
-    Operation {
-        operator: Operator,
-        operands: Expressions,
-    },
-    Operator {
-        operator: Operator,
+    // Operator {
+    //     operator: Operator,
+    // },
+    // Operation {
+    //     operator: Operator,
+    //     operands: Expressions,
+    // },
+    // Transformations {
+    //     transformations: Transformations,
+    // },
+    AppliedTransformation {
+        initial: Box<Expression>,
+        transformations: Transformations,
     },
 }
 
-pub type Expressions = Vec<Expression>;
+#[derive(PartialEq, Debug)]
+pub struct Transformation {
+    pub operator: Operator,
+    pub expression: Expression,
+}
+
+// pub type Expressions = Vec<Expression>;
+pub type Transformations = Vec<Transformation>;
 
 pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
     let mut iter = tokens.into_iter();
-    let mut top_level = if let Some(token) = iter.next() {
+    let initial = if let Some(token) = iter.next() {
         match token {
             Token::Number(n) => Expression::Value(n),
-            Token::Operator { operator } => Expression::Operator { operator },
+            _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
         }
     } else {
         return Ok(Expression::Nothing);
     };
+    let mut transformations = Vec::new();
     while let Some(token) = iter.next() {
         let operator = match token {
             Token::Operator { operator } => operator,
@@ -36,10 +51,10 @@ pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
                 Token::Number(n) => Expression::Value(n),
                 _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
             };
-            top_level = Expression::Operation {
-                operands: vec![top_level, expression],
+            transformations.push(Transformation {
                 operator,
-            }
+                expression,
+            });
         } else {
             return Err(format!(
                 "unfinished operation after operator {:?}",
@@ -47,22 +62,60 @@ pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
             ))?;
         }
     }
-    Ok(top_level)
+    if transformations.is_empty() {
+        return Ok(initial);
+    } else {
+        let top_level = Expression::AppliedTransformation {
+            initial: Box::new(initial),
+            transformations,
+        };
+        Ok(top_level)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frontend::lexer::lex;
 
     #[test]
     fn add_numbers() {
         let expression = parse(vec![Token::Number(5), Token::add(), Token::Number(7)]).unwrap();
         assert_eq!(
             expression,
-            Expression::Operation {
-                operator: Operator::Add,
-                operands: vec![Expression::Value(5), Expression::Value(7)],
+            Expression::AppliedTransformation {
+                initial: Box::new(Expression::Value(5)),
+                transformations: vec![Transformation {
+                    operator: Operator::Add,
+                    expression: Expression::Value(7)
+                }],
             }
         )
+    }
+
+    #[test]
+    fn test_add_several_numbers() {
+        let tokens = lex("5+7+12+34").unwrap();
+        let expression = parse(tokens).unwrap();
+        assert_eq!(
+            expression,
+            Expression::AppliedTransformation {
+                initial: Box::new(Expression::Value(5)),
+                transformations: vec![
+                    Transformation {
+                        operator: Operator::Add,
+                        expression: Expression::Value(7)
+                    },
+                    Transformation {
+                        operator: Operator::Add,
+                        expression: Expression::Value(12)
+                    },
+                    Transformation {
+                        operator: Operator::Add,
+                        expression: Expression::Value(34)
+                    },
+                ],
+            }
+        );
     }
 }
