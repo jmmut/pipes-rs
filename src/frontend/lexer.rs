@@ -7,6 +7,8 @@ pub enum Token {
     Number(i64),
     Operator(Operator),
     Identifier(String),
+    OpenBracket,
+    CloseBracket,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -15,6 +17,7 @@ pub enum Operator {
     Substract,
     Ignore,
     Call,
+    Get,
 }
 
 impl Token {
@@ -37,9 +40,14 @@ pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
         } else if let Some(operator) = parse_operator(letter) {
             tokens.push(Token::Operator(operator));
             bytes.next();
+        } else if let Some(token) = parse_grouping(letter) {
+            tokens.push(token);
+            bytes.next();
         } else if let Some(letter) = parse_letter(letter) {
             let name = consume_identifier(letter, &mut bytes)?;
             tokens.push(Token::Identifier(name));
+        } else if is_space(letter) {
+            bytes.next();
         } else {
             return Err(format!(
                 "unsupported expression starting with byte {} ('{}')",
@@ -63,6 +71,10 @@ fn is_digit(letter: u8) -> bool {
     letter >= b'0' && letter <= b'9'
 }
 
+fn is_space(letter: u8) -> bool {
+    [b' ', b'\n', b'\t', b'\r'].contains(&letter)
+}
+
 pub fn parse_letter(letter: u8) -> Option<u8> {
     if letter >= b'a' && letter <= b'z' || letter >= b'A' && letter <= b'Z' || letter == b'_' {
         return Some(letter);
@@ -80,6 +92,14 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
         b'-' => Some(Operator::Substract),
         b';' => Some(Operator::Ignore),
         b'|' => Some(Operator::Call),
+        b'#' => Some(Operator::Get),
+        _ => None,
+    }
+}
+pub fn parse_grouping(letter: u8) -> Option<Token> {
+    match letter {
+        b'[' => Some(Token::OpenBracket),
+        b']' => Some(Token::CloseBracket),
         _ => None,
     }
 }
@@ -176,6 +196,20 @@ mod tests {
                 Token::Identifier("asdf12".to_string()),
                 Token::add(),
                 Token::Number(34)
+            ]
+        );
+    }
+    #[test]
+    fn test_list() {
+        let tokens = lex("[5 6 7]").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::OpenBracket,
+                Token::Number(5),
+                Token::Number(6),
+                Token::Number(7),
+                Token::CloseBracket,
             ]
         );
     }

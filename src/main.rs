@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::evaluate::evaluate;
+use crate::evaluate::Runtime;
 use crate::frontend::lex_and_parse;
 
 mod evaluate;
@@ -38,7 +38,7 @@ fn interpret() -> Result<(), AnyError> {
     } else {
         println!("Expression: {:?}", expression);
     }
-    let result = evaluate(expression)?;
+    let result = Runtime::evaluate(expression)?;
     println!("{}", result);
     Ok(())
 }

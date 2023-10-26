@@ -20,6 +20,7 @@ pub enum Expression {
         initial: Box<Expression>,
         transformations: Transformations,
     },
+    StaticList(StaticList),
 }
 
 // pub type Identifier = String;
@@ -30,16 +31,21 @@ pub struct Transformation {
     pub operand: Expression,
 }
 
-// pub type Expressions = Vec<Expression>;
+#[derive(PartialEq, Debug)]
+pub struct StaticList {
+    pub elements: Expressions,
+}
+
+pub type Expressions = Vec<Expression>;
 pub type Transformations = Vec<Transformation>;
 
 pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
     let mut iter = tokens.into_iter();
+    parse_recursive(&mut iter)
+}
+pub fn parse_recursive(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
     let initial = if let Some(token) = iter.next() {
-        match token {
-            Token::Number(n) => Expression::Value(n),
-            _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
-        }
+        parse_atom(iter, token)?
     } else {
         return Ok(Expression::Nothing);
     };
@@ -50,11 +56,7 @@ pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
             _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
         };
         if let Some(token) = iter.next() {
-            let operand = match token {
-                Token::Number(n) => Expression::Value(n),
-                Token::Identifier(name) => Expression::Identifier(name),
-                _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
-            };
+            let operand = parse_atom(iter, token)?;
             transformations.push(Transformation { operator, operand });
         } else {
             return Err(format!(
@@ -72,6 +74,29 @@ pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
         };
         Ok(top_level)
     }
+}
+
+fn parse_atom(
+    iter: &mut impl Iterator<Item = Token>,
+    token: Token,
+) -> Result<Expression, AnyError> {
+    Ok(match token {
+        Token::Number(n) => Expression::Value(n),
+        Token::Identifier(name) => Expression::Identifier(name),
+        Token::OpenBracket => parse_list(iter)?,
+        _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
+    })
+}
+
+fn parse_list(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
+    let mut elements = Expressions::new();
+    while let Some(token) = iter.next() {
+        match token {
+            Token::CloseBracket => return Ok(Expression::StaticList(StaticList { elements })),
+            _ => elements.push(parse_atom(iter, token)?),
+        }
+    }
+    Err("Unclosed square bracket")?
 }
 
 #[cfg(test)]
@@ -134,6 +159,23 @@ mod tests {
                     operand: Expression::Identifier("print_char".to_string()),
                 }],
             }
+        );
+    }
+
+    #[test]
+    fn test_list() {
+        let tokens = lex("[5 6 7]").unwrap();
+        let parsed = parse(tokens);
+
+        assert_eq!(
+            parsed.unwrap(),
+            Expression::StaticList(StaticList {
+                elements: vec![
+                    Expression::Value(5),
+                    Expression::Value(6),
+                    Expression::Value(7),
+                ]
+            })
         );
     }
 }
