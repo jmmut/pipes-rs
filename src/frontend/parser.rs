@@ -47,20 +47,8 @@ pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
 pub fn parse_chain(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
     let initial = parse_expression(iter)?.unwrap_or(Expression::Nothing);
     let mut transformations = Vec::new();
-    while let Some(token) = iter.next() {
-        let operator = match token {
-            Token::Operator(operator) => operator,
-            Token::CloseBrace => break,
-            _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
-        };
-        if let Some(operand) = parse_expression(iter)? {
-            transformations.push(Transformation { operator, operand });
-        } else {
-            return Err(format!(
-                "unfinished operation after operator {:?}",
-                operator
-            ))?;
-        }
+    while let Some(transformation) = parse_transformation(iter)? {
+        transformations.push(transformation);
     }
     if transformations.is_empty() {
         return Ok(initial);
@@ -71,6 +59,30 @@ pub fn parse_chain(iter: &mut impl Iterator<Item = Token>) -> Result<Expression,
         };
         Ok(top_level)
     }
+}
+
+fn parse_transformation(
+    iter: &mut impl Iterator<Item = Token>,
+) -> Result<Option<Transformation>, AnyError> {
+    let token = iter.next();
+    if token.is_none() {
+        return Ok(None);
+    }
+    let token = token.unwrap();
+    let operator = match token {
+        Token::Operator(operator) => operator,
+        Token::CloseBrace => return Ok(None),
+        _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
+    };
+    let transformation = if let Some(operand) = parse_expression(iter)? {
+        Transformation { operator, operand }
+    } else {
+        return Err(format!(
+            "unfinished operation after operator {:?}",
+            operator
+        ))?;
+    };
+    Ok(Some(transformation))
 }
 
 fn parse_expression(
