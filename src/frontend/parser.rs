@@ -103,17 +103,24 @@ fn parse_list(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyE
 mod tests {
     use super::*;
     use crate::frontend::lexer::lex;
+    use crate::frontend::parser::Expression::Identifier;
+    use Expression::{AppliedTransformation, Value};
 
     #[test]
     fn add_numbers() {
-        let expression = parse(vec![Token::Number(5), Token::add(), Token::Number(7)]).unwrap();
+        let expression = parse(vec![
+            Token::Number(5),
+            Token::Operator(Operator::Add),
+            Token::Number(7),
+        ])
+        .unwrap();
         assert_eq!(
             expression,
-            Expression::AppliedTransformation {
-                initial: Box::new(Expression::Value(5)),
+            AppliedTransformation {
+                initial: Box::new(Value(5)),
                 transformations: vec![Transformation {
                     operator: Operator::Add,
-                    operand: Expression::Value(7)
+                    operand: Value(7)
                 }],
             }
         )
@@ -125,20 +132,20 @@ mod tests {
         let expression = parse(tokens).unwrap();
         assert_eq!(
             expression,
-            Expression::AppliedTransformation {
-                initial: Box::new(Expression::Value(5)),
+            AppliedTransformation {
+                initial: Box::new(Value(5)),
                 transformations: vec![
                     Transformation {
                         operator: Operator::Add,
-                        operand: Expression::Value(7)
+                        operand: Value(7)
                     },
                     Transformation {
                         operator: Operator::Add,
-                        operand: Expression::Value(12)
+                        operand: Value(12)
                     },
                     Transformation {
                         operator: Operator::Add,
-                        operand: Expression::Value(34)
+                        operand: Value(34)
                     },
                 ],
             }
@@ -152,11 +159,11 @@ mod tests {
 
         assert_eq!(
             expression,
-            Expression::AppliedTransformation {
-                initial: Box::new(Expression::Value(5)),
+            AppliedTransformation {
+                initial: Box::new(Value(5)),
                 transformations: vec![Transformation {
                     operator: Operator::Call,
-                    operand: Expression::Identifier("print_char".to_string()),
+                    operand: Identifier("print_char".to_string()),
                 }],
             }
         );
@@ -170,11 +177,7 @@ mod tests {
         assert_eq!(
             parsed.unwrap(),
             Expression::StaticList(StaticList {
-                elements: vec![
-                    Expression::Value(5),
-                    Expression::Value(6),
-                    Expression::Value(7),
-                ]
+                elements: vec![Value(5), Value(6), Value(7),]
             })
         );
     }

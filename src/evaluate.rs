@@ -91,34 +91,35 @@ impl Runtime {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::frontend::lex_and_parse;
 
+    fn interpret(code_text: &str) -> GenericValue {
+        let expression = lex_and_parse(code_text).unwrap();
+        let result = Runtime::evaluate(expression);
+        result.unwrap()
+    }
+
     #[test]
     fn test_addition() {
-        let expression = lex_and_parse("23+5+1000").unwrap();
-        let result = Runtime::evaluate(expression);
-        assert_eq!(result.unwrap(), 1028);
+        assert_eq!(interpret("22 + 5 + 1000"), 1027);
     }
 
     #[test]
     fn test_substraction() {
-        let expression = lex_and_parse("23-5+1000-10").unwrap();
-        let result = Runtime::evaluate(expression);
-        assert_eq!(result.unwrap(), 1008);
+        assert_eq!(interpret("22 - 5 + 1000 - 10"), 1007);
     }
+
     #[test]
     fn test_ignore() {
-        let expression = lex_and_parse("23+5;1000").unwrap();
-        let result = Runtime::evaluate(expression);
-        assert_eq!(result.unwrap(), 1000);
+        assert_eq!(interpret("22 + 5 ; 1000"), 1000);
     }
+
     #[test]
     fn test_get_element() {
-        let expression = lex_and_parse("[5 6 7] #1").unwrap();
-        let result = Runtime::evaluate(expression);
-        assert_eq!(result.unwrap(), 6);
+        assert_eq!(interpret("[5 6 7] #1"), 6);
     }
 }

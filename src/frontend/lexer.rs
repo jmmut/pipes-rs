@@ -152,6 +152,8 @@ pub fn consume_identifier(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frontend::lexer::Operator::Add;
+    use Token::{CloseBracket, Identifier, Number, OpenBracket, Operator};
 
     #[test]
     fn test_overflow_positive() {
@@ -160,57 +162,46 @@ mod tests {
 
     #[test]
     fn test_several_digits() {
-        let tokens = lex("57").unwrap();
-        assert_eq!(tokens, vec![Token::Number(57)])
+        assert_eq!(lex("57").unwrap(), vec![Number(57)])
     }
     #[test]
     fn test_operator() {
-        let tokens = lex("+").unwrap();
-        assert_eq!(tokens, vec![Token::add()])
+        assert_eq!(lex("+").unwrap(), vec![Operator(Add)])
     }
 
     #[test]
     fn test_adding_numbers() {
-        let tokens = lex("5+7+12+34").unwrap();
         assert_eq!(
-            tokens,
+            lex("5+7+12+34").unwrap(),
             vec![
-                Token::Number(5),
-                Token::add(),
-                Token::Number(7),
-                Token::add(),
-                Token::Number(12),
-                Token::add(),
-                Token::Number(34)
+                Number(5),
+                Operator(Add),
+                Number(7),
+                Operator(Add),
+                Number(12),
+                Operator(Add),
+                Number(34)
             ]
         );
     }
 
     #[test]
     fn test_identifier() {
-        let tokens = lex("5asdf12+34").unwrap();
         assert_eq!(
-            tokens,
+            lex("5asdf12+34").unwrap(),
             vec![
-                Token::Number(5),
-                Token::Identifier("asdf12".to_string()),
-                Token::add(),
-                Token::Number(34)
+                Number(5),
+                Identifier("asdf12".to_string()),
+                Operator(Add),
+                Number(34)
             ]
         );
     }
     #[test]
     fn test_list() {
-        let tokens = lex("[5 6 7]").unwrap();
         assert_eq!(
-            tokens,
-            vec![
-                Token::OpenBracket,
-                Token::Number(5),
-                Token::Number(6),
-                Token::Number(7),
-                Token::CloseBracket,
-            ]
+            lex("[5 6 7]").unwrap(),
+            vec![OpenBracket, Number(5), Number(6), Number(7), CloseBracket,]
         );
     }
 }
