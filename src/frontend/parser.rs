@@ -1,3 +1,4 @@
+use crate::common::context;
 use crate::frontend::lexer::{Operator, Token, Tokens};
 use crate::AnyError;
 
@@ -16,7 +17,7 @@ pub enum Expression {
     // Transformations {
     //     transformations: Transformations,
     // },
-    AppliedTransformation {
+    Chain {
         initial: Box<Expression>,
         transformations: Transformations,
     },
@@ -41,11 +42,11 @@ pub type Transformations = Vec<Transformation>;
 
 pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
     let mut iter = tokens.into_iter();
-    parse_recursive(&mut iter)
+    context("Parser", parse_chain(&mut iter))
 }
-pub fn parse_recursive(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
+pub fn parse_chain(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
     let initial = if let Some(token) = iter.next() {
-        parse_atom(iter, token)?
+        parse_expression(iter, token)?
     } else {
         return Ok(Expression::Nothing);
     };
@@ -53,10 +54,11 @@ pub fn parse_recursive(iter: &mut impl Iterator<Item = Token>) -> Result<Express
     while let Some(token) = iter.next() {
         let operator = match token {
             Token::Operator(operator) => operator,
+            Token::CloseBrace => break,
             _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
         };
         if let Some(token) = iter.next() {
-            let operand = parse_atom(iter, token)?;
+            let operand = parse_expression(iter, token)?;
             transformations.push(Transformation { operator, operand });
         } else {
             return Err(format!(
@@ -68,7 +70,7 @@ pub fn parse_recursive(iter: &mut impl Iterator<Item = Token>) -> Result<Express
     if transformations.is_empty() {
         return Ok(initial);
     } else {
-        let top_level = Expression::AppliedTransformation {
+        let top_level = Expression::Chain {
             initial: Box::new(initial),
             transformations,
         };
@@ -76,7 +78,7 @@ pub fn parse_recursive(iter: &mut impl Iterator<Item = Token>) -> Result<Express
     }
 }
 
-fn parse_atom(
+fn parse_expression(
     iter: &mut impl Iterator<Item = Token>,
     token: Token,
 ) -> Result<Expression, AnyError> {
@@ -84,6 +86,7 @@ fn parse_atom(
         Token::Number(n) => Expression::Value(n),
         Token::Identifier(name) => Expression::Identifier(name),
         Token::OpenBracket => parse_list(iter)?,
+        Token::OpenBrace => parse_chain(iter)?,
         _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
     })
 }
@@ -93,7 +96,7 @@ fn parse_list(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyE
     while let Some(token) = iter.next() {
         match token {
             Token::CloseBracket => return Ok(Expression::StaticList(StaticList { elements })),
-            _ => elements.push(parse_atom(iter, token)?),
+            _ => elements.push(parse_expression(iter, token)?),
         }
     }
     Err("Unclosed square bracket")?
@@ -104,7 +107,7 @@ mod tests {
     use super::*;
     use crate::frontend::lexer::lex;
     use crate::frontend::parser::Expression::Identifier;
-    use Expression::{AppliedTransformation, Value};
+    use Expression::{Chain, Value};
 
     #[test]
     fn add_numbers() {
@@ -116,7 +119,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             expression,
-            AppliedTransformation {
+            Chain {
                 initial: Box::new(Value(5)),
                 transformations: vec![Transformation {
                     operator: Operator::Add,
@@ -132,7 +135,7 @@ mod tests {
         let expression = parse(tokens).unwrap();
         assert_eq!(
             expression,
-            AppliedTransformation {
+            Chain {
                 initial: Box::new(Value(5)),
                 transformations: vec![
                     Transformation {
@@ -159,7 +162,7 @@ mod tests {
 
         assert_eq!(
             expression,
-            AppliedTransformation {
+            Chain {
                 initial: Box::new(Value(5)),
                 transformations: vec![Transformation {
                     operator: Operator::Call,

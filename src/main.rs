@@ -1,12 +1,12 @@
+use crate::common::AnyError;
 use clap::Parser;
 
 use crate::evaluate::Runtime;
 use crate::frontend::lex_and_parse;
 
+mod common;
 mod evaluate;
 mod frontend;
-
-pub type AnyError = Box<dyn std::error::Error>;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

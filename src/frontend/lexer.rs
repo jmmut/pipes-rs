@@ -1,3 +1,4 @@
+use crate::common::context;
 use crate::AnyError;
 use std::iter::Peekable;
 use std::str::Bytes;
@@ -9,6 +10,8 @@ pub enum Token {
     Identifier(String),
     OpenBracket,
     CloseBracket,
+    OpenBrace,
+    CloseBrace,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -30,6 +33,9 @@ impl Token {
 pub type Tokens = Vec<Token>;
 
 pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
+    context("Lexer", try_lex(code_text))
+}
+fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
     let mut tokens = Tokens::new();
     let mut bytes = code_text.as_ref().bytes().peekable();
     while let Some(letter) = bytes.peek() {
@@ -100,6 +106,8 @@ pub fn parse_grouping(letter: u8) -> Option<Token> {
     match letter {
         b'[' => Some(Token::OpenBracket),
         b']' => Some(Token::CloseBracket),
+        b'{' => Some(Token::OpenBrace),
+        b'}' => Some(Token::CloseBrace),
         _ => None,
     }
 }

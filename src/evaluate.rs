@@ -1,3 +1,4 @@
+use crate::common::context;
 use crate::frontend::lexer::Operator;
 use crate::frontend::parser::{Expression, StaticList, Transformation, Transformations};
 use crate::AnyError;
@@ -15,13 +16,13 @@ impl Runtime {
         let mut runtime = Runtime {
             lists: HashMap::new(),
         };
-        runtime.evaluate_recursive(expression)
+        context("Runtime", runtime.evaluate_recursive(expression))
     }
 
     fn evaluate_recursive(&mut self, expression: Expression) -> Result<GenericValue, AnyError> {
         match expression {
             Expression::Value(n) => Ok(n),
-            Expression::AppliedTransformation {
+            Expression::Chain {
                 initial,
                 transformations,
             } => self.evaluate_applied_transformation(initial, transformations),
@@ -121,5 +122,9 @@ mod tests {
     #[test]
     fn test_get_element() {
         assert_eq!(interpret("[5 6 7] #1"), 6);
+    }
+    #[test]
+    fn test_nested_array_operations() {
+        assert_eq!(interpret("[{5 - 6} 7] #0"), -1);
     }
 }
