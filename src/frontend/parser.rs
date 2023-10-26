@@ -41,83 +41,98 @@ pub type Expressions = Vec<Expression>;
 pub type Transformations = Vec<Transformation>;
 
 pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
-    let mut iter = tokens.into_iter();
-    context("Parser", parse_chain(&mut iter))
+    let mut parser = Parser::new(tokens.into_iter());
+    context("Parser", parser.parse_chain())
 }
-pub fn parse_chain(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
-    let initial = parse_expression(iter)?.unwrap_or(Expression::Nothing);
-    let mut transformations = Vec::new();
-    while let Some(transformation) = parse_transformation(iter)? {
-        transformations.push(transformation);
-    }
-    if transformations.is_empty() {
-        return Ok(initial);
-    } else {
-        let top_level = Expression::Chain {
-            initial: Box::new(initial),
-            transformations,
-        };
-        Ok(top_level)
-    }
+struct Parser<I: Iterator<Item = Token>> {
+    iter: I,
+    brace_nesting: i64,
 }
 
-fn parse_transformation(
-    iter: &mut impl Iterator<Item = Token>,
-) -> Result<Option<Transformation>, AnyError> {
-    let token = iter.next();
-    if token.is_none() {
-        return Ok(None);
-    }
-    let token = token.unwrap();
-    let operator = match token {
-        Token::Operator(operator) => operator,
-        Token::CloseBrace => return Ok(None),
-        _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
-    };
-    let transformation = if let Some(operand) = parse_expression(iter)? {
-        Transformation { operator, operand }
-    } else {
-        return Err(format!(
-            "unfinished operation after operator {:?}",
-            operator
-        ))?;
-    };
-    Ok(Some(transformation))
-}
-
-fn parse_expression(
-    iter: &mut impl Iterator<Item = Token>,
-) -> Result<Option<Expression>, AnyError> {
-    if let Some(token) = iter.next() {
-        Ok(Some(parse_expression_from_token(token, iter)?))
-    } else {
-        Ok(None)
-    }
-}
-
-fn parse_expression_from_token(
-    token: Token,
-    iter: &mut impl Iterator<Item = Token>,
-) -> Result<Expression, AnyError> {
-    let expression = match token {
-        Token::Number(n) => Expression::Value(n),
-        Token::Identifier(name) => Expression::Identifier(name),
-        Token::OpenBracket => parse_list(iter)?,
-        Token::OpenBrace => parse_chain(iter)?,
-        _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
-    };
-    Ok(expression)
-}
-
-fn parse_list(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
-    let mut elements = Expressions::new();
-    while let Some(token) = iter.next() {
-        match token {
-            Token::CloseBracket => return Ok(Expression::StaticList(StaticList { elements })),
-            _ => elements.push(parse_expression_from_token(token, iter)?),
+impl<I: Iterator<Item = Token>> Parser<I> {
+    pub fn new(iter: I) -> Self {
+        Self {
+            iter,
+            brace_nesting: 0,
         }
     }
-    Err("Unclosed square bracket")?
+    pub fn parse_chain(&mut self) -> Result<Expression, AnyError> {
+        let initial = self.parse_expression()?.unwrap_or(Expression::Nothing);
+        let mut transformations = Vec::new();
+        while let Some(transformation) = self.parse_transformation()? {
+            transformations.push(transformation);
+        }
+        if transformations.is_empty() {
+            return Ok(initial);
+        } else {
+            let top_level = Expression::Chain {
+                initial: Box::new(initial),
+                transformations,
+            };
+            Ok(top_level)
+        }
+    }
+
+    fn parse_transformation(&mut self) -> Result<Option<Transformation>, AnyError> {
+        let token = self.iter.next();
+        if token.is_none() {
+            return Ok(None);
+        }
+        let token = token.unwrap();
+        let operator = match token {
+            Token::Operator(operator) => operator,
+            Token::CloseBrace => {
+                return if self.brace_nesting > 0 {
+                    Ok(None)
+                } else {
+                    Err(format!("unmatched {:?}, expected operator", token))?
+                }
+            }
+            _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
+        };
+        let transformation = if let Some(operand) = self.parse_expression()? {
+            Transformation { operator, operand }
+        } else {
+            return Err(format!(
+                "unfinished operation after operator {:?}",
+                operator
+            ))?;
+        };
+        Ok(Some(transformation))
+    }
+
+    fn parse_expression(&mut self) -> Result<Option<Expression>, AnyError> {
+        if let Some(token) = self.iter.next() {
+            Ok(Some(self.parse_expression_from_token(token)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_expression_from_token(&mut self, token: Token) -> Result<Expression, AnyError> {
+        let expression = match token {
+            Token::Number(n) => Expression::Value(n),
+            Token::Identifier(name) => Expression::Identifier(name),
+            Token::OpenBracket => self.parse_list()?,
+            Token::OpenBrace => {
+                self.brace_nesting += 1;
+                self.parse_chain()?
+            }
+            _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
+        };
+        Ok(expression)
+    }
+
+    fn parse_list(&mut self) -> Result<Expression, AnyError> {
+        let mut elements = Expressions::new();
+        while let Some(token) = self.iter.next() {
+            match token {
+                Token::CloseBracket => return Ok(Expression::StaticList(StaticList { elements })),
+                _ => elements.push(self.parse_expression_from_token(token)?),
+            }
+        }
+        Err("Unclosed square bracket")?
+    }
 }
 
 #[cfg(test)]
@@ -177,7 +192,6 @@ mod tests {
     fn test_call() {
         let tokens = lex("5|print_char").unwrap();
         let expression = parse(tokens).unwrap();
-
         assert_eq!(
             expression,
             Chain {
@@ -194,7 +208,6 @@ mod tests {
     fn test_list() {
         let tokens = lex("[5 6 7]").unwrap();
         let parsed = parse(tokens);
-
         assert_eq!(
             parsed.unwrap(),
             Expression::StaticList(StaticList {

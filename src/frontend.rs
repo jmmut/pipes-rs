@@ -27,4 +27,9 @@ mod tests {
         let expression = lex_and_parse("57").unwrap();
         assert_eq!(expression, Expression::Value(57))
     }
+
+    #[test]
+    fn test_extra_brace() {
+        lex_and_parse("5 }").expect_err("should fail");
+    }
 }
