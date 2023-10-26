@@ -67,10 +67,10 @@ impl Runtime {
             Expression::Value(index) => Ok(*self
                 .lists
                 .get(&list_pointer)
-                .ok_or("")?
+                .ok_or("Tried to access elements of something that is not a valid array")?
                 .get(index as usize)
-                .ok_or("")?),
-            _ => Err("")?,
+                .ok_or("Index out of bounds")?),
+            _ => Err("Index should be an integer")?,
         }
     }
 
