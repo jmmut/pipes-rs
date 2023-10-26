@@ -45,11 +45,7 @@ pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
     context("Parser", parse_chain(&mut iter))
 }
 pub fn parse_chain(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
-    let initial = if let Some(token) = iter.next() {
-        parse_expression(iter, token)?
-    } else {
-        return Ok(Expression::Nothing);
-    };
+    let initial = parse_expression(iter)?.unwrap_or(Expression::Nothing);
     let mut transformations = Vec::new();
     while let Some(token) = iter.next() {
         let operator = match token {
@@ -57,8 +53,7 @@ pub fn parse_chain(iter: &mut impl Iterator<Item = Token>) -> Result<Expression,
             Token::CloseBrace => break,
             _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
         };
-        if let Some(token) = iter.next() {
-            let operand = parse_expression(iter, token)?;
+        if let Some(operand) = parse_expression(iter)? {
             transformations.push(Transformation { operator, operand });
         } else {
             return Err(format!(
@@ -80,15 +75,26 @@ pub fn parse_chain(iter: &mut impl Iterator<Item = Token>) -> Result<Expression,
 
 fn parse_expression(
     iter: &mut impl Iterator<Item = Token>,
+) -> Result<Option<Expression>, AnyError> {
+    if let Some(token) = iter.next() {
+        Ok(Some(parse_expression_from_token(token, iter)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_expression_from_token(
     token: Token,
+    iter: &mut impl Iterator<Item = Token>,
 ) -> Result<Expression, AnyError> {
-    Ok(match token {
+    let expression = match token {
         Token::Number(n) => Expression::Value(n),
         Token::Identifier(name) => Expression::Identifier(name),
         Token::OpenBracket => parse_list(iter)?,
         Token::OpenBrace => parse_chain(iter)?,
         _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
-    })
+    };
+    Ok(expression)
 }
 
 fn parse_list(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyError> {
@@ -96,7 +102,7 @@ fn parse_list(iter: &mut impl Iterator<Item = Token>) -> Result<Expression, AnyE
     while let Some(token) = iter.next() {
         match token {
             Token::CloseBracket => return Ok(Expression::StaticList(StaticList { elements })),
-            _ => elements.push(parse_expression(iter, token)?),
+            _ => elements.push(parse_expression_from_token(token, iter)?),
         }
     }
     Err("Unclosed square bracket")?
