@@ -11,6 +11,7 @@ pub struct Runtime {
     lists: HashMap<ListPointer, Vec<GenericValue>>,
 }
 
+#[allow(unused)]
 fn unimplemented<T>() -> Result<T, AnyError> {
     Err("unimplemented".into())
 }
