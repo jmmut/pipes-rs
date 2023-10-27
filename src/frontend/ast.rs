@@ -9,7 +9,7 @@ pub struct Ast;
 enum VirtualToken {
     StartArray,
     Actual(Token),
-    // Operator(Operator),
+    Operator(Operator),
     Expression(Expression),
     Transformation(Transformation),
 }
@@ -23,23 +23,20 @@ impl Ast {
                 Token::Number(n) => {
                     accumulated.push(VirtualToken::Expression(Expression::Value(n)))
                 }
-                Token::Operator(operator) => {
-                    accumulated.push(VirtualToken::Actual(Token::Operator(operator)))
-                }
-                Token::Identifier(ident) => match &ident.as_str() {
-                    &"Chain" => {
-                        Self::construct_chain(&mut accumulated);
+                Token::Operator(operator) => accumulated.push(VirtualToken::Operator(operator)),
+                Token::Identifier(ident) => {
+                    if ident == "Chain" {
+                        Self::construct_chain(&mut accumulated)?;
+                    } else {
+                        accumulated.push(VirtualToken::Expression(Expression::Identifier(ident)));
                     }
-                    &identifier => accumulated.push(VirtualToken::Expression(
-                        Expression::Identifier(identifier.to_string()),
-                    )),
-                },
+                }
                 Token::OpenBracket => accumulated.push(VirtualToken::StartArray),
                 Token::CloseBracket => {
-                    Self::construct_array(&mut accumulated);
+                    Self::construct_array(&mut accumulated)?;
                 }
                 Token::CloseBrace => {
-                    Self::construct_chain(&mut accumulated);
+                    Self::construct_chain(&mut accumulated)?;
                 }
                 Token::Comma => {
                     Self::construct_transformation(&mut accumulated)?;
@@ -60,51 +57,50 @@ impl Ast {
         }
     }
 
-    fn construct_chain(accumulated: &mut Vec<VirtualToken>) {
+    fn construct_chain(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
         let mut transformations = VecDeque::new();
-        loop {
-            match accumulated.pop() {
-                Some(VirtualToken::Transformation(t)) => {
-                    transformations.push_front(t);
-                }
-                Some(VirtualToken::Expression(initial)) => {
-                    accumulated.push(VirtualToken::Expression(Expression::Chain {
-                        initial: Box::new(initial),
-                        transformations: transformations.into_iter().collect::<Vec<_>>(),
-                    }));
-                    return;
-                }
-                _ => unreachable!(),
-            }
+        let mut elem = accumulated.pop();
+        while let Some(VirtualToken::Transformation(t)) = elem {
+            transformations.push_front(t);
+            elem = accumulated.pop()
+        }
+        if let Some(VirtualToken::Expression(initial)) = elem {
+            accumulated.push(VirtualToken::Expression(Expression::Chain {
+                initial: Box::new(initial),
+                transformations: transformations.into_iter().collect::<Vec<_>>(),
+            }));
+            Ok(())
+        } else {
+            Err("expected initial expression")?
         }
     }
 
-    fn construct_array(accumulated: &mut Vec<VirtualToken>) {
+    fn construct_array(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
         let mut expressions = VecDeque::new();
-        loop {
-            match accumulated.pop() {
-                Some(VirtualToken::Expression(e)) => {
-                    expressions.push_front(e);
-                }
-                Some(VirtualToken::StartArray) => {
-                    accumulated.push(VirtualToken::Expression(Expression::StaticList(
-                        StaticList {
-                            elements: expressions.into_iter().collect::<Vec<_>>(),
-                        },
-                    )));
-                    return;
-                }
-                _ => unreachable!(),
-            }
+        let mut elem = accumulated.pop();
+        while let Some(VirtualToken::Expression(e)) = elem {
+            expressions.push_front(e);
+            elem = accumulated.pop()
+        }
+        if let Some(VirtualToken::StartArray) = elem {
+            accumulated.push(VirtualToken::Expression(Expression::StaticList(
+                StaticList {
+                    elements: expressions.into_iter().collect::<Vec<_>>(),
+                },
+            )));
+            Ok(())
+        } else {
+            Err(format!("expected {:?}", Token::OpenBracket))?
         }
     }
+
     fn construct_transformation(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
         let operand = if let Some(VirtualToken::Expression(o)) = accumulated.pop() {
             o
         } else {
             Err("expected operand")?
         };
-        let operator = if let Some(VirtualToken::Actual(Token::Operator(o))) = accumulated.pop() {
+        let operator = if let Some(VirtualToken::Operator(o)) = accumulated.pop() {
             o
         } else {
             Err("expected operator")?
@@ -152,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_complex() {
-        let ast = "[ 5 +7, | parse_char, Chain  8 ]";
+        let ast = "[ 5 +7, |parse_char, }  8 ]";
         let expected = Expression::StaticList(StaticList {
             elements: vec![
                 Chain {
