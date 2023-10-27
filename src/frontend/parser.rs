@@ -212,4 +212,14 @@ mod tests {
         let parsed = parse(tokens);
         assert_eq!(parsed.unwrap(), Ast::deserialize("[ 5 6 7 ]").unwrap());
     }
+
+    #[test]
+    fn test_precedence() {
+        let tokens = lex(" 5 - 3 - 1").unwrap();
+        let parsed = parse(tokens);
+        assert_eq!(parsed.unwrap(), Ast::deserialize("5 -3, -1,}").unwrap());
+        let tokens = lex(" 5 - {3 - 1}").unwrap();
+        let parsed = parse(tokens);
+        assert_eq!(parsed.unwrap(), Ast::deserialize("5 - 3 -1,},}").unwrap());
+    }
 }

@@ -53,7 +53,7 @@ impl Ast {
             assert_eq!(accumulated, vec![]);
             return Ok(e);
         } else {
-            panic!("incorrect AST: {:?}", accumulated);
+            panic!("incorrect remaining AST: {:?}", accumulated);
         }
     }
 
