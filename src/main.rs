@@ -2,6 +2,7 @@ use crate::common::AnyError;
 use clap::Parser;
 
 use crate::evaluate::Runtime;
+use crate::frontend::ast::Ast;
 use crate::frontend::lex_and_parse;
 
 mod common;
@@ -15,6 +16,10 @@ struct Args {
 
     #[arg(short, long)]
     prettify: bool,
+
+    /// alternative syntax, like `[ {5 +7, |print_char,} 8 ]`
+    #[arg(short, long)]
+    alternative: bool,
 }
 
 fn main() -> Result<(), AnyError> {
@@ -31,13 +36,21 @@ fn interpret() -> Result<(), AnyError> {
     let Args {
         code_string,
         prettify,
+        alternative,
     } = Args::parse();
-    let expression = lex_and_parse(code_string)?;
+
+    let expression = if alternative {
+        Ast::deserialize(&code_string)?
+    } else {
+        lex_and_parse(code_string)?
+    };
+
     if prettify {
         println!("Expression: {:#?}", expression);
     } else {
         println!("Expression: {:?}", expression);
     }
+
     let result = Runtime::evaluate(expression)?;
     println!("{}", result);
     Ok(())

@@ -31,48 +31,32 @@ impl Ast {
                 Token::Identifier(ident) => {
                     accumulated.push(VirtualToken::Expression(Expression::Identifier(ident)));
                 }
-                Token::Comma => {
-                    Self::construct_transformation(&mut accumulated)?;
-                }
+                Token::Comma => Self::construct_transformation(&mut accumulated)?,
                 Token::OpenBrace => accumulated.push(VirtualToken::StartChain),
-                Token::CloseBrace => {
-                    Self::construct_chain(&mut accumulated)?;
-                }
+                Token::CloseBrace => Self::construct_chain(&mut accumulated)?,
                 Token::OpenBracket => accumulated.push(VirtualToken::StartArray),
-                Token::CloseBracket => {
-                    Self::construct_array(&mut accumulated)?;
-                }
+                Token::CloseBracket => Self::construct_array(&mut accumulated)?,
             };
         }
-        if let Some(VirtualToken::Expression(e)) = accumulated.pop() {
-            assert_eq!(
-                accumulated,
-                Vec::new(),
-                "incorrect remaining AST: {:?}",
-                accumulated
-            );
-            return Ok(e);
-        } else {
-            panic!("incorrect remaining AST: {:?}", accumulated);
-        }
+        Self::finish_construction(&mut accumulated)
     }
 
     fn construct_transformation(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
-        let operand = if let Some(VirtualToken::Expression(o)) = accumulated.pop() {
-            o
+        let elem = accumulated.pop();
+        if let Some(VirtualToken::Expression(operand)) = elem {
+            let elem = accumulated.pop();
+            if let Some(VirtualToken::Operator(operator)) = elem {
+                accumulated.push(VirtualToken::Transformation(Transformation {
+                    operator,
+                    operand,
+                }));
+                Ok(())
+            } else {
+                Err(format!("expected operator, but was '{:?}'", elem).into())
+            }
         } else {
-            Err("expected operand")?
-        };
-        let operator = if let Some(VirtualToken::Operator(o)) = accumulated.pop() {
-            o
-        } else {
-            Err("expected operator")?
-        };
-        accumulated.push(VirtualToken::Transformation(Transformation {
-            operator,
-            operand,
-        }));
-        Ok(())
+            Err(format!("expected operand, but was '{:?}'", elem).into())
+        }
     }
 
     fn construct_chain(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
@@ -83,7 +67,7 @@ impl Ast {
             elem = accumulated.pop()
         }
         if let Some(VirtualToken::Expression(initial)) = elem {
-            elem = accumulated.pop();
+            let elem = accumulated.pop();
             if let Some(VirtualToken::StartChain) = elem {
                 accumulated.push(VirtualToken::Expression(Expression::Chain {
                     initial: Box::new(initial),
@@ -91,11 +75,11 @@ impl Ast {
                 }));
                 Ok(())
             } else {
-                Err(format!("expected chain start '{:?}'", Token::OpenBrace))?
+                Err(format!("expected chain start, but was '{:?}'", elem).into())
             }
         } else {
             // TODO: construct transform
-            Err("expected initial expression")?
+            Err(format!("expected initial expression, but was '{:?}'", elem).into())
         }
     }
 
@@ -114,7 +98,23 @@ impl Ast {
             )));
             Ok(())
         } else {
-            Err(format!("expected {:?}", Token::OpenBracket))?
+            Err(format!("expected array start, but was {:?}", elem))?
+        }
+    }
+
+    fn finish_construction(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
+        if let Some(VirtualToken::Expression(e)) = accumulated.pop() {
+            assert_eq!(
+                *accumulated,
+                Vec::new(),
+                "incorrect remaining AST: {:?}",
+                accumulated
+            );
+
+            return Ok(e);
+            // Ok(Expression::Nothing)
+        } else {
+            Err(format!("incorrect remaining AST: {:?}", accumulated).into())
         }
     }
 }
