@@ -48,7 +48,6 @@ impl Runtime {
                 Operator::Ignore => accumulated = self.evaluate_recursive(operand)?,
                 Operator::Call => accumulated = self.call_intrinsic(accumulated, operand)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
-                Operator::Comma => return unimplemented(),
             }
         }
         Ok(accumulated)

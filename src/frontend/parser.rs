@@ -167,6 +167,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frontend::ast::Ast;
     use crate::frontend::lexer::lex;
     use crate::frontend::parser::Expression::Identifier;
     use Expression::{Chain, Value};
@@ -215,6 +216,11 @@ mod tests {
                 ],
             }
         );
+        assert_eq!(
+            expression,
+            // Ast::deserialize("5 7 + 12 + 34 + Chain").unwrap()
+            Ast::deserialize("5 +7, +12, +34,}").unwrap()
+        )
     }
 
     #[test]
