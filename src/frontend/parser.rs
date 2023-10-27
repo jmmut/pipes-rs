@@ -196,58 +196,20 @@ mod tests {
     fn test_add_several_numbers() {
         let tokens = lex("5+7+12+34").unwrap();
         let expression = parse(tokens).unwrap();
-        assert_eq!(
-            expression,
-            Chain {
-                initial: Box::new(Value(5)),
-                transformations: vec![
-                    Transformation {
-                        operator: Operator::Add,
-                        operand: Value(7)
-                    },
-                    Transformation {
-                        operator: Operator::Add,
-                        operand: Value(12)
-                    },
-                    Transformation {
-                        operator: Operator::Add,
-                        operand: Value(34)
-                    },
-                ],
-            }
-        );
-        assert_eq!(
-            expression,
-            // Ast::deserialize("5 7 + 12 + 34 + Chain").unwrap()
-            Ast::deserialize("5 +7, +12, +34,}").unwrap()
-        )
+        assert_eq!(expression, Ast::deserialize("5 +7, +12, +34,}").unwrap())
     }
 
     #[test]
     fn test_call() {
         let tokens = lex("5|print_char").unwrap();
         let expression = parse(tokens).unwrap();
-        assert_eq!(
-            expression,
-            Chain {
-                initial: Box::new(Value(5)),
-                transformations: vec![Transformation {
-                    operator: Operator::Call,
-                    operand: Identifier("print_char".to_string()),
-                }],
-            }
-        );
+        assert_eq!(expression, Ast::deserialize("5 |print_char,}").unwrap());
     }
 
     #[test]
     fn test_list() {
         let tokens = lex("[5 6 7]").unwrap();
         let parsed = parse(tokens);
-        assert_eq!(
-            parsed.unwrap(),
-            Expression::StaticList(StaticList {
-                elements: vec![Value(5), Value(6), Value(7),]
-            })
-        );
+        assert_eq!(parsed.unwrap(), Ast::deserialize("[ 5 6 7 ]").unwrap());
     }
 }
