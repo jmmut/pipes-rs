@@ -11,6 +11,10 @@ pub struct Runtime {
     lists: HashMap<ListPointer, Vec<GenericValue>>,
 }
 
+fn unimplemented<T>() -> Result<T, AnyError> {
+    Err("unimplemented".into())
+}
+
 impl Runtime {
     pub fn evaluate(expression: Expression) -> Result<GenericValue, AnyError> {
         let mut runtime = Runtime {
@@ -44,6 +48,7 @@ impl Runtime {
                 Operator::Ignore => accumulated = self.evaluate_recursive(operand)?,
                 Operator::Call => accumulated = self.call_intrinsic(accumulated, operand)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
+                Operator::Comma => return unimplemented(),
             }
         }
         Ok(accumulated)
@@ -70,8 +75,8 @@ impl Runtime {
                 .get(&list_pointer)
                 .ok_or("Tried to access elements of something that is not a valid array")?
                 .get(index as usize)
-                .ok_or("Index out of bounds")?),
-            _ => Err("Index should be an integer")?,
+                .ok_or("Index out of bounds")?), // TODO: add info
+            _ => Err("Index should be an integer")?, // TODO: add info
         }
     }
 

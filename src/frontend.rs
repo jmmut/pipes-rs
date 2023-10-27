@@ -2,6 +2,7 @@ use crate::frontend::lexer::lex;
 use crate::frontend::parser::{parse, Expression};
 use crate::AnyError;
 
+pub mod ast;
 pub mod lexer;
 pub mod parser;
 
