@@ -21,6 +21,16 @@ mod tests {
         let expression = lex_and_parse("").unwrap();
         assert_eq!(expression, Expression::Nothing)
     }
+    #[test]
+    fn test_nothing_braces() {
+        let expression = lex_and_parse("{}").unwrap();
+        assert_eq!(expression, Expression::Nothing);
+        lex_and_parse("[{}]").expect("should parse (maybe doesn't evaluate)");
+        lex_and_parse("[5 {}]").expect("should parse (maybe doesn't evaluate)");
+        lex_and_parse("{[]}").expect("should parse (maybe doesn't evaluate)");
+        lex_and_parse("{[5]}").expect("should parse (maybe doesn't evaluate)");
+        lex_and_parse("[]#{}").expect("should parse (maybe doesn't evaluate)");
+    }
 
     #[test]
     fn test_value() {

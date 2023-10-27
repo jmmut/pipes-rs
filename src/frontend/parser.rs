@@ -57,7 +57,16 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
     }
     pub fn parse_chain(&mut self) -> Result<Expression, AnyError> {
+        let nesting = self.brace_nesting;
         let initial = self.parse_expression()?.unwrap_or(Expression::Nothing);
+        if self.brace_nesting == nesting - 1 {
+            Ok(initial)
+        } else {
+            self.complete_chain(initial)
+        }
+    }
+
+    fn complete_chain(&mut self, initial: Expression) -> Result<Expression, AnyError> {
         let mut transformations = Vec::new();
         while let Some(transformation) = self.parse_transformation()? {
             transformations.push(transformation);
@@ -77,7 +86,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         if let Some(token) = self.iter.next() {
             match token {
                 Token::Operator(operator) => self.complete_transformation(operator),
-                Token::CloseBrace => self.finish_chain(&token),
+                Token::CloseBrace => self.balance_chain_braces(&token),
                 _ => Err(format!("unexpected token {:?}, expected operator", token))?,
             }
         } else {
@@ -100,12 +109,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
     }
 
-    fn finish_chain(&mut self, token: &Token) -> Result<Option<Transformation>, AnyError> {
+    fn balance_chain_braces<T>(&mut self, token: &Token) -> Result<Option<T>, AnyError> {
         if self.brace_nesting > 0 {
             self.brace_nesting -= 1;
             Ok(None)
         } else {
-            Err(format!("unmatched {:?}, expected operator", token))?
+            Err(format!("unmatched {:?}", token).into())
         }
     }
 
@@ -118,11 +127,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_expression_from_token(&mut self, token: Token) -> Result<Expression, AnyError> {
-        let expression = match token {
+        let expression = match token.clone() {
             Token::Number(n) => Expression::Value(n),
             Token::Identifier(name) => Expression::Identifier(name),
             Token::OpenBracket => self.parse_list()?,
             Token::OpenBrace => self.parse_braced_chain()?,
+            Token::CloseBrace => {
+                self.balance_chain_braces::<()>(&token)?;
+                Expression::Nothing
+            }
             _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
         };
         Ok(expression)
