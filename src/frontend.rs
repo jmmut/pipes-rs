@@ -30,6 +30,15 @@ mod tests {
 
     #[test]
     fn test_extra_brace() {
-        lex_and_parse("5 }").expect_err("should fail");
+        lex_and_parse("5}").expect_err("should fail");
+        lex_and_parse("{5}}").expect_err("should fail");
+        lex_and_parse("{5").expect_err("should fail");
+        lex_and_parse("{{5}").expect_err("should fail");
+    }
+    #[test]
+    fn test_correct_braces() {
+        lex_and_parse("5").expect("should work");
+        lex_and_parse("{5}").expect("should work");
+        lex_and_parse("{{5}}").expect("should work");
     }
 }

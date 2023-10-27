@@ -63,7 +63,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             transformations.push(transformation);
         }
         if transformations.is_empty() {
-            return Ok(initial);
+            Ok(initial)
         } else {
             let top_level = Expression::Chain {
                 initial: Box::new(initial),
@@ -74,31 +74,39 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_transformation(&mut self) -> Result<Option<Transformation>, AnyError> {
-        let token = self.iter.next();
-        if token.is_none() {
-            return Ok(None);
-        }
-        let token = token.unwrap();
-        let operator = match token {
-            Token::Operator(operator) => operator,
-            Token::CloseBrace => {
-                return if self.brace_nesting > 0 {
-                    Ok(None)
-                } else {
-                    Err(format!("unmatched {:?}, expected operator", token))?
-                }
+        if let Some(token) = self.iter.next() {
+            match token {
+                Token::Operator(operator) => self.complete_transformation(operator),
+                Token::CloseBrace => self.finish_chain(&token),
+                _ => Err(format!("unexpected token {:?}, expected operator", token))?,
             }
-            _ => return Err(format!("unexpected token {:?}, expected operator", token))?,
-        };
-        let transformation = if let Some(operand) = self.parse_expression()? {
-            Transformation { operator, operand }
         } else {
-            return Err(format!(
+            Ok(None)
+        }
+    }
+
+    fn complete_transformation(
+        &mut self,
+        operator: Operator,
+    ) -> Result<Option<Transformation>, AnyError> {
+        if let Some(operand) = self.parse_expression()? {
+            let transformation = Transformation { operator, operand };
+            Ok(Some(transformation))
+        } else {
+            Err(format!(
                 "unfinished operation after operator {:?}",
                 operator
-            ))?;
-        };
-        Ok(Some(transformation))
+            ))?
+        }
+    }
+
+    fn finish_chain(&mut self, token: &Token) -> Result<Option<Transformation>, AnyError> {
+        if self.brace_nesting > 0 {
+            self.brace_nesting -= 1;
+            Ok(None)
+        } else {
+            Err(format!("unmatched {:?}, expected operator", token))?
+        }
     }
 
     fn parse_expression(&mut self) -> Result<Option<Expression>, AnyError> {
@@ -114,10 +122,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Token::Number(n) => Expression::Value(n),
             Token::Identifier(name) => Expression::Identifier(name),
             Token::OpenBracket => self.parse_list()?,
-            Token::OpenBrace => {
-                self.brace_nesting += 1;
-                self.parse_chain()?
-            }
+            Token::OpenBrace => self.parse_braced_chain()?,
             _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
         };
         Ok(expression)
@@ -132,6 +137,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
         }
         Err("Unclosed square bracket")?
+    }
+
+    fn parse_braced_chain(&mut self) -> Result<Expression, AnyError> {
+        let initial_nesting = self.brace_nesting;
+        self.brace_nesting += 1;
+        let chain = self.parse_chain()?;
+        if self.brace_nesting != initial_nesting {
+            Err("unmatched braces")?
+        } else {
+            Ok(chain)
+        }
     }
 }
 
