@@ -2,7 +2,7 @@ use crate::common::AnyError;
 use clap::Parser;
 use std::path::PathBuf;
 
-use crate::evaluate::{NOTHING, Runtime};
+use crate::evaluate::{Runtime, NOTHING};
 use crate::frontend::ast::Ast;
 use crate::frontend::lex_and_parse;
 

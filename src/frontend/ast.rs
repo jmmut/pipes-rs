@@ -146,19 +146,17 @@ impl Ast {
     }
 
     fn finish_construction(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
-        if let Some(VirtualToken::Expression(e)) = accumulated.pop() {
-            assert_eq!(
-                *accumulated,
-                Vec::new(),
-                "incorrect remaining AST: {:?}",
-                accumulated
-            );
-
-            return Ok(e);
-            // Ok(Expression::Nothing)
-        } else {
-            Err(format!("incorrect remaining AST: {:?}", accumulated).into())
+        match accumulated.pop() {
+            Some(VirtualToken::Expression(e)) => {
+                if accumulated.is_empty() {
+                    return Ok(e);
+                }
+            }
+            None => {}
+            Some(a) => accumulated.push(a),
         }
+
+        Err(format!("unfinished code:{:?}", accumulated).into())
     }
 }
 
@@ -178,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_chain() {
-        let ast = "{5 +7, +8,}";
+        let ast = "{5 +7 +8}";
         let expected = Chain {
             initial: Box::new(Value(5)),
             transformations: vec![
@@ -197,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_complex() {
-        let ast = "[ {5 +7, |parse_char,}  8 ]";
+        let ast = "[ {5 +7 |parse_char}  8 ]";
         let expected = Expression::StaticList(StaticList {
             elements: vec![
                 Chain {
@@ -217,5 +215,10 @@ mod tests {
             ],
         });
         assert_eq!(Ast::deserialize(ast).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_unfinished() {
+        Ast::deserialize("5+").expect_err("should fail");
     }
 }
