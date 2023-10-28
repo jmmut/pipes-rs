@@ -33,7 +33,8 @@ impl Ast {
                 }
                 Token::Comma => Self::construct_transformation(&mut accumulated)?,
                 Token::OpenBrace => accumulated.push(VirtualToken::StartChain),
-                Token::CloseBrace => Self::construct_chain(&mut accumulated)?,
+                // Token::CloseBrace => Self::construct_chain(&mut accumulated)?,
+                Token::CloseBrace => Self::construct_flat_chain(&mut accumulated)?,
                 Token::OpenBracket => accumulated.push(VirtualToken::StartArray),
                 Token::CloseBracket => Self::construct_array(&mut accumulated)?,
             };
@@ -80,6 +81,48 @@ impl Ast {
         } else {
             // TODO: construct transform
             Err(format!("expected initial expression, but was '{:?}'", elem).into())
+        }
+    }
+
+    fn construct_flat_chain(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
+        let mut transformations = VecDeque::new();
+
+        let mut elem_expression = accumulated.pop();
+        if let Some(VirtualToken::StartChain) = elem_expression {
+            accumulated.push(VirtualToken::Expression(Expression::Nothing));
+            Ok(())
+        } else {
+            while let Some(VirtualToken::Expression(operand)) = elem_expression {
+                let elem_operator = accumulated.pop();
+                match elem_operator {
+                    None => {
+                        return Err("unsupported non-opened chains".into());
+                        // TODO: is this a non-braced chain?
+                    }
+                    Some(VirtualToken::Operator(operator)) => {
+                        transformations.push_front(Transformation { operator, operand });
+                    }
+                    Some(VirtualToken::StartChain) => {
+                        accumulated.push(VirtualToken::Expression(Expression::Chain {
+                            initial: Box::new(operand),
+                            transformations: transformations.into_iter().collect::<Vec<_>>(),
+                        }));
+                        return Ok(());
+                    }
+                    _ => {
+                        return Err(format!(
+                            "expected operator or chain start, but was '{:?}'",
+                            elem_operator
+                        )
+                        .into())
+                    }
+                }
+                elem_expression = accumulated.pop();
+            }
+            return Err(
+                "before closing a chain there should be an expression, or an opening chain for Nothing."
+                    .into(),
+            );
         }
     }
 

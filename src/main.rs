@@ -2,7 +2,7 @@ use crate::common::AnyError;
 use clap::Parser;
 use std::path::PathBuf;
 
-use crate::evaluate::Runtime;
+use crate::evaluate::{NOTHING, Runtime};
 use crate::frontend::ast::Ast;
 use crate::frontend::lex_and_parse;
 
@@ -59,7 +59,9 @@ fn interpret() -> Result<(), AnyError> {
     }
 
     let result = Runtime::evaluate(expression)?;
-    println!("{}", result);
+    if result != NOTHING {
+        println!("{}", result);
+    }
     Ok(())
 }
 

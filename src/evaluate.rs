@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 pub type ListPointer = i64;
 pub type GenericValue = i64;
+pub const NOTHING: i64 = i64::MIN;
 
 pub struct Runtime {
     lists: HashMap<ListPointer, Vec<GenericValue>>,
@@ -31,6 +32,7 @@ impl Runtime {
                 initial,
                 transformations,
             } => self.evaluate_applied_transformation(initial, transformations),
+            Expression::Nothing => Ok(NOTHING),
             Expression::StaticList(list) => self.allocate_list(list),
             _ => Err(format!("Can't evaluate expression {:?}", expression))?,
         }
@@ -131,5 +133,9 @@ mod tests {
     #[test]
     fn test_nested_array_operations() {
         assert_eq!(interpret("[{5 - 6} 7] #0"), -1);
+    }
+    #[test]
+    fn test_evaluate_nothing() {
+        assert_eq!(interpret("{}"), NOTHING);
     }
 }
