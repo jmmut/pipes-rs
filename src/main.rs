@@ -3,8 +3,8 @@ use clap::Parser;
 use std::path::PathBuf;
 
 use crate::evaluate::{Runtime, NOTHING};
+use crate::frontend::ast::ast_deserialize;
 use crate::frontend::iterative_parser::Ast;
-use crate::frontend::lex_and_parse;
 
 mod common;
 mod evaluate;
@@ -23,9 +23,9 @@ struct Args {
     #[arg(short, long)]
     prettify: bool,
 
-    /// alternative syntax, like `[ {5 +7, |print_char,} 8 ]`
+    /// AST syntax, like `[ 5 +7 Op |print_char Op Chain 8 ]`
     #[arg(short, long)]
-    alternative: bool,
+    ast: bool,
 }
 
 fn main() -> Result<(), AnyError> {
@@ -43,13 +43,13 @@ fn interpret() -> Result<(), AnyError> {
         code_string,
         input_file,
         prettify,
-        alternative,
+        ast,
     } = Args::parse();
     let code_string = read_input(code_string, input_file)?;
-    let expression = if alternative {
-        Ast::deserialize(&code_string)?
+    let expression = if ast {
+        ast_deserialize(&code_string)?
     } else {
-        lex_and_parse(code_string)?
+        Ast::deserialize(&code_string)?
     };
 
     if prettify {

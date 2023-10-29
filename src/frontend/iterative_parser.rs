@@ -1,13 +1,13 @@
 use crate::common::AnyError;
+use crate::frontend::expression::{Expression, StaticList, Transformation};
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
-use crate::frontend::recursive_parser::{Expression, StaticList, Transformation};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
 pub struct Ast;
 
 #[derive(Debug, PartialEq)]
-enum VirtualToken {
+pub enum VirtualToken {
     StartArray,
     StartChain,
     // Actual(Token),
@@ -111,16 +111,16 @@ impl Ast {
     }
 }
 
-fn error_expected<T: Debug>(expected: &str, actual: T) -> Result<(), AnyError> {
+pub fn error_expected<T: Debug>(expected: &str, actual: T) -> Result<(), AnyError> {
     Err(format!("expected {} but was {:?}", expected, actual).into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frontend::expression::Expression::{Chain, Identifier, Value};
+    use crate::frontend::expression::{Expression, StaticList, Transformation, Transformations};
     use crate::frontend::lexer::Operator;
-    use crate::frontend::recursive_parser::Expression::{Chain, Identifier, Value};
-    use crate::frontend::recursive_parser::{Expression, StaticList, Transformation, Transformations};
 
     #[test]
     fn test_value() {
