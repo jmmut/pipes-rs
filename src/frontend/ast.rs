@@ -76,21 +76,21 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
 
 fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let mut expressions = VecDeque::new();
-    while let Some(pe) = accumulated.pop() {
-        match pe {
-            PartialExpression::OpenBracket => {
-                accumulated.push(PartialExpression::Expression(Expression::StaticList(
-                    StaticList {
-                        elements: expressions.into_iter().collect::<Vec<_>>(),
-                    },
-                )));
-                return Ok(());
-            }
-            PartialExpression::Expression(e) => expressions.push_front(e),
-            _ => return error_expected("array start or expression", pe),
-        }
+    let mut elem = accumulated.pop();
+    while let Some(PartialExpression::Expression(e)) = elem {
+        expressions.push_front(e);
+        elem = accumulated.pop()
     }
-    error_expected("array start or expression", None::<()>)
+    if let Some(PartialExpression::OpenBracket) = elem {
+        accumulated.push(PartialExpression::Expression(Expression::StaticList(
+            StaticList {
+                elements: expressions.into_iter().collect::<Vec<_>>(),
+            },
+        )));
+        Ok(())
+    } else {
+        error_expected("array start or expression", elem)
+    }
 }
 
 fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {

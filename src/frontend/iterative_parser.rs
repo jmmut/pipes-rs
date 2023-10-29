@@ -68,9 +68,6 @@ impl Parser {
             while let Some(VirtualToken::Expression(operand)) = elem_expression {
                 let elem_operator = accumulated.pop();
                 match elem_operator {
-                    None => {
-                        return Err("unbalanced brace".into());
-                    }
                     Some(VirtualToken::Operator(operator)) => {
                         transformations.push_front(Transformation { operator, operand });
                     }
@@ -79,6 +76,9 @@ impl Parser {
                             initial: Box::new(operand),
                             transformations: transformations.into_iter().collect::<Vec<_>>(),
                         })
+                    }
+                    None => {
+                        return Err("unbalanced brace".into());
                     }
                     _ => {
                         return error_expected("operator or chain start", elem_operator)?;
