@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::evaluate::{Runtime, NOTHING};
 use crate::frontend::ast::ast_deserialize;
-use crate::frontend::iterative_parser::Ast;
+use crate::frontend::lex_and_parse;
 
 mod common;
 mod evaluate;
@@ -49,7 +49,7 @@ fn interpret() -> Result<(), AnyError> {
     let expression = if ast {
         ast_deserialize(&code_string)?
     } else {
-        Ast::deserialize(&code_string)?
+        lex_and_parse(&code_string)?
     };
 
     if prettify {

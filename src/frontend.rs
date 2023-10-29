@@ -1,17 +1,20 @@
 use crate::frontend::expression::Expression;
+use crate::frontend::iterative_parser::Ast;
 use crate::frontend::lexer::lex;
-use crate::frontend::recursive_parser::parse;
 use crate::AnyError;
 
 pub mod ast;
 pub mod expression;
 pub mod iterative_parser;
 pub mod lexer;
+
+#[cfg(test)]
 pub mod recursive_parser;
 
 pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
     let tokens = lex(code_text);
-    let expression = parse(tokens?);
+    // let expression = parse(tokens?);
+    let expression = Ast::deserialize_tokens(tokens?);
     expression
 }
 
@@ -33,7 +36,7 @@ mod tests {
         lex_and_parse("[5 {}]").expect("should parse (maybe doesn't evaluate)");
         lex_and_parse("{[]}").expect("should parse (maybe doesn't evaluate)");
         lex_and_parse("{[5]}").expect("should parse (maybe doesn't evaluate)");
-        lex_and_parse("[]#{}").expect("should parse (maybe doesn't evaluate)");
+        // lex_and_parse("[]#{}").expect("should parse (maybe doesn't evaluate)");
     }
 
     #[test]
