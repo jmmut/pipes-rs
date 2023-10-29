@@ -2,6 +2,7 @@ use crate::common::AnyError;
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
 use crate::frontend::parser::{Expression, StaticList, Transformation};
 use std::collections::VecDeque;
+use std::fmt::Debug;
 
 pub struct Ast;
 
@@ -51,8 +52,7 @@ impl Ast {
                 let elem_operator = accumulated.pop();
                 match elem_operator {
                     None => {
-                        return Err("unsupported non-opened chains".into());
-                        // TODO: is this a non-braced chain?
+                        return Err("unbalanced brace".into());
                     }
                     Some(VirtualToken::Operator(operator)) => {
                         transformations.push_front(Transformation { operator, operand });
@@ -65,19 +65,15 @@ impl Ast {
                         return Ok(());
                     }
                     _ => {
-                        return Err(format!(
-                            "expected operator or chain start, but was '{:?}'",
-                            elem_operator
-                        )
-                        .into())
+                        return error_expected("operator or chain start", elem_operator);
                     }
                 }
                 elem_expression = accumulated.pop();
             }
-            return Err(
-                "before closing a chain there should be an expression, or an opening chain for Nothing."
-                    .into(),
-            );
+            error_expected(
+                "expression or an opening chain (for Nothing) before closing a chain",
+                elem_expression,
+            )
         }
     }
 
@@ -96,7 +92,7 @@ impl Ast {
             )));
             Ok(())
         } else {
-            Err(format!("expected array start, but was {:?}", elem))?
+            error_expected("array start", elem)
         }
     }
 
@@ -111,8 +107,12 @@ impl Ast {
             Some(a) => accumulated.push(a),
         }
 
-        Err(format!("unfinished code:{:?}", accumulated).into())
+        Err(format!("unfinished code: {:?}", accumulated).into())
     }
+}
+
+fn error_expected<T: Debug>(expected: &str, actual: T) -> Result<(), AnyError> {
+    Err(format!("expected {} but was {:?}", expected, actual).into())
 }
 
 #[cfg(test)]
