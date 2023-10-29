@@ -20,11 +20,11 @@ pub enum VirtualToken {
 
 impl Parser {
     #[cfg(test)]
-    pub fn deserialize(s: &str) -> Result<Expression, AnyError> {
+    pub fn parse(s: &str) -> Result<Expression, AnyError> {
         let tokens = crate::frontend::lexer::lex(s).unwrap();
-        Self::deserialize_tokens(tokens)
+        Self::parse_tokens(tokens)
     }
-    pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
+    pub fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
         let mut ast = Parser {
             accumulated: Vec::new(),
         };
@@ -37,6 +37,7 @@ impl Parser {
                 Token::CloseBrace => ast.push_f(Self::construct_flat_chain)?,
                 Token::OpenBracket => ast.push_vt(VirtualToken::StartArray)?,
                 Token::CloseBracket => ast.push_f(Self::construct_array)?,
+                _ => return error_expected("anything else", token),
             };
         }
         Self::finish_construction(&mut ast.accumulated)
@@ -161,39 +162,39 @@ mod tests {
     fn test_value() {
         let ast = "5";
         let expected = Value(5);
-        assert_eq!(Parser::deserialize(ast).unwrap(), expected);
+        assert_eq!(Parser::parse(ast).unwrap(), expected);
     }
     #[test]
     fn test_chained_value() {
-        let parsed = Parser::deserialize("{5}");
+        let parsed = Parser::parse("{5}");
         let expected = ast_deserialize("5 Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_chain() {
-        let parsed = Parser::deserialize("{5 +7 +8}");
+        let parsed = Parser::parse("{5 +7 +8}");
         let expected = ast_deserialize("5 +7 Op +8 Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_complex() {
-        let parsed = Parser::deserialize("[ {5 +7 |parse_char}  8 ]");
+        let parsed = Parser::parse("[ {5 +7 |parse_char}  8 ]");
         let expected = ast_deserialize("[ 5 +7 Op |parse_char Op Chain 8 ]").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_unfinished() {
-        Parser::deserialize("5+").expect_err("should fail");
-        Parser::deserialize("{+5}").expect_err("should fail");
+        Parser::parse("5+").expect_err("should fail");
+        Parser::parse("{+5}").expect_err("should fail");
     }
 
     #[test]
     fn test_types() {
-        let parsed = Parser::deserialize("5 :i64");
-        let expected = ast_deserialize("5 :i64 Type Chain").unwrap();
+        let parsed = Parser::parse("5 :i64");
+        let expected = ast_deserialize("5 :i64() Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 }

@@ -14,7 +14,7 @@ pub mod recursive_parser;
 pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
     let tokens = lex(code_text);
     // let expression = parse(tokens?);
-    let expression = Parser::deserialize_tokens(tokens?);
+    let expression = Parser::parse_tokens(tokens?);
     expression
 }
 
