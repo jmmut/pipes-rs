@@ -1,5 +1,5 @@
 use crate::common::AnyError;
-use crate::frontend::expression::{Expression, StaticList, Transformation, Type};
+use crate::frontend::expression::{Expression, Transformation, Type};
 use crate::frontend::iterative_parser::error_expected;
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
 use std::collections::VecDeque;
@@ -77,23 +77,6 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
         error_expected("operand", elem)
     }
 }
-fn construct_simple_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
-    let elem = accumulated.pop();
-    if let Some(PartialExpression::Expression(Expression::Identifier(name))) = elem {
-        let elem = accumulated.pop();
-        if let Some(PartialExpression::Operator(Operator::Type)) = elem {
-            accumulated.push(PartialExpression::Operation(Transformation {
-                operator: Operator::Type,
-                operand: Expression::Type(Type::simple(name)),
-            }));
-            Ok(())
-        } else {
-            error_expected("operator Type", elem)
-        }
-    } else {
-        error_expected("operand identifier", elem)
-    }
-}
 
 fn construct_complex_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let mut types = VecDeque::new();
@@ -129,11 +112,9 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
         elem = accumulated.pop()
     }
     if let Some(PartialExpression::OpenBracket) = elem {
-        accumulated.push(PartialExpression::Expression(Expression::StaticList(
-            StaticList {
-                elements: expressions.into_iter().collect::<Vec<_>>(),
-            },
-        )));
+        accumulated.push(PartialExpression::Expression(Expression::StaticList {
+            elements: expressions.into_iter().collect::<Vec<_>>(),
+        }));
         Ok(())
     } else {
         error_expected("array start or expression", elem)

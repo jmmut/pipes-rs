@@ -1,5 +1,5 @@
 use crate::common::context;
-use crate::frontend::expression::{Expression, StaticList, Transformation, Transformations};
+use crate::frontend::expression::{Expression, Expressions, Transformation, Transformations};
 use crate::frontend::lexer::Operator;
 use crate::AnyError;
 use std::collections::HashMap;
@@ -33,7 +33,7 @@ impl Runtime {
                 transformations,
             } => self.evaluate_applied_transformation(initial, transformations),
             Expression::Nothing => Ok(NOTHING),
-            Expression::StaticList(list) => self.allocate_list(list),
+            Expression::StaticList { elements } => self.allocate_list(elements),
             _ => Err(format!("Can't evaluate expression {:?}", expression))?,
         }
     }
@@ -57,9 +57,9 @@ impl Runtime {
         Ok(accumulated)
     }
 
-    fn allocate_list(&mut self, list: StaticList) -> Result<ListPointer, AnyError> {
-        let mut to_allocate = Vec::with_capacity(list.elements.len());
-        for e in list.elements {
+    fn allocate_list(&mut self, elements: Expressions) -> Result<ListPointer, AnyError> {
+        let mut to_allocate = Vec::with_capacity(elements.len());
+        for e in elements {
             to_allocate.push(self.evaluate_recursive(e)?);
         }
         let new_pointer = self.lists.len() as i64;

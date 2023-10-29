@@ -1,5 +1,5 @@
 use crate::common::context;
-use crate::frontend::expression::{Expression, Expressions, StaticList, Transformation};
+use crate::frontend::expression::{Expression, Expressions, Transformation};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 use crate::AnyError;
 
@@ -25,31 +25,36 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         if self.brace_nesting == nesting - 1 {
             Ok(initial)
         } else {
-            self.complete_chain(initial)
+            self.parse_transformations(initial)
         }
     }
 
-    fn complete_chain(&mut self, initial: Expression) -> Result<Expression, AnyError> {
+    fn parse_transformations(&mut self, initial: Expression) -> Result<Expression, AnyError> {
         let mut transformations = Vec::new();
+        let nesting_inside_chain = self.brace_nesting;
         while let Some(transformation) = self.parse_transformation()? {
             transformations.push(transformation);
         }
-        if transformations.is_empty() {
-            Ok(initial)
-        } else {
+        if self.brace_nesting == nesting_inside_chain - 1 || !transformations.is_empty() {
             let top_level = Expression::Chain {
                 initial: Box::new(initial),
                 transformations,
             };
             Ok(top_level)
+        } else {
+            Ok(initial)
         }
     }
 
+    /// returns an optional transformation and if a closing brace was found
     fn parse_transformation(&mut self) -> Result<Option<Transformation>, AnyError> {
         if let Some(token) = self.iter.next() {
             match token {
                 Token::Operator(operator) => self.complete_transformation(operator),
-                Token::CloseBrace => self.balance_chain_braces(&token),
+                Token::CloseBrace => {
+                    self.balance_chain_braces(&token)?;
+                    Ok(None)
+                }
                 _ => Err(format!("unexpected token {:?}, expected operator", token))?,
             }
         } else {
@@ -72,10 +77,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
     }
 
-    fn balance_chain_braces<T>(&mut self, token: &Token) -> Result<Option<T>, AnyError> {
+    fn balance_chain_braces(&mut self, token: &Token) -> Result<(), AnyError> {
         if self.brace_nesting > 0 {
             self.brace_nesting -= 1;
-            Ok(None)
+            Ok(())
         } else {
             Err(format!("unmatched {:?}", token).into())
         }
@@ -96,7 +101,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Token::OpenBracket => self.parse_list()?,
             Token::OpenBrace => self.parse_braced_chain()?,
             Token::CloseBrace => {
-                self.balance_chain_braces::<()>(&token)?;
+                self.balance_chain_braces(&token)?;
                 Expression::Nothing
             }
             _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
@@ -108,7 +113,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let mut elements = Expressions::new();
         while let Some(token) = self.iter.next() {
             match token {
-                Token::CloseBracket => return Ok(Expression::StaticList(StaticList { elements })),
+                Token::CloseBracket => return Ok(Expression::StaticList { elements }),
                 _ => elements.push(self.parse_expression_from_token(token)?),
             }
         }
@@ -157,10 +162,26 @@ mod tests {
     }
 
     #[test]
+    fn test_unbalanced_braces() {
+        let tokens = lex("{5").unwrap();
+        parse(tokens).expect_err("should fail");
+        let tokens = lex("{{5}").unwrap();
+        parse(tokens).expect_err("should fail");
+        let tokens = lex("5}").unwrap();
+        parse(tokens).expect_err("should fail");
+        let tokens = lex("{5}}").unwrap();
+        parse(tokens).expect_err("should fail");
+    }
+
+    #[test]
     fn test_value_in_chain() {
+        let tokens = lex("5").unwrap();
+        let expression = parse(tokens).unwrap();
+        assert_eq!(expression, ast_deserialize("5").unwrap());
+
         let tokens = lex("{5}").unwrap();
         let expression = parse(tokens).unwrap();
-        assert_eq!(expression, ast_deserialize("5 Chain").unwrap())
+        assert_eq!(expression, ast_deserialize("5 Chain").unwrap());
     }
 
     #[test]
@@ -209,10 +230,10 @@ mod tests {
     #[test]
     fn benchmark() {
         let mut code = "1".to_string();
-        for x in 0..100 {
+        for _ in 0..100 {
             code += "+ {[2 {3";
         }
-        for x in 0..100 {
+        for _ in 0..100 {
             code += "}]#1}";
         }
         let tokens = lex(code).unwrap();

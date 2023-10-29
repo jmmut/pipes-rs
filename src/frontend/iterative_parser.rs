@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::common::AnyError;
-use crate::frontend::expression::{Expression, StaticList, Transformation, Type};
+use crate::frontend::expression::{Expression, Transformation, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 
 pub struct Parser {
@@ -40,7 +40,7 @@ impl Parser {
                 Token::CloseBracket => ast.push_f(Self::construct_array)?,
                 Token::OpenParenthesis => ast.push_vt(VirtualToken::StartType)?,
                 Token::CloseParenthesis => ast.push_f(Self::construct_type)?,
-                _ => return error_expected("anything else", token),
+                // _ => return error_expected("anything else", token),
             };
         }
         Self::finish_construction(&mut ast.accumulated)
@@ -116,9 +116,9 @@ impl Parser {
             elem = accumulated.pop()
         }
         if let Some(VirtualToken::StartArray) = elem {
-            Ok(Expression::StaticList(StaticList {
+            Ok(Expression::StaticList {
                 elements: expressions.into_iter().collect::<Vec<_>>(),
-            }))
+            })
         } else {
             error_expected("array start or expression", elem)
         }
