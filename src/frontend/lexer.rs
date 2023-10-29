@@ -24,6 +24,7 @@ pub enum Operator {
     Ignore,
     Call,
     Get,
+    Type,
 }
 
 impl Token {
@@ -102,6 +103,7 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
         b';' => Some(Operator::Ignore),
         b'|' => Some(Operator::Call),
         b'#' => Some(Operator::Get),
+        b':' => Some(Operator::Type),
         _ => None,
     }
 }

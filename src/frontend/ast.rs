@@ -1,5 +1,5 @@
 use crate::common::AnyError;
-use crate::frontend::expression::{Expression, StaticList, Transformation};
+use crate::frontend::expression::{Expression, StaticList, Transformation, Type};
 use crate::frontend::iterative_parser::error_expected;
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
 use std::collections::VecDeque;
@@ -26,6 +26,7 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
             Token::Identifier(ident) => match ident.as_str() {
                 "Chain" => construct_chain(&mut accumulated)?,
                 "Op" => construct_operation(&mut accumulated)?,
+                "Type" => construct_type(&mut accumulated)?,
                 _ => accumulated.push(PartialExpression::Expression(Expression::Identifier(ident))),
             },
             Token::Number(n) => {
@@ -71,6 +72,23 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
         }
     } else {
         error_expected("operand", elem)
+    }
+}
+fn construct_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    let elem = accumulated.pop();
+    if let Some(PartialExpression::Expression(Expression::Identifier(name))) = elem {
+        let elem = accumulated.pop();
+        if let Some(PartialExpression::Operator(Operator::Type)) = elem {
+            accumulated.push(PartialExpression::Operation(Transformation {
+                operator: Operator::Type,
+                operand: Expression::Type(Type::simple(name)),
+            }));
+            Ok(())
+        } else {
+            error_expected("operator Type", elem)
+        }
+    } else {
+        error_expected("operand identifier", elem)
     }
 }
 

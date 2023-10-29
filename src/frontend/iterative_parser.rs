@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::common::AnyError;
-use crate::frontend::expression::{Expression, StaticList, Transformation};
+use crate::frontend::expression::{Expression, StaticList, Transformation, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 
 pub struct Parser {
@@ -69,7 +69,8 @@ impl Parser {
                 let elem_operator = accumulated.pop();
                 match elem_operator {
                     Some(VirtualToken::Operator(operator)) => {
-                        transformations.push_front(Transformation { operator, operand });
+                        transformations
+                            .push_front(Self::construct_transformation(operator, operand));
                     }
                     Some(VirtualToken::StartChain) => {
                         return Ok(Expression::Chain {
@@ -92,7 +93,17 @@ impl Parser {
             )
         }
     }
-
+    fn construct_transformation(operator: Operator, operand: Expression) -> Transformation {
+        if let Operator::Type = operator {
+            if let Expression::Identifier(name) = operand {
+                return Transformation {
+                    operator,
+                    operand: Expression::Type(Type::simple(name)),
+                };
+            }
+        }
+        Transformation { operator, operand }
+    }
     fn construct_array(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
         let mut expressions = VecDeque::new();
         let mut elem = accumulated.pop();
@@ -177,5 +188,12 @@ mod tests {
     fn test_unfinished() {
         Parser::deserialize("5+").expect_err("should fail");
         Parser::deserialize("{+5}").expect_err("should fail");
+    }
+
+    #[test]
+    fn test_types() {
+        let parsed = Parser::deserialize("5 :i64");
+        let expected = ast_deserialize("5 :i64 Type Chain").unwrap();
+        assert_eq!(parsed.unwrap(), expected);
     }
 }
