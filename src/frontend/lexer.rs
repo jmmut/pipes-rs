@@ -14,7 +14,7 @@ pub enum Token {
     CloseBrace,
     // OpenParenthesis,
     // CloseParenthesis,
-    Comma,
+    // Comma,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -113,7 +113,7 @@ pub fn parse_grouping(letter: u8) -> Option<Token> {
         b'}' => Some(Token::CloseBrace),
         // b'(' => Some(Token::OpenParenthesis),
         // b')' => Some(Token::CloseParenthesis),
-        b',' => Some(Token::Comma),
+        // b',' => Some(Token::Comma),
         _ => None,
     }
 }

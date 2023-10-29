@@ -12,7 +12,6 @@ enum VirtualToken {
     // Actual(Token),
     Operator(Operator),
     Expression(Expression),
-    Transformation(Transformation),
 }
 
 impl Ast {
@@ -31,57 +30,13 @@ impl Ast {
                 Token::Identifier(ident) => {
                     accumulated.push(VirtualToken::Expression(Expression::Identifier(ident)));
                 }
-                Token::Comma => Self::construct_transformation(&mut accumulated)?,
                 Token::OpenBrace => accumulated.push(VirtualToken::StartChain),
-                // Token::CloseBrace => Self::construct_chain(&mut accumulated)?,
                 Token::CloseBrace => Self::construct_flat_chain(&mut accumulated)?,
                 Token::OpenBracket => accumulated.push(VirtualToken::StartArray),
                 Token::CloseBracket => Self::construct_array(&mut accumulated)?,
             };
         }
         Self::finish_construction(&mut accumulated)
-    }
-
-    fn construct_transformation(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
-        let elem = accumulated.pop();
-        if let Some(VirtualToken::Expression(operand)) = elem {
-            let elem = accumulated.pop();
-            if let Some(VirtualToken::Operator(operator)) = elem {
-                accumulated.push(VirtualToken::Transformation(Transformation {
-                    operator,
-                    operand,
-                }));
-                Ok(())
-            } else {
-                Err(format!("expected operator, but was '{:?}'", elem).into())
-            }
-        } else {
-            Err(format!("expected operand, but was '{:?}'", elem).into())
-        }
-    }
-
-    fn construct_chain(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
-        let mut transformations = VecDeque::new();
-        let mut elem = accumulated.pop();
-        while let Some(VirtualToken::Transformation(t)) = elem {
-            transformations.push_front(t);
-            elem = accumulated.pop()
-        }
-        if let Some(VirtualToken::Expression(initial)) = elem {
-            let elem = accumulated.pop();
-            if let Some(VirtualToken::StartChain) = elem {
-                accumulated.push(VirtualToken::Expression(Expression::Chain {
-                    initial: Box::new(initial),
-                    transformations: transformations.into_iter().collect::<Vec<_>>(),
-                }));
-                Ok(())
-            } else {
-                Err(format!("expected chain start, but was '{:?}'", elem).into())
-            }
-        } else {
-            // TODO: construct transform
-            Err(format!("expected initial expression, but was '{:?}'", elem).into())
-        }
     }
 
     fn construct_flat_chain(accumulated: &mut Vec<VirtualToken>) -> Result<(), AnyError> {
@@ -165,12 +120,21 @@ mod tests {
     use super::*;
     use crate::frontend::lexer::Operator;
     use crate::frontend::parser::Expression::{Chain, Identifier, Value};
-    use crate::frontend::parser::{Expression, StaticList, Transformation};
+    use crate::frontend::parser::{Expression, StaticList, Transformation, Transformations};
 
     #[test]
     fn test_value() {
         let ast = "5";
         let expected = Value(5);
+        assert_eq!(Ast::deserialize(ast).unwrap(), expected);
+    }
+    #[test]
+    fn test_chained_value() {
+        let ast = "{5}";
+        let expected = Chain {
+            initial: Box::new(Value(5)),
+            transformations: Transformations::new(),
+        };
         assert_eq!(Ast::deserialize(ast).unwrap(), expected);
     }
 
