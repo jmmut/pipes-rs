@@ -167,7 +167,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frontend::ast::Ast;
+    use crate::frontend::iterative_parser::Ast;
     use crate::frontend::lexer::lex;
     use Expression::{Chain, Value};
 

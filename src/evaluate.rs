@@ -1,6 +1,6 @@
 use crate::common::context;
 use crate::frontend::lexer::Operator;
-use crate::frontend::parser::{Expression, StaticList, Transformation, Transformations};
+use crate::frontend::recursive_parser::{Expression, StaticList, Transformation, Transformations};
 use crate::AnyError;
 use std::collections::HashMap;
 

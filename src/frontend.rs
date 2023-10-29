@@ -1,10 +1,10 @@
 use crate::frontend::lexer::lex;
-use crate::frontend::parser::{parse, Expression};
+use crate::frontend::recursive_parser::{parse, Expression};
 use crate::AnyError;
 
-pub mod ast;
+pub mod iterative_parser;
 pub mod lexer;
-pub mod parser;
+pub mod recursive_parser;
 
 pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
     let tokens = lex(code_text);
@@ -15,7 +15,7 @@ pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError
 #[cfg(test)]
 mod tests {
     use super::*;
-    use parser::Expression;
+    use recursive_parser::Expression;
 
     #[test]
     fn test_nothing() {

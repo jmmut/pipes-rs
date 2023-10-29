@@ -3,7 +3,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 use crate::evaluate::{Runtime, NOTHING};
-use crate::frontend::ast::Ast;
+use crate::frontend::iterative_parser::Ast;
 use crate::frontend::lex_and_parse;
 
 mod common;

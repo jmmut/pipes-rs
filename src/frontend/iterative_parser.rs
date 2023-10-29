@@ -1,6 +1,6 @@
 use crate::common::AnyError;
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
-use crate::frontend::parser::{Expression, StaticList, Transformation};
+use crate::frontend::recursive_parser::{Expression, StaticList, Transformation};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -119,8 +119,8 @@ fn error_expected<T: Debug>(expected: &str, actual: T) -> Result<(), AnyError> {
 mod tests {
     use super::*;
     use crate::frontend::lexer::Operator;
-    use crate::frontend::parser::Expression::{Chain, Identifier, Value};
-    use crate::frontend::parser::{Expression, StaticList, Transformation, Transformations};
+    use crate::frontend::recursive_parser::Expression::{Chain, Identifier, Value};
+    use crate::frontend::recursive_parser::{Expression, StaticList, Transformation, Transformations};
 
     #[test]
     fn test_value() {
@@ -178,6 +178,7 @@ mod tests {
                 Value(8),
             ],
         });
+        // let expected = "List(Chain(5, +7, |parse_char), 8)";
         assert_eq!(Ast::deserialize(ast).unwrap(), expected);
     }
 
