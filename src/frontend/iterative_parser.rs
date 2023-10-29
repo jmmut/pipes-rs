@@ -4,7 +4,9 @@ use crate::frontend::lexer::{Operator, Token, Tokens};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-pub struct Ast;
+pub struct Ast {
+    accumulated: Vec<VirtualToken>,
+}
 
 #[derive(Debug, PartialEq)]
 pub enum VirtualToken {
@@ -22,31 +24,36 @@ impl Ast {
         Self::deserialize_tokens(tokens)
     }
     pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
-        let mut accumulated = Vec::new();
+        let mut ast = Ast {
+            accumulated: Vec::new(),
+        };
         for token in tokens {
             match token {
-                Token::Number(n) => {
-                    accumulated.push(VirtualToken::Expression(Expression::Value(n)))
-                }
-                Token::Operator(operator) => accumulated.push(VirtualToken::Operator(operator)),
-                Token::Identifier(ident) => {
-                    accumulated.push(VirtualToken::Expression(Expression::Identifier(ident)));
-                }
-                Token::OpenBrace => accumulated.push(VirtualToken::StartChain),
-                Token::CloseBrace => Self::push(&mut accumulated, Self::construct_flat_chain)?,
-                Token::OpenBracket => accumulated.push(VirtualToken::StartArray),
-                Token::CloseBracket => Self::push(&mut accumulated, Self::construct_array)?,
+                Token::Number(n) => ast.push(Expression::Value(n))?,
+                Token::Operator(operator) => ast.push_vt(VirtualToken::Operator(operator))?,
+                Token::Identifier(ident) => ast.push(Expression::Identifier(ident))?,
+                Token::OpenBrace => ast.push_vt(VirtualToken::StartChain)?,
+                Token::CloseBrace => ast.push_f(Self::construct_flat_chain)?,
+                Token::OpenBracket => ast.push_vt(VirtualToken::StartArray)?,
+                Token::CloseBracket => ast.push_f(Self::construct_array)?,
             };
         }
-        Self::finish_construction(&mut accumulated)
+        Self::finish_construction(&mut ast.accumulated)
     }
 
-    fn push(
-        accumulated: &mut Vec<VirtualToken>,
-        f: fn(&mut Vec<VirtualToken>) -> Result<Expression, AnyError>,
+    fn push_f(
+        &mut self,
+        construct_expression: fn(&mut Vec<VirtualToken>) -> Result<Expression, AnyError>,
     ) -> Result<(), AnyError> {
-        let e = f(accumulated)?;
-        accumulated.push(VirtualToken::Expression(e));
+        let expression = construct_expression(&mut self.accumulated)?;
+        self.push(expression)
+    }
+
+    fn push(&mut self, expression: Expression) -> Result<(), AnyError> {
+        self.push_vt(VirtualToken::Expression(expression))
+    }
+    fn push_vt(&mut self, virtual_token: VirtualToken) -> Result<(), AnyError> {
+        self.accumulated.push(virtual_token);
         Ok(())
     }
 
