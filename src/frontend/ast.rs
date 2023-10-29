@@ -1,4 +1,4 @@
-use crate::common::AnyError;
+use crate::common::{context, AnyError};
 use crate::frontend::expression::{Expression, Transformation, Type};
 use crate::frontend::iterative_parser::error_expected;
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
@@ -15,7 +15,7 @@ enum PartialExpression {
 }
 pub fn ast_deserialize(s: &str) -> Result<Expression, AnyError> {
     let tokens = lex(s).unwrap();
-    deserialize_tokens(tokens)
+    context("AST parser", deserialize_tokens(tokens))
 }
 pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
     let mut accumulated = Vec::new();
@@ -141,6 +141,12 @@ mod tests {
     use super::*;
     use crate::frontend::lex_and_parse;
 
+    #[test]
+    fn test_braced_value() {
+        let ast = ast_deserialize("5 Chain").unwrap();
+        let code = lex_and_parse("{5}").unwrap();
+        assert_eq!(ast, code);
+    }
     #[test]
     fn test_complex() {
         let ast = ast_deserialize("[5 +7 Op |parse_char Op Chain 8]").unwrap();

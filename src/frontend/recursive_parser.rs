@@ -5,7 +5,7 @@ use crate::AnyError;
 
 pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
     let mut parser = Parser::new(tokens.into_iter());
-    context("Parser", parser.parse_chain())
+    context("Recursive parser", parser.parse_chain())
 }
 struct Parser<I: Iterator<Item = Token>> {
     iter: I,
@@ -137,9 +137,7 @@ mod tests {
     use super::*;
     use crate::frontend::ast::ast_deserialize;
     use crate::frontend::expression::Expression::{Chain, Value};
-    use crate::frontend::iterative_parser;
     use crate::frontend::lexer::lex;
-    use std::time::Instant;
 
     #[test]
     fn add_numbers() {
@@ -225,33 +223,5 @@ mod tests {
             parsed.unwrap(),
             ast_deserialize("5 - 3 -1 Op Chain Op Chain").unwrap()
         );
-    }
-
-    #[test]
-    fn benchmark() {
-        let mut code = "1".to_string();
-        for _ in 0..100 {
-            code += "+ {[2 {3";
-        }
-        for _ in 0..100 {
-            code += "}]#1}";
-        }
-        let tokens = lex(code).unwrap();
-        let tokens2 = tokens.clone();
-
-        let start = Instant::now();
-        let parsed_rec = parse(tokens);
-        let duration_recursive = Instant::now().duration_since(start);
-
-        let start = Instant::now();
-        let parsed_iter = iterative_parser::Parser::parse_tokens(tokens2);
-        let duration_iterative = Instant::now().duration_since(start);
-
-        println!(
-            "recursive: {}, iterative: {}",
-            duration_recursive.as_micros(),
-            duration_iterative.as_micros()
-        );
-        assert_eq!(parsed_rec.unwrap(), parsed_iter.unwrap());
     }
 }

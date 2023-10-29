@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use crate::common::AnyError;
+use crate::common::{context, AnyError};
 use crate::frontend::expression::{Expression, Transformation, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 
@@ -23,8 +23,9 @@ impl Parser {
     #[cfg(test)]
     pub fn parse(s: &str) -> Result<Expression, AnyError> {
         let tokens = crate::frontend::lexer::lex(s).unwrap();
-        Self::parse_tokens(tokens)
+        context("Parser", Self::parse_tokens(tokens))
     }
+
     pub fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
         let mut ast = Parser {
             accumulated: Vec::new(),
