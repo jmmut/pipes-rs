@@ -13,6 +13,7 @@ pub struct Parser {
 pub enum VirtualToken {
     StartArray,
     StartChain,
+    StartType,
     // Actual(Token),
     Operator(Operator),
     Expression(Expression),
@@ -37,6 +38,8 @@ impl Parser {
                 Token::CloseBrace => ast.push_f(Self::construct_flat_chain)?,
                 Token::OpenBracket => ast.push_vt(VirtualToken::StartArray)?,
                 Token::CloseBracket => ast.push_f(Self::construct_array)?,
+                Token::OpenParenthesis => ast.push_vt(VirtualToken::StartType)?,
+                Token::CloseParenthesis => ast.push_f(Self::construct_type)?,
                 _ => return error_expected("anything else", token),
             };
         }
@@ -120,6 +123,33 @@ impl Parser {
             error_expected("array start or expression", elem)
         }
     }
+    fn construct_type(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
+        let mut types = VecDeque::new();
+        let mut elem = accumulated.pop();
+        while let Some(vt) = elem {
+            match vt {
+                VirtualToken::StartType => {
+                    elem = accumulated.pop();
+                    break;
+                }
+                VirtualToken::Expression(Expression::Type(a_type)) => {
+                    types.push_front(a_type);
+                }
+                VirtualToken::Expression(Expression::Identifier(type_name)) => {
+                    types.push_front(Type::simple(type_name));
+                }
+                _ => return error_expected("type start or type expression", vt),
+            }
+            elem = accumulated.pop();
+        }
+
+        if let Some(VirtualToken::Expression(Expression::Identifier(parent))) = elem {
+            let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
+            Ok(Expression::Type(a_type))
+        } else {
+            error_expected("array start or expression", elem)
+        }
+    }
 
     fn finish_construction(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
         if accumulated.len() <= 1 {
@@ -195,6 +225,12 @@ mod tests {
     fn test_types() {
         let parsed = Parser::parse("5 :i64");
         let expected = ast_deserialize("5 :i64() Op Chain").unwrap();
+        assert_eq!(parsed.unwrap(), expected);
+    }
+    #[test]
+    fn test_complex_types() {
+        let parsed = Parser::parse("5 :tuple(i64 i64)");
+        let expected = ast_deserialize("5 :tuple(i64() i64()) Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 }

@@ -25,7 +25,7 @@ pub enum Expression {
 #[derive(PartialEq, Debug)]
 pub struct Type {
     pub type_name: String,
-    pub value_name: Option<String>,
+    // pub value_name: Option<String>,
     pub children_types: ChildrenTypes,
 }
 
@@ -42,22 +42,31 @@ impl Type {
     pub fn simple(type_name: String) -> Type {
         Type {
             type_name,
-            value_name: None,
+            // value_name: None,
             children_types: ChildrenTypes::None,
         }
     }
     pub fn child(type_name: String, child: Box<Type>) -> Type {
         Type {
             type_name,
-            value_name: None,
+            // value_name: None,
             children_types: ChildrenTypes::Single(child),
         }
     }
     pub fn children(type_name: String, children: Vec<Type>) -> Type {
         Type {
             type_name,
-            value_name: None,
+            // value_name: None,
             children_types: ChildrenTypes::Several(children),
+        }
+    }
+    pub fn from(parent: String, mut children: Vec<Type>) -> Type {
+        if children.is_empty() {
+            Type::simple(parent)
+        } else if children.len() == 1 {
+            Type::child(parent, Box::new(children.pop().unwrap()))
+        } else {
+            Type::children(parent, children)
         }
     }
 }

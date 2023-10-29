@@ -113,19 +113,8 @@ fn construct_complex_type(accumulated: &mut Vec<PartialExpression>) -> Result<()
     }
     let elem = accumulated.pop();
     if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
-        if types.is_empty() {
-            accumulated.push(PartialExpression::Expression(Expression::Type(
-                Type::simple(parent),
-            )));
-        } else if types.len() == 1 {
-            accumulated.push(PartialExpression::Expression(Expression::Type(
-                Type::child(parent, Box::new(types.pop_front().unwrap())),
-            )));
-        } else {
-            accumulated.push(PartialExpression::Expression(Expression::Type(
-                Type::children(parent, types.into_iter().collect::<Vec<_>>()),
-            )));
-        }
+        let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
+        accumulated.push(PartialExpression::Expression(Expression::Type(a_type)));
         Ok(())
     } else {
         error_expected("array start or expression", elem)
