@@ -131,7 +131,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 mod tests {
     use super::*;
     use crate::frontend::expression::Expression::{Chain, Value};
-    use crate::frontend::iterative_parser::Ast;
+    use crate::frontend::iterative_parser::Parser;
     use crate::frontend::lexer::lex;
 
     #[test]
@@ -158,30 +158,33 @@ mod tests {
     fn test_add_several_numbers() {
         let tokens = lex("5+7+12+34").unwrap();
         let expression = parse(tokens).unwrap();
-        assert_eq!(expression, Ast::deserialize("{5 +7 +12 +34}").unwrap())
+        assert_eq!(expression, Parser::deserialize("{5 +7 +12 +34}").unwrap())
     }
 
     #[test]
     fn test_call() {
         let tokens = lex("5|print_char").unwrap();
         let expression = parse(tokens).unwrap();
-        assert_eq!(expression, Ast::deserialize("{5 |print_char}").unwrap());
+        assert_eq!(expression, Parser::deserialize("{5 |print_char}").unwrap());
     }
 
     #[test]
     fn test_list() {
         let tokens = lex("[5 6 7]").unwrap();
         let parsed = parse(tokens);
-        assert_eq!(parsed.unwrap(), Ast::deserialize("[ 5 6 7 ]").unwrap());
+        assert_eq!(parsed.unwrap(), Parser::deserialize("[ 5 6 7 ]").unwrap());
     }
 
     #[test]
     fn test_precedence() {
         let tokens = lex(" 5 - 3 - 1").unwrap();
         let parsed = parse(tokens);
-        assert_eq!(parsed.unwrap(), Ast::deserialize("{5 -3 -1}").unwrap());
+        assert_eq!(parsed.unwrap(), Parser::deserialize("{5 -3 -1}").unwrap());
         let tokens = lex(" 5 - {3 - 1}").unwrap();
         let parsed = parse(tokens);
-        assert_eq!(parsed.unwrap(), Ast::deserialize("{5 - {3 -1}}").unwrap());
+        assert_eq!(
+            parsed.unwrap(),
+            Parser::deserialize("{5 - {3 -1}}").unwrap()
+        );
     }
 }

@@ -1,10 +1,11 @@
-use crate::common::AnyError;
-use crate::frontend::expression::{Expression, StaticList, Transformation};
-use crate::frontend::lexer::{Operator, Token, Tokens};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-pub struct Ast {
+use crate::common::AnyError;
+use crate::frontend::expression::{Expression, StaticList, Transformation};
+use crate::frontend::lexer::{Operator, Token, Tokens};
+
+pub struct Parser {
     accumulated: Vec<VirtualToken>,
 }
 
@@ -17,14 +18,14 @@ pub enum VirtualToken {
     Expression(Expression),
 }
 
-impl Ast {
+impl Parser {
     #[cfg(test)]
     pub fn deserialize(s: &str) -> Result<Expression, AnyError> {
         let tokens = crate::frontend::lexer::lex(s).unwrap();
         Self::deserialize_tokens(tokens)
     }
     pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
-        let mut ast = Ast {
+        let mut ast = Parser {
             accumulated: Vec::new(),
         };
         for token in tokens {
@@ -104,7 +105,7 @@ impl Ast {
                 elements: expressions.into_iter().collect::<Vec<_>>(),
             }))
         } else {
-            error_expected("array start", elem)
+            error_expected("array start or expression", elem)
         }
     }
 
@@ -140,73 +141,41 @@ pub fn error_expected<T: Debug, R>(expected: &str, actual: T) -> Result<R, AnyEr
 
 #[cfg(test)]
 mod tests {
+    use crate::frontend::ast::ast_deserialize;
+    use crate::frontend::expression::Expression::Value;
+
     use super::*;
-    use crate::frontend::expression::Expression::{Chain, Identifier, Value};
-    use crate::frontend::expression::{Expression, StaticList, Transformation, Transformations};
-    use crate::frontend::lexer::Operator;
 
     #[test]
     fn test_value() {
         let ast = "5";
         let expected = Value(5);
-        assert_eq!(Ast::deserialize(ast).unwrap(), expected);
+        assert_eq!(Parser::deserialize(ast).unwrap(), expected);
     }
     #[test]
     fn test_chained_value() {
-        let ast = "{5}";
-        let expected = Chain {
-            initial: Box::new(Value(5)),
-            transformations: Transformations::new(),
-        };
-        assert_eq!(Ast::deserialize(ast).unwrap(), expected);
+        let parsed = Parser::deserialize("{5}");
+        let expected = ast_deserialize("5 Chain").unwrap();
+        assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_chain() {
-        let ast = "{5 +7 +8}";
-        let expected = Chain {
-            initial: Box::new(Value(5)),
-            transformations: vec![
-                Transformation {
-                    operator: Operator::Add,
-                    operand: Value(7),
-                },
-                Transformation {
-                    operator: Operator::Add,
-                    operand: Value(8),
-                },
-            ],
-        };
-        assert_eq!(Ast::deserialize(ast).unwrap(), expected);
+        let parsed = Parser::deserialize("{5 +7 +8}");
+        let expected = ast_deserialize("5 +7 Op +8 Op Chain").unwrap();
+        assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_complex() {
-        let ast = "[ {5 +7 |parse_char}  8 ]";
-        let expected = Expression::StaticList(StaticList {
-            elements: vec![
-                Chain {
-                    initial: Box::new(Value(5)),
-                    transformations: vec![
-                        Transformation {
-                            operator: Operator::Add,
-                            operand: Value(7),
-                        },
-                        Transformation {
-                            operator: Operator::Call,
-                            operand: Identifier("parse_char".to_string()),
-                        },
-                    ],
-                },
-                Value(8),
-            ],
-        });
-        // let expected = "List(Chain(5, +7, |parse_char), 8)";
-        assert_eq!(Ast::deserialize(ast).unwrap(), expected);
+        let parsed = Parser::deserialize("[ {5 +7 |parse_char}  8 ]");
+        let expected = ast_deserialize("[ 5 +7 Op |parse_char Op Chain 8 ]").unwrap();
+        assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_unfinished() {
-        Ast::deserialize("5+").expect_err("should fail");
+        Parser::deserialize("5+").expect_err("should fail");
+        Parser::deserialize("{+5}").expect_err("should fail");
     }
 }

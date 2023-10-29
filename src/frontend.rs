@@ -1,5 +1,5 @@
 use crate::frontend::expression::Expression;
-use crate::frontend::iterative_parser::Ast;
+use crate::frontend::iterative_parser::Parser;
 use crate::frontend::lexer::lex;
 use crate::AnyError;
 
@@ -14,7 +14,7 @@ pub mod recursive_parser;
 pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
     let tokens = lex(code_text);
     // let expression = parse(tokens?);
-    let expression = Ast::deserialize_tokens(tokens?);
+    let expression = Parser::deserialize_tokens(tokens?);
     expression
 }
 
