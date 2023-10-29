@@ -94,14 +94,16 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
 }
 
 fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
-    match accumulated.pop() {
-        Some(PartialExpression::Expression(e)) => {
-            if accumulated.is_empty() {
+    if accumulated.len() <= 1 {
+        match accumulated.pop() {
+            Some(PartialExpression::Expression(e)) => {
                 return Ok(e);
             }
+            None => return Ok(Expression::Nothing),
+            Some(v) => {
+                accumulated.push(v);
+            }
         }
-        None => {}
-        Some(a) => accumulated.push(a),
     }
     Err(format!("unfinished code: {:?}", accumulated).into())
 }

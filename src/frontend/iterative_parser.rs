@@ -122,10 +122,11 @@ impl Ast {
                 }
             }
         } else {
+            let error_message = format!("unfinished code: {:?}", accumulated);
             accumulated.insert(0, VirtualToken::StartChain);
             let e = Self::construct_flat_chain(accumulated)?;
             if !accumulated.is_empty() {
-                Err(format!("unfinished code: {:?}", accumulated).into())
+                Err(error_message.into())
             } else {
                 Ok(e)
             }
