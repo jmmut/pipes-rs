@@ -29,6 +29,7 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
             Token::Identifier(ident) => match ident.as_str() {
                 "Chain" => construct_chain(&mut accumulated)?,
                 "Op" => construct_operation(&mut accumulated)?,
+                "Fn" => construct_function(&mut accumulated)?,
                 // "Type" => construct_simple_type(&mut accumulated)?,
                 _ => accumulated.push(PartialExpression::Expression(Expression::Identifier(ident))),
             },
@@ -39,6 +40,49 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
         };
     }
     finish_construction(&mut accumulated)
+}
+
+fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    let mut expressions = VecDeque::new();
+    let mut elem = accumulated.pop();
+    while let Some(PartialExpression::Expression(e)) = elem {
+        expressions.push_front(e);
+        elem = accumulated.pop()
+    }
+    if let Some(PartialExpression::OpenBracket) = elem {
+        accumulated.push(PartialExpression::Expression(Expression::StaticList {
+            elements: expressions.into_iter().collect::<Vec<_>>(),
+        }));
+        Ok(())
+    } else {
+        error_expected("array start or expression", elem)
+    }
+}
+
+fn construct_complex_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    let mut types = VecDeque::new();
+    while let Some(expr_type) = accumulated.pop() {
+        match expr_type {
+            PartialExpression::Expression(Expression::Type(a_type)) => {
+                types.push_front(a_type);
+            }
+            PartialExpression::Expression(Expression::Identifier(name)) => {
+                types.push_front(Type::simple(name));
+            }
+            PartialExpression::OpenParenthesis => {
+                break;
+            }
+            _ => return error_expected("type name or type expression", expr_type),
+        }
+    }
+    let elem = accumulated.pop();
+    if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
+        let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
+        accumulated.push(PartialExpression::Expression(Expression::Type(a_type)));
+        Ok(())
+    } else {
+        error_expected("array start or expression", elem)
+    }
 }
 
 fn construct_chain(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
@@ -78,47 +122,22 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
     }
 }
 
-fn construct_complex_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
-    let mut types = VecDeque::new();
-    while let Some(expr_type) = accumulated.pop() {
-        match expr_type {
-            PartialExpression::Expression(Expression::Type(a_type)) => {
-                types.push_front(a_type);
-            }
-            PartialExpression::Expression(Expression::Identifier(name)) => {
-                types.push_front(Type::simple(name));
-            }
-            PartialExpression::OpenParenthesis => {
-                break;
-            }
-            _ => return error_expected("type name or type expression", expr_type),
-        }
-    }
-    let elem = accumulated.pop();
-    if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
-        let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
-        accumulated.push(PartialExpression::Expression(Expression::Type(a_type)));
-        Ok(())
-    } else {
-        error_expected("array start or expression", elem)
-    }
-}
-
-fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
-    let mut expressions = VecDeque::new();
-    let mut elem = accumulated.pop();
-    while let Some(PartialExpression::Expression(e)) = elem {
-        expressions.push_front(e);
-        elem = accumulated.pop()
-    }
-    if let Some(PartialExpression::OpenBracket) = elem {
-        accumulated.push(PartialExpression::Expression(Expression::StaticList {
-            elements: expressions.into_iter().collect::<Vec<_>>(),
-        }));
-        Ok(())
-    } else {
-        error_expected("array start or expression", elem)
-    }
+fn construct_function(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    // let elem = accumulated.pop();
+    // if let Some(PartialExpression::Expression(operand)) = elem {
+    //     let elem = accumulated.pop();
+    //     if let Some(PartialExpression::Operator(operator)) = elem {
+    //         accumulated.push(PartialExpression::Operation(Transformation {
+    //             operator,
+    //             operand,
+    //         }));
+    //         Ok(())
+    //     } else {
+    //         error_expected("operator", elem)
+    //     }
+    // } else {
+    //     error_expected("operand", elem)
+    // }
 }
 
 fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
@@ -164,5 +183,10 @@ mod tests {
         // ast_deserialize("5 [[i64:]tuple: i64:]tuple: Chain").expect("should parse");
         ast_deserialize("[] :tuple(tuple(i64()) i64()) Op Chain").expect("should parse");
         // ast_deserialize("5 [[i64 n:]tuple ns: i64 outer:]tuple all: Chain").expect("should parse");
+    }
+
+    #[test]
+    fn test_function() {
+        ast_deserialize("function {} Fn").expect("should parse");
     }
 }

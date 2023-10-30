@@ -234,4 +234,11 @@ mod tests {
         let expected = ast_deserialize("5 :tuple(i64() i64()) Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
+
+    // #[test]
+    // fn test_function() {
+    //     let parsed = Parser::parse("function {}");
+    //     let expected = ast_deserialize("").unwrap();
+    //     assert_eq!(parsed.unwrap(), expected);
+    // }
 }
