@@ -1,6 +1,6 @@
 use crate::common::{context, AnyError};
 use crate::frontend::expression::{Expression, Transformation, Type};
-use crate::frontend::iterative_parser::error_expected;
+use crate::frontend::slow_iterative_parser::error_expected;
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
 use std::collections::VecDeque;
 use std::fmt::Debug;
