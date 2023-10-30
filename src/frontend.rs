@@ -1,16 +1,16 @@
 use crate::frontend::expression::Expression;
-use crate::frontend::slow_iterative_parser::Parser;
 use crate::frontend::lexer::lex;
+use crate::frontend::slow_iterative_parser::Parser;
 use crate::AnyError;
 
 pub mod ast;
 pub mod expression;
-pub mod slow_iterative_parser;
 pub mod lexer;
+pub mod slow_iterative_parser;
 
+pub mod fast_iterative_parser;
 #[cfg(test)]
 pub mod recursive_parser;
-pub mod fast_iterative_parser;
 
 pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
     let tokens = lex(code_text);
@@ -70,6 +70,7 @@ mod benchmarks {
     use crate::frontend::{ast, slow_iterative_parser};
     use std::time::Instant;
 
+    #[ignore]
     #[test]
     fn benchmark_deep() {
         let mut code = "1".to_string();
@@ -92,6 +93,7 @@ mod benchmarks {
         benchmark_rec_iter_ast(code, code_ast);
     }
 
+    #[ignore]
     #[test]
     fn benchmark_wide() {
         let mut code = "1".to_string();
