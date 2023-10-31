@@ -134,10 +134,10 @@ impl Parser {
                         currently_parsing = Parsing::TransformationsOperand(operator);
                     }
                     Token::CloseBrace => {
-                        let chain = Expression::Chain {
-                            initial: Box::new(working_expressions.pop().unwrap()),
+                        let chain = Expression::chain(
+                            Box::new(working_expressions.pop().unwrap()),
                             transformations,
-                        };
+                        );
                         currently_parsing = currently_parsing_stack.pop().unwrap();
                         transformations = transformations_stack.pop().unwrap();
                         working_expressions = working_expressions_stack.pop().unwrap();

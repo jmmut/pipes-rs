@@ -13,19 +13,30 @@ pub enum Expression {
     // Transformations {
     //     transformations: Transformations,
     // },
-    Chain {
-        initial: Box<Expression>,
-        transformations: Transformations,
-    },
-    StaticList {
-        elements: Expressions,
-    },
+    Chain(Chain),
+    StaticList { elements: Expressions },
+    Function(Function),
 }
 
-// pub type Identifier = String;
+impl Expression {
+    pub fn chain(initial: Box<Expression>, transformations: Transformations) -> Self {
+        Self::Chain(Chain {
+            initial,
+            transformations,
+        })
+    }
+    pub fn function(parameter: TypedIdentifier, body: Chain) -> Self {
+        Self::Function(Function { parameter, body })
+    }
+}
 
 #[derive(PartialEq, Debug)]
 pub enum Type {
+    Unknown,
+    // Any,
+    Builtin {
+        type_name: &'static str,
+    },
     Simple {
         type_name: String,
     },
@@ -37,15 +48,8 @@ pub enum Type {
         type_name: String,
         children: Vec<Type>,
     },
+    // Function?
 }
-
-// #[allow(unused)]
-// #[derive(PartialEq, Debug)]
-// pub enum ChildrenTypes {
-//     None,
-//     Single(Box<Type>),
-//     Several(Vec<Type>),
-// }
 
 #[allow(unused)]
 impl Type {
@@ -61,6 +65,9 @@ impl Type {
             children,
         }
     }
+    pub fn nothing() -> Type {
+        builtin_types::NOTHING
+    }
     pub fn from(parent: String, mut children: Vec<Type>) -> Type {
         if children.is_empty() {
             Type::simple(parent)
@@ -73,10 +80,53 @@ impl Type {
 }
 
 #[derive(PartialEq, Debug)]
+pub struct Chain {
+    pub initial: Box<Expression>,
+    pub transformations: Transformations,
+    // pub type_: Type,
+}
+
+#[derive(PartialEq, Debug)]
 pub struct Transformation {
     pub operator: Operator,
     pub operand: Expression, // TODO: list of expressions?
 }
 
+#[derive(PartialEq, Debug)]
+pub struct Function {
+    pub parameter: TypedIdentifier, // TODO: Vec<TypedIdentifier> ?
+    pub body: Chain,
+}
+
+#[derive(PartialEq, Debug)]
+pub struct TypedIdentifier {
+    pub name: String,
+    pub type_: Type,
+}
+
 pub type Expressions = Vec<Expression>;
 pub type Transformations = Vec<Transformation>;
+
+pub mod type_names {
+    #[allow(unused)]
+    pub const I64: &'static str = "i64";
+    pub const FUNCTION: &'static str = "function";
+    #[allow(unused)]
+    pub const TUPLE: &'static str = "tuple";
+    #[allow(unused)]
+    pub const ARRAY: &'static str = "array";
+    #[allow(unused)]
+    pub const STRUCT: &'static str = "struct";
+    #[allow(unused)]
+    pub const TYPE: &'static str = "type";
+}
+
+pub mod builtin_types {
+    use crate::frontend::expression::Type;
+
+    pub const NOTHING: Type = Type::Builtin {
+        type_name: "Nothing",
+    };
+    #[allow(unused)]
+    pub const I64: Type = Type::Builtin { type_name: "i64" };
+}

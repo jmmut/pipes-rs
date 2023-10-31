@@ -8,7 +8,7 @@ pub mod expression;
 pub mod lexer;
 pub mod slow_iterative_parser;
 
-pub mod fast_iterative_parser;
+// pub mod fast_iterative_parser;
 #[cfg(test)]
 pub mod recursive_parser;
 
@@ -33,7 +33,10 @@ mod tests {
     #[test]
     fn test_nothing_braces() {
         let expression = lex_and_parse("{}").unwrap();
-        assert_eq!(expression, Expression::Nothing);
+        assert_eq!(
+            expression,
+            Expression::chain(Box::new(Expression::Nothing), Vec::new())
+        );
         lex_and_parse("[{}]").expect("should parse (maybe doesn't evaluate)");
         lex_and_parse("[5 {}]").expect("should parse (maybe doesn't evaluate)");
         lex_and_parse("{[]}").expect("should parse (maybe doesn't evaluate)");

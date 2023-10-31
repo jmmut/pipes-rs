@@ -68,7 +68,7 @@ impl Parser {
 
         let mut elem_expression = accumulated.pop();
         if let Some(VirtualToken::StartChain) = elem_expression {
-            Ok(Expression::Nothing)
+            Ok(Expression::chain(Box::new(Expression::Nothing), Vec::new()))
         } else {
             while let Some(VirtualToken::Expression(operand)) = elem_expression {
                 let elem_operator = accumulated.pop();
@@ -78,10 +78,10 @@ impl Parser {
                             .push_front(Self::construct_transformation(operator, operand));
                     }
                     Some(VirtualToken::StartChain) => {
-                        return Ok(Expression::Chain {
-                            initial: Box::new(operand),
-                            transformations: transformations.into_iter().collect::<Vec<_>>(),
-                        })
+                        return Ok(Expression::chain(
+                            Box::new(operand),
+                            transformations.into_iter().collect::<Vec<_>>(),
+                        ));
                     }
                     None => {
                         return Err("unbalanced brace".into());
@@ -189,6 +189,12 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn test_nothing() {
+        let ast = "{}";
+        let expected = Expression::chain(Box::new(Expression::Nothing), Vec::new());
+        assert_eq!(Parser::parse(ast).unwrap(), expected);
+    }
     #[test]
     fn test_value() {
         let ast = "5";

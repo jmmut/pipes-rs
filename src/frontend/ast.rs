@@ -1,5 +1,6 @@
 use crate::common::{context, AnyError};
-use crate::frontend::expression::{Expression, Transformation, Type};
+use crate::frontend::expression::type_names::FUNCTION;
+use crate::frontend::expression::{Chain, Expression, Transformation, Type, TypedIdentifier};
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
 use crate::frontend::slow_iterative_parser::error_expected;
 use std::collections::VecDeque;
@@ -8,6 +9,7 @@ use std::fmt::Debug;
 #[derive(Debug)]
 enum PartialExpression {
     OpenBracket,
+    OpenBrace,
     OpenParenthesis,
     Expression(Expression),
     Operation(Transformation),
@@ -25,6 +27,8 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
             Token::CloseBracket => construct_list(&mut accumulated)?,
             Token::OpenParenthesis => accumulated.push(PartialExpression::OpenParenthesis),
             Token::CloseParenthesis => construct_complex_type(&mut accumulated)?,
+            Token::OpenBrace => accumulated.push(PartialExpression::OpenBrace),
+            Token::CloseBrace => construct_chain(&mut accumulated)?,
             Token::Operator(o) => accumulated.push(PartialExpression::Operator(o)),
             Token::Identifier(ident) => match ident.as_str() {
                 "Chain" => construct_chain(&mut accumulated)?,
@@ -36,7 +40,6 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
             Token::Number(n) => {
                 accumulated.push(PartialExpression::Expression(Expression::Value(n)))
             }
-            _ => error_expected("bracket, operator, identifier or value", token)?,
         };
     }
     finish_construction(&mut accumulated)
@@ -92,11 +95,22 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyEr
         match pe {
             PartialExpression::Operation(t) => transformations.push_front(t),
             PartialExpression::Expression(e) => {
-                accumulated.push(PartialExpression::Expression(Expression::Chain {
+                accumulated.push(PartialExpression::Expression(Expression::Chain(Chain {
                     initial: Box::new(e),
                     transformations: transformations.into_iter().collect::<Vec<_>>(),
-                }));
+                })));
                 return Ok(());
+            }
+            PartialExpression::OpenBrace => {
+                return if transformations.is_empty() {
+                    accumulated.push(PartialExpression::Expression(Expression::chain(
+                        Box::new(Expression::Nothing),
+                        Vec::new(),
+                    )));
+                    Ok(())
+                } else {
+                    error_expected("expression or operation", pe)
+                }
             }
             _ => return error_expected("expression or operation", pe),
         }
@@ -123,21 +137,45 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
 }
 
 fn construct_function(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
-    // let elem = accumulated.pop();
-    // if let Some(PartialExpression::Expression(operand)) = elem {
-    //     let elem = accumulated.pop();
-    //     if let Some(PartialExpression::Operator(operator)) = elem {
-    //         accumulated.push(PartialExpression::Operation(Transformation {
-    //             operator,
-    //             operand,
-    //         }));
-    //         Ok(())
-    //     } else {
-    //         error_expected("operator", elem)
-    //     }
-    // } else {
-    //     error_expected("operand", elem)
-    // }
+    let elem = accumulated.pop();
+    return if let Some(PartialExpression::Expression(Expression::Chain(chain))) = elem {
+        let elem = accumulated.pop();
+        if let Some(PartialExpression::Expression(Expression::Identifier(func_or_param))) = elem {
+            if func_or_param == FUNCTION {
+                let param = TypedIdentifier {
+                    name: "".to_string(),
+                    type_: Type::nothing(),
+                };
+                accumulated.push(PartialExpression::Expression(Expression::function(
+                    param, chain,
+                )));
+                Ok(())
+            } else {
+                let param = func_or_param;
+                let elem = accumulated.pop();
+                if let Some(PartialExpression::Expression(Expression::Identifier(func))) = elem {
+                    if func == FUNCTION {
+                        let param = TypedIdentifier {
+                            name: param,
+                            type_: Type::Unknown, // TODO: accept typed parameter definition
+                        };
+                        accumulated.push(PartialExpression::Expression(Expression::function(
+                            param, chain,
+                        )));
+                        Ok(())
+                    } else {
+                        error_expected("'function'", func)
+                    }
+                } else {
+                    error_expected("'function'", elem)
+                }
+            }
+        } else {
+            error_expected("'function' or parameter name", elem)
+        }
+    } else {
+        error_expected("function body (chain)", elem)
+    };
 }
 
 fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
@@ -160,6 +198,14 @@ mod tests {
     use super::*;
     use crate::frontend::lex_and_parse;
 
+    #[test]
+    fn test_nothing() {
+        let ast = ast_deserialize("{}").unwrap();
+        assert_eq!(
+            ast,
+            Expression::chain(Box::new(Expression::Nothing), Vec::new())
+        );
+    }
     #[test]
     fn test_braced_value() {
         let ast = ast_deserialize("5 Chain").unwrap();
@@ -187,6 +233,6 @@ mod tests {
 
     #[test]
     fn test_function() {
-        ast_deserialize("function {} Fn").expect("should parse");
+        ast_deserialize("function { } Fn").expect("should parse");
     }
 }

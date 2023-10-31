@@ -1,5 +1,7 @@
 use crate::common::context;
-use crate::frontend::expression::{Expression, Expressions, Transformation, Transformations};
+use crate::frontend::expression::{
+    Chain, Expression, Expressions, Transformation, Transformations,
+};
 use crate::frontend::lexer::Operator;
 use crate::AnyError;
 use std::collections::HashMap;
@@ -28,10 +30,10 @@ impl Runtime {
     fn evaluate_recursive(&mut self, expression: Expression) -> Result<GenericValue, AnyError> {
         match expression {
             Expression::Value(n) => Ok(n),
-            Expression::Chain {
+            Expression::Chain(Chain {
                 initial,
                 transformations,
-            } => self.evaluate_applied_transformation(initial, transformations),
+            }) => self.evaluate_applied_transformation(initial, transformations),
             Expression::Nothing => Ok(NOTHING),
             Expression::StaticList { elements } => self.allocate_list(elements),
             _ => Err(format!("Can't evaluate expression {:?}", expression))?,

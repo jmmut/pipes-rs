@@ -36,10 +36,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             transformations.push(transformation);
         }
         if self.brace_nesting == nesting_inside_chain - 1 || !transformations.is_empty() {
-            let top_level = Expression::Chain {
-                initial: Box::new(initial),
-                transformations,
-            };
+            let top_level = Expression::chain(Box::new(initial), transformations);
             Ok(top_level)
         } else {
             Ok(initial)
@@ -136,7 +133,6 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 mod tests {
     use super::*;
     use crate::frontend::ast::ast_deserialize;
-    use crate::frontend::expression::Expression::{Chain, Value};
     use crate::frontend::lexer::lex;
 
     #[test]
@@ -147,16 +143,7 @@ mod tests {
             Token::Number(7),
         ])
         .unwrap();
-        assert_eq!(
-            expression,
-            Chain {
-                initial: Box::new(Value(5)),
-                transformations: vec![Transformation {
-                    operator: Operator::Add,
-                    operand: Value(7)
-                }],
-            }
-        )
+        assert_eq!(expression, ast_deserialize("5 + 7 Op Chain").unwrap())
     }
 
     #[test]
