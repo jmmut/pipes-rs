@@ -20,7 +20,7 @@ pub enum Expression {
 
 impl Expression {
     pub fn empty_chain() -> Self {
-        Self::chain(Box::new(Expression::Nothing), Vec::new())
+        Self::Chain(Chain::empty())
     }
     pub fn chain(initial: Box<Expression>, transformations: Transformations) -> Self {
         Self::Chain(Chain {
@@ -89,6 +89,14 @@ pub struct Chain {
     // pub type_: Type,
 }
 
+impl Chain {
+    pub fn new(initial: Box<Expression>, transformations: Transformations) -> Self {
+        Self { initial, transformations }
+    }
+    pub fn empty() -> Self {
+        Self::new(Box::new(Expression::Nothing), Vec::new())
+    }
+}
 #[derive(PartialEq, Debug)]
 pub struct Transformation {
     pub operator: Operator,

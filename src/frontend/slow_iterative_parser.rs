@@ -2,7 +2,8 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::common::{context, AnyError};
-use crate::frontend::expression::{Expression, Transformation, Type};
+use crate::frontend::ast::construct_function_from_chain;
+use crate::frontend::expression::{Chain, Expression, Transformation, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 
 pub struct Parser {
@@ -68,7 +69,7 @@ impl Parser {
 
         let mut elem_expression = accumulated.pop();
         if let Some(VirtualToken::StartChain) = elem_expression {
-            Ok(Expression::empty_chain())
+            Self::attempt_construct_function(accumulated, Chain::empty())
         } else {
             while let Some(VirtualToken::Expression(operand)) = elem_expression {
                 let elem_operator = accumulated.pop();
@@ -78,7 +79,7 @@ impl Parser {
                             .push_front(Self::construct_transformation(operator, operand));
                     }
                     Some(VirtualToken::StartChain) => {
-                        return Ok(Expression::chain(
+                        return Self::attempt_construct_function(accumulated, Chain::new(
                             Box::new(operand),
                             transformations.into_iter().collect::<Vec<_>>(),
                         ));
@@ -108,6 +109,9 @@ impl Parser {
             }
         }
         Transformation { operator, operand }
+    }
+    fn attempt_construct_function(accumulated: &mut Vec<VirtualToken>, chain: Chain)-> Result<Expression, AnyError> {
+        construct_function_from_chain(accumulated)
     }
     fn construct_array(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
         let mut expressions = VecDeque::new();
@@ -241,10 +245,10 @@ mod tests {
         assert_eq!(parsed.unwrap(), expected);
     }
 
-    // #[test]
-    // fn test_function() {
-    //     let parsed = Parser::parse("function {}");
-    //     let expected = ast_deserialize("").unwrap();
-    //     assert_eq!(parsed.unwrap(), expected);
-    // }
+    #[test]
+    fn test_function() {
+        let parsed = Parser::parse("function {}");
+        let expected = ast_deserialize("function {} Fn").unwrap();
+        assert_eq!(parsed.unwrap(), expected);
+    }
 }
