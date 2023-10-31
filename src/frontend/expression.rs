@@ -1,6 +1,6 @@
 use crate::frontend::lexer::Operator;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
     Nothing,
     Value(i64),
@@ -22,18 +22,20 @@ impl Expression {
     pub fn empty_chain() -> Self {
         Self::Chain(Chain::empty())
     }
+    #[allow(unused)]
     pub fn chain(initial: Box<Expression>, transformations: Transformations) -> Self {
         Self::Chain(Chain {
             initial,
             transformations,
         })
     }
+    #[allow(unused)]
     pub fn function(parameter: TypedIdentifier, body: Chain) -> Self {
         Self::Function(Function { parameter, body })
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Type {
     Unknown,
     // Any,
@@ -82,7 +84,7 @@ impl Type {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
     pub initial: Box<Expression>,
     pub transformations: Transformations,
@@ -91,25 +93,28 @@ pub struct Chain {
 
 impl Chain {
     pub fn new(initial: Box<Expression>, transformations: Transformations) -> Self {
-        Self { initial, transformations }
+        Self {
+            initial,
+            transformations,
+        }
     }
     pub fn empty() -> Self {
         Self::new(Box::new(Expression::Nothing), Vec::new())
     }
 }
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Transformation {
     pub operator: Operator,
     pub operand: Expression, // TODO: list of expressions?
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Function {
     pub parameter: TypedIdentifier, // TODO: Vec<TypedIdentifier> ?
     pub body: Chain,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct TypedIdentifier {
     pub name: String,
     pub type_: Type,

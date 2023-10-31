@@ -2,45 +2,38 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::common::{context, AnyError};
-use crate::frontend::ast::construct_function_from_chain;
+use crate::frontend::ast::{construct_function_from_chain, PartialExpression};
 use crate::frontend::expression::{Chain, Expression, Transformation, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 
-pub struct Parser {
-    accumulated: Vec<VirtualToken>,
+#[cfg(test)]
+pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
+    let tokens = crate::frontend::lexer::lex(code_text)?;
+    parse_tokens(tokens)
 }
 
-#[derive(Debug, PartialEq)]
-pub enum VirtualToken {
-    StartArray,
-    StartChain,
-    StartType,
-    // Actual(Token),
-    Operator(Operator),
-    Expression(Expression),
+pub fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
+    context("Parser", Parser::parse_tokens(tokens))
+}
+pub struct Parser {
+    accumulated: Vec<PartialExpression>,
 }
 
 impl Parser {
-    #[cfg(test)]
-    pub fn parse(s: &str) -> Result<Expression, AnyError> {
-        let tokens = crate::frontend::lexer::lex(s).unwrap();
-        context("Parser", Self::parse_tokens(tokens))
-    }
-
-    pub fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
+    fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
         let mut ast = Parser {
             accumulated: Vec::new(),
         };
         for token in tokens {
             match token {
                 Token::Number(n) => ast.push(Expression::Value(n))?,
-                Token::Operator(operator) => ast.push_vt(VirtualToken::Operator(operator))?,
+                Token::Operator(operator) => ast.push_vt(PartialExpression::Operator(operator))?,
                 Token::Identifier(ident) => ast.push(Expression::Identifier(ident))?,
-                Token::OpenBrace => ast.push_vt(VirtualToken::StartChain)?,
+                Token::OpenBrace => ast.push_vt(PartialExpression::OpenBrace)?,
                 Token::CloseBrace => ast.push_f(Self::construct_flat_chain)?,
-                Token::OpenBracket => ast.push_vt(VirtualToken::StartArray)?,
+                Token::OpenBracket => ast.push_vt(PartialExpression::OpenBracket)?,
                 Token::CloseBracket => ast.push_f(Self::construct_array)?,
-                Token::OpenParenthesis => ast.push_vt(VirtualToken::StartType)?,
+                Token::OpenParenthesis => ast.push_vt(PartialExpression::OpenParenthesis)?,
                 Token::CloseParenthesis => ast.push_f(Self::construct_type)?,
                 // _ => return error_expected("anything else", token),
             };
@@ -50,39 +43,44 @@ impl Parser {
 
     fn push_f(
         &mut self,
-        construct_expression: fn(&mut Vec<VirtualToken>) -> Result<Expression, AnyError>,
+        construct_expression: fn(&mut Vec<PartialExpression>) -> Result<Expression, AnyError>,
     ) -> Result<(), AnyError> {
         let expression = construct_expression(&mut self.accumulated)?;
         self.push(expression)
     }
 
     fn push(&mut self, expression: Expression) -> Result<(), AnyError> {
-        self.push_vt(VirtualToken::Expression(expression))
+        self.push_vt(PartialExpression::Expression(expression))
     }
-    fn push_vt(&mut self, virtual_token: VirtualToken) -> Result<(), AnyError> {
+    fn push_vt(&mut self, virtual_token: PartialExpression) -> Result<(), AnyError> {
         self.accumulated.push(virtual_token);
         Ok(())
     }
 
-    fn construct_flat_chain(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
+    fn construct_flat_chain(
+        accumulated: &mut Vec<PartialExpression>,
+    ) -> Result<Expression, AnyError> {
         let mut transformations = VecDeque::new();
 
         let mut elem_expression = accumulated.pop();
-        if let Some(VirtualToken::StartChain) = elem_expression {
+        if let Some(PartialExpression::OpenBrace) = elem_expression {
             Self::attempt_construct_function(accumulated, Chain::empty())
         } else {
-            while let Some(VirtualToken::Expression(operand)) = elem_expression {
+            while let Some(PartialExpression::Expression(operand)) = elem_expression {
                 let elem_operator = accumulated.pop();
                 match elem_operator {
-                    Some(VirtualToken::Operator(operator)) => {
+                    Some(PartialExpression::Operator(operator)) => {
                         transformations
                             .push_front(Self::construct_transformation(operator, operand));
                     }
-                    Some(VirtualToken::StartChain) => {
-                        return Self::attempt_construct_function(accumulated, Chain::new(
-                            Box::new(operand),
-                            transformations.into_iter().collect::<Vec<_>>(),
-                        ));
+                    Some(PartialExpression::OpenBrace) => {
+                        return Self::attempt_construct_function(
+                            accumulated,
+                            Chain::new(
+                                Box::new(operand),
+                                transformations.into_iter().collect::<Vec<_>>(),
+                            ),
+                        );
                     }
                     None => {
                         return Err("unbalanced brace".into());
@@ -110,17 +108,23 @@ impl Parser {
         }
         Transformation { operator, operand }
     }
-    fn attempt_construct_function(accumulated: &mut Vec<VirtualToken>, chain: Chain)-> Result<Expression, AnyError> {
-        construct_function_from_chain(accumulated)
+    fn attempt_construct_function(
+        accumulated: &mut Vec<PartialExpression>,
+        chain: Chain,
+    ) -> Result<Expression, AnyError> {
+        match construct_function_from_chain(accumulated, chain) {
+            Ok(func) => Ok(Expression::Function(func)),
+            Err((_error, chain)) => Ok(Expression::Chain(chain)),
+        }
     }
-    fn construct_array(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
+    fn construct_array(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
         let mut expressions = VecDeque::new();
         let mut elem = accumulated.pop();
-        while let Some(VirtualToken::Expression(e)) = elem {
+        while let Some(PartialExpression::Expression(e)) = elem {
             expressions.push_front(e);
             elem = accumulated.pop()
         }
-        if let Some(VirtualToken::StartArray) = elem {
+        if let Some(PartialExpression::OpenBracket) = elem {
             Ok(Expression::StaticList {
                 elements: expressions.into_iter().collect::<Vec<_>>(),
             })
@@ -128,19 +132,19 @@ impl Parser {
             error_expected("array start or expression", elem)
         }
     }
-    fn construct_type(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
+    fn construct_type(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
         let mut types = VecDeque::new();
         let mut elem = accumulated.pop();
         while let Some(vt) = elem {
             match vt {
-                VirtualToken::StartType => {
+                PartialExpression::OpenParenthesis => {
                     elem = accumulated.pop();
                     break;
                 }
-                VirtualToken::Expression(Expression::Type(a_type)) => {
+                PartialExpression::Expression(Expression::Type(a_type)) => {
                     types.push_front(a_type);
                 }
-                VirtualToken::Expression(Expression::Identifier(type_name)) => {
+                PartialExpression::Expression(Expression::Identifier(type_name)) => {
                     types.push_front(Type::simple(type_name));
                 }
                 _ => return error_expected("type start or type expression", vt),
@@ -148,7 +152,7 @@ impl Parser {
             elem = accumulated.pop();
         }
 
-        if let Some(VirtualToken::Expression(Expression::Identifier(parent))) = elem {
+        if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
             let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
             Ok(Expression::Type(a_type))
         } else {
@@ -156,10 +160,12 @@ impl Parser {
         }
     }
 
-    fn finish_construction(accumulated: &mut Vec<VirtualToken>) -> Result<Expression, AnyError> {
+    fn finish_construction(
+        accumulated: &mut Vec<PartialExpression>,
+    ) -> Result<Expression, AnyError> {
         if accumulated.len() <= 1 {
             match accumulated.pop() {
-                Some(VirtualToken::Expression(e)) => {
+                Some(PartialExpression::Expression(e)) => {
                     return Ok(e);
                 }
 
@@ -171,7 +177,7 @@ impl Parser {
             }
         } else {
             let error_message = format!("unfinished code: {:?}", accumulated);
-            accumulated.insert(0, VirtualToken::StartChain);
+            accumulated.insert(0, PartialExpression::OpenBrace);
             let e = Self::construct_flat_chain(accumulated)?;
             if !accumulated.is_empty() {
                 Err(error_message.into())
@@ -197,58 +203,70 @@ mod tests {
     fn test_nothing() {
         let ast = "{}";
         let expected = Expression::empty_chain();
-        assert_eq!(Parser::parse(ast).unwrap(), expected);
+        assert_eq!(parse(ast).unwrap(), expected);
     }
     #[test]
     fn test_value() {
         let ast = "5";
         let expected = Value(5);
-        assert_eq!(Parser::parse(ast).unwrap(), expected);
+        assert_eq!(parse(ast).unwrap(), expected);
     }
     #[test]
     fn test_chained_value() {
-        let parsed = Parser::parse("{5}");
+        let parsed = parse("{5}");
         let expected = ast_deserialize("5 Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_chain() {
-        let parsed = Parser::parse("{5 +7 +8}");
+        let parsed = parse("{5 +7 +8}");
         let expected = ast_deserialize("5 +7 Op +8 Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_complex() {
-        let parsed = Parser::parse("[ {5 +7 |parse_char}  8 ]");
+        let parsed = parse("[ {5 +7 |parse_char}  8 ]");
         let expected = ast_deserialize("[ 5 +7 Op |parse_char Op Chain 8 ]").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 
     #[test]
     fn test_unfinished() {
-        Parser::parse("5+").expect_err("should fail");
-        Parser::parse("{+5}").expect_err("should fail");
+        parse("5+").expect_err("should fail");
+        parse("{+5}").expect_err("should fail");
     }
 
     #[test]
     fn test_types() {
-        let parsed = Parser::parse("5 :i64");
+        let parsed = parse("5 :i64");
         let expected = ast_deserialize("5 :i64() Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
     #[test]
     fn test_complex_types() {
-        let parsed = Parser::parse("5 :tuple(i64 i64)");
+        let parsed = parse("5 :tuple(i64 i64)");
         let expected = ast_deserialize("5 :tuple(i64() i64()) Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 
-    #[test]
-    fn test_function() {
-        let parsed = Parser::parse("function {}");
-        let expected = ast_deserialize("function {} Fn").unwrap();
+    mod function {
+        use super::*;
+
+        #[test]
+        fn test_empty_function() {
+            assert_eq_ast("function {}", "function {} Fn");
+        }
+        #[test]
+        fn test_function_value() {
+            assert_eq_ast("function {5}", "function 5 Chain Fn");
+        }
+    }
+
+    fn assert_eq_ast(code: &str, ast: &str) {
+        let parsed = parse(code);
+        let expected = ast_deserialize(ast).unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
 }

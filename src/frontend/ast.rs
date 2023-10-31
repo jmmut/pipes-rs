@@ -1,13 +1,15 @@
 use crate::common::{context, AnyError};
 use crate::frontend::expression::type_names::FUNCTION;
-use crate::frontend::expression::{Chain, Expression, Function, Transformation, Type, TypedIdentifier};
+use crate::frontend::expression::{
+    Chain, Expression, Function, Transformation, Type, TypedIdentifier,
+};
 use crate::frontend::lexer::{lex, Operator, Token, Tokens};
 use crate::frontend::slow_iterative_parser::error_expected;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
 #[derive(Debug)]
-enum PartialExpression {
+pub enum PartialExpression {
     OpenBracket,
     OpenBrace,
     OpenParenthesis,
@@ -136,15 +138,24 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
 fn construct_function(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
     return if let Some(PartialExpression::Expression(Expression::Chain(chain))) = elem {
-        let function = construct_function_from_chain(accumulated, chain)?;
-        accumulated.push(PartialExpression::Expression(Expression::Function(function)));
-        Ok(())
+        match construct_function_from_chain(accumulated, chain) {
+            Ok(function) => {
+                accumulated.push(PartialExpression::Expression(Expression::Function(
+                    function,
+                )));
+                Ok(())
+            }
+            Err((error, _chain)) => Err(error),
+        }
     } else {
         error_expected("function body (chain)", elem)
     };
 }
 
-pub fn construct_function_from_chain(accumulated: &mut Vec<PartialExpression>, body: Chain) -> Result<Function, AnyError> {
+pub fn construct_function_from_chain(
+    accumulated: &mut Vec<PartialExpression>,
+    body: Chain,
+) -> Result<Function, (AnyError, Chain)> {
     let elem = accumulated.pop();
     if let Some(PartialExpression::Expression(Expression::Identifier(func_or_param))) = elem {
         if func_or_param == FUNCTION {
@@ -152,10 +163,7 @@ pub fn construct_function_from_chain(accumulated: &mut Vec<PartialExpression>, b
                 name: "".to_string(),
                 type_: Type::nothing(),
             };
-            Ok(Function {
-                parameter,
-                body,
-            })
+            Ok(Function { parameter, body })
         } else {
             let param = func_or_param;
             let elem = accumulated.pop();
@@ -165,19 +173,40 @@ pub fn construct_function_from_chain(accumulated: &mut Vec<PartialExpression>, b
                         name: param,
                         type_: Type::Unknown, // TODO: accept typed parameter definition
                     };
-                    Ok(Function {
-                        parameter,
-                        body,
-                    })
+                    Ok(Function { parameter, body })
                 } else {
-                    error_expected("'function'", func)
+                    let to_push = PartialExpression::Expression(Expression::Identifier(func));
+                    let err = Err((
+                        format!("expected {} but was {:?}", "'function'", to_push).into(),
+                        body,
+                    ));
+                    accumulated.push(to_push);
+                    err
                 }
             } else {
-                error_expected("'function'", elem)
+                let err = Err((
+                    format!("expected {} but was {:?}", "'function'", elem).into(),
+                    body,
+                ));
+                if let Some(elem) = elem {
+                    accumulated.push(elem);
+                }
+                err
             }
         }
     } else {
-        error_expected("'function' or parameter name", elem)
+        let err = Err((
+            format!(
+                "expected {} but was {:?}",
+                "'function' or parameter name", elem
+            )
+            .into(),
+            body,
+        ));
+        if let Some(elem) = elem {
+            accumulated.push(elem);
+        }
+        err
     }
 }
 

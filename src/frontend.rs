@@ -1,6 +1,6 @@
 use crate::frontend::expression::Expression;
 use crate::frontend::lexer::lex;
-use crate::frontend::slow_iterative_parser::Parser;
+use crate::frontend::slow_iterative_parser::parse_tokens;
 use crate::AnyError;
 
 pub mod ast;
@@ -15,7 +15,7 @@ pub mod recursive_parser;
 pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
     let tokens = lex(code_text);
     // let expression = parse(tokens?);
-    let expression = Parser::parse_tokens(tokens?);
+    let expression = parse_tokens(tokens?);
     expression
 }
 
@@ -66,8 +66,7 @@ mod tests {
 #[cfg(test)]
 mod benchmarks {
     use crate::frontend::lexer::lex;
-    use crate::frontend::recursive_parser::parse;
-    use crate::frontend::{ast, slow_iterative_parser};
+    use crate::frontend::{ast, recursive_parser, slow_iterative_parser};
     use std::time::Instant;
 
     #[ignore]
@@ -118,11 +117,11 @@ mod benchmarks {
         let tokens_3 = lex(code_ast).unwrap();
 
         let start = Instant::now();
-        let parsed_rec = parse(tokens_1);
+        let parsed_rec = recursive_parser::parse(tokens_1);
         let duration_recursive = Instant::now().duration_since(start);
 
         let start = Instant::now();
-        let parsed_iter = slow_iterative_parser::Parser::parse_tokens(tokens_2);
+        let parsed_iter = slow_iterative_parser::parse_tokens(tokens_2);
         let duration_iterative = Instant::now().duration_since(start);
 
         let start = Instant::now();
