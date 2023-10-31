@@ -89,6 +89,7 @@ pub struct Chain {
     pub initial: Box<Expression>,
     pub transformations: Transformations,
     // pub type_: Type,
+    // pub identifiers
 }
 
 impl Chain {

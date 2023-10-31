@@ -265,5 +265,6 @@ mod tests {
         ast_deserialize("function { } Fn").expect("should parse");
         ast_deserialize("function 5 Chain Fn").expect("should parse");
         ast_deserialize("function 5+7 Op Chain Fn").expect("should parse");
+        ast_deserialize("function x 5 Chain Fn").expect("should parse");
     }
 }

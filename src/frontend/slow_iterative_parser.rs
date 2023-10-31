@@ -262,6 +262,10 @@ mod tests {
         fn test_function_value() {
             assert_eq_ast("function {5}", "function 5 Chain Fn");
         }
+        #[test]
+        fn test_function_arg() {
+            assert_eq_ast("function x {5}", "function x 5 Chain Fn");
+        }
     }
 
     fn assert_eq_ast(code: &str, ast: &str) {
