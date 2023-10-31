@@ -103,10 +103,7 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyEr
             }
             PartialExpression::OpenBrace => {
                 return if transformations.is_empty() {
-                    accumulated.push(PartialExpression::Expression(Expression::chain(
-                        Box::new(Expression::Nothing),
-                        Vec::new(),
-                    )));
+                    accumulated.push(PartialExpression::Expression(Expression::empty_chain()));
                     Ok(())
                 } else {
                     error_expected("expression or operation", pe)
@@ -201,10 +198,7 @@ mod tests {
     #[test]
     fn test_nothing() {
         let ast = ast_deserialize("{}").unwrap();
-        assert_eq!(
-            ast,
-            Expression::chain(Box::new(Expression::Nothing), Vec::new())
-        );
+        assert_eq!(ast, Expression::empty_chain());
     }
     #[test]
     fn test_braced_value() {
@@ -234,5 +228,7 @@ mod tests {
     #[test]
     fn test_function() {
         ast_deserialize("function { } Fn").expect("should parse");
+        ast_deserialize("function 5 Chain Fn").expect("should parse");
+        ast_deserialize("function 5+7 Op Chain Fn").expect("should parse");
     }
 }

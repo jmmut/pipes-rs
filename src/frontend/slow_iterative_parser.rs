@@ -68,7 +68,7 @@ impl Parser {
 
         let mut elem_expression = accumulated.pop();
         if let Some(VirtualToken::StartChain) = elem_expression {
-            Ok(Expression::chain(Box::new(Expression::Nothing), Vec::new()))
+            Ok(Expression::empty_chain())
         } else {
             while let Some(VirtualToken::Expression(operand)) = elem_expression {
                 let elem_operator = accumulated.pop();
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn test_nothing() {
         let ast = "{}";
-        let expected = Expression::chain(Box::new(Expression::Nothing), Vec::new());
+        let expected = Expression::empty_chain();
         assert_eq!(Parser::parse(ast).unwrap(), expected);
     }
     #[test]

@@ -19,6 +19,9 @@ pub enum Expression {
 }
 
 impl Expression {
+    pub fn empty_chain() -> Self {
+        Self::chain(Box::new(Expression::Nothing), Vec::new())
+    }
     pub fn chain(initial: Box<Expression>, transformations: Transformations) -> Self {
         Self::Chain(Chain {
             initial,
