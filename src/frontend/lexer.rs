@@ -25,6 +25,7 @@ pub enum Operator {
     Call,
     Get,
     Type,
+    Assignment,
 }
 
 impl Token {
@@ -104,6 +105,7 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
         b'|' => Some(Operator::Call),
         b'#' => Some(Operator::Get),
         b':' => Some(Operator::Type),
+        b'=' => Some(Operator::Assignment),
         _ => None,
     }
 }

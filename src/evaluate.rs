@@ -72,8 +72,21 @@ impl Runtime {
                 Operator::Call => accumulated = self.call_function(accumulated, operand)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
                 Operator::Type => {}
+                Operator::Assignment => match operand {
+                    Expression::Identifier(name) => {
+                        self.identifiers
+                            .entry(name.clone())
+                            .or_insert(Vec::new())
+                            .push(accumulated);
+                    }
+                    _ => Err(format!(
+                        "Can only assign to identifiers, not to a {:?}",
+                        operand
+                    ))?,
+                },
             }
         }
+        // remove identifiers that this chain defined? may have defined the same several times
         Ok(accumulated)
     }
 
@@ -206,5 +219,9 @@ mod tests {
             interpret("function x {x +1} | function increment {6 |increment}"),
             7
         );
+    }
+    #[test]
+    fn test_name_function() {
+        assert_eq!(interpret("function x {x +1} =increment ;6 |increment"), 7);
     }
 }

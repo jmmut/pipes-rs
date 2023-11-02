@@ -250,6 +250,10 @@ mod tests {
         let expected = ast_deserialize("5 :tuple(i64() i64()) Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
+    #[test]
+    fn test_assignment() {
+        assert_eq_ast("function {} = noop", "function {} Fn = noop Op Chain");
+    }
 
     mod function {
         use super::*;
