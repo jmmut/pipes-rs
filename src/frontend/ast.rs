@@ -36,6 +36,7 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
                 "Chain" => construct_chain(&mut accumulated)?,
                 "Op" => construct_operation(&mut accumulated)?,
                 "Fn" => construct_function(&mut accumulated)?,
+                // "Br" => construct_branch(&mut accumulated)?,
                 // "Type" => construct_simple_type(&mut accumulated)?,
                 _ => accumulated.push(PartialExpression::Expression(Expression::Identifier(ident))),
             },

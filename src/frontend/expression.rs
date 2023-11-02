@@ -16,6 +16,7 @@ pub enum Expression {
     Chain(Chain),
     StaticList { elements: Expressions },
     Function(Function),
+    Branch(Branch),
 }
 
 impl Expression {
@@ -121,6 +122,11 @@ pub struct TypedIdentifier {
     pub type_: Type,
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub struct Branch {
+    yes: Chain,
+    no: Chain,
+}
 pub type Expressions = Vec<Expression>;
 pub type Transformations = Vec<Transformation>;
 

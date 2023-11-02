@@ -255,6 +255,14 @@ mod tests {
         assert_eq_ast("function {} = noop", "function {} Fn = noop Op Chain");
     }
 
+    #[test]
+    fn test_branch() {
+        assert_eq_ast(
+            "5 |branch {7} {8}",
+            "5 | branch 5 Chain 8 Chain Br Op Chain",
+        );
+    }
+
     mod function {
         use super::*;
 
