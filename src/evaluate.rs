@@ -63,6 +63,7 @@ impl Runtime {
             transformations,
         }: &Chain,
     ) -> Result<i64, AnyError> {
+        let mut identifiers = HashMap::<String, usize>::new();
         let mut accumulated = self.evaluate_recursive(&*initial)?;
         for Transformation { operator, operand } in transformations {
             match operator {
@@ -72,11 +73,37 @@ impl Runtime {
                 Operator::Call => accumulated = self.call_function(accumulated, operand)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
                 Operator::Type => {}
-                Operator::Assignment => self.evaluate_assignment(accumulated, operand)?,
+                Operator::Assignment => {
+                    self.evaluate_assignment(accumulated, operand, &mut identifiers)?
+                }
             }
         }
-        // remove identifiers that this chain defined? may have defined the same several times
+        for (identifier, times_redefined_in_this_chain) in identifiers {
+            self.unbind_identifier(&identifier, times_redefined_in_this_chain)?;
+        }
         Ok(accumulated)
+    }
+
+    fn unbind_identifier(&mut self, identifier: &String, times: usize) -> Result<(), AnyError> {
+        let option = self.identifiers.get_mut(identifier);
+        let stack = option.ok_or_else(|| {
+            format!(
+                "Bug: tried to unbind non-existing identifier {}",
+                identifier
+            )
+        })?;
+        if times > stack.len() {
+            return Err(format!(
+                "Bug: tried to unbind identifier {} {} times, but it's shadowed only {} times",
+                identifier,
+                times,
+                stack.len()
+            )
+            .into());
+        } else {
+            stack.truncate(times);
+            Ok(())
+        }
     }
 
     fn call_function(&mut self, argument: i64, function: &Expression) -> Result<i64, AnyError> {
@@ -116,8 +143,9 @@ impl Runtime {
             .entry(parameter.name.clone())
             .or_insert(Vec::new())
             .push(argument);
-        self.evaluate_chain(body)
-        // pop parameter?
+        let result = self.evaluate_chain(body)?;
+        self.unbind_identifier(&parameter.name, 1)?;
+        Ok(result)
     }
 
     fn get_list_element(
@@ -147,6 +175,7 @@ impl Runtime {
         &mut self,
         accumulated: GenericValue,
         operand: &Expression,
+        identifiers: &mut HashMap<String, usize>,
     ) -> Result<(), AnyError> {
         match operand {
             Expression::Identifier(name) => {
@@ -154,6 +183,7 @@ impl Runtime {
                     .entry(name.clone())
                     .or_insert(Vec::new())
                     .push(accumulated);
+                *identifiers.entry(name.clone()).or_insert(0) += 1;
                 Ok(())
             }
             _ => Err(format!("Can only assign to identifiers, not to a {:?}", operand).into()),
@@ -229,5 +259,31 @@ mod tests {
     #[test]
     fn test_name_function() {
         assert_eq!(interpret("function x {x +1} =increment ;6 |increment"), 7);
+    }
+    #[test]
+    fn test_deshadow_identifier() {
+        let code = "
+            function x { x + 1 }
+            =increment
+            |function {
+                function x { x - 1 }
+                =increment // this is really decrement, but shadows the outer increment
+                ;5
+                |increment // really, decrement to 4
+            }
+            |increment // this should be the real increment, so put back to 5
+            ";
+        assert_eq!(interpret(code), 5);
+    }
+    #[test]
+    fn test_deshadow_parameter() {
+        let code = "
+            5
+            |function x {
+                8
+                |function x { x + 1 }
+                ;x
+            }";
+        assert_eq!(interpret(code), 5);
     }
 }
