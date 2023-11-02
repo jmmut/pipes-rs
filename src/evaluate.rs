@@ -72,18 +72,7 @@ impl Runtime {
                 Operator::Call => accumulated = self.call_function(accumulated, operand)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
                 Operator::Type => {}
-                Operator::Assignment => match operand {
-                    Expression::Identifier(name) => {
-                        self.identifiers
-                            .entry(name.clone())
-                            .or_insert(Vec::new())
-                            .push(accumulated);
-                    }
-                    _ => Err(format!(
-                        "Can only assign to identifiers, not to a {:?}",
-                        operand
-                    ))?,
-                },
+                Operator::Assignment => self.evaluate_assignment(accumulated, operand)?,
             }
         }
         // remove identifiers that this chain defined? may have defined the same several times
@@ -151,6 +140,23 @@ impl Runtime {
                 .into()
             }),
             _ => Err(format!("Index should be an integer, but was {:?}", operand))?,
+        }
+    }
+
+    fn evaluate_assignment(
+        &mut self,
+        accumulated: GenericValue,
+        operand: &Expression,
+    ) -> Result<(), AnyError> {
+        match operand {
+            Expression::Identifier(name) => {
+                self.identifiers
+                    .entry(name.clone())
+                    .or_insert(Vec::new())
+                    .push(accumulated);
+                Ok(())
+            }
+            _ => Err(format!("Can only assign to identifiers, not to a {:?}", operand).into()),
         }
     }
 

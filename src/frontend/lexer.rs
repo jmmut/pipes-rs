@@ -48,11 +48,14 @@ fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
         if let Some(digit) = parse_digit(letter) {
             let value = consume_number(digit, &mut bytes)?;
             tokens.push(Token::Number(value));
-        } else if let Some(operator) = parse_operator(letter) {
-            tokens.push(Token::Operator(operator));
-            bytes.next();
         } else if let Some(token) = parse_grouping(letter) {
             tokens.push(token);
+            bytes.next();
+        } else if let Some(mut multichar_tokens) = consume_multichar_tokens(letter, &mut bytes) {
+            tokens.append(&mut multichar_tokens);
+            bytes.next();
+        } else if let Some(operator) = parse_operator(letter) {
+            tokens.push(Token::Operator(operator));
             bytes.next();
         } else if let Some(letter) = parse_letter(letter) {
             let name = consume_identifier(letter, &mut bytes)?;
@@ -95,6 +98,36 @@ pub fn parse_letter(letter: u8) -> Option<u8> {
 }
 pub fn parse_alphanum(letter: u8) -> Option<u8> {
     parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
+}
+
+pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Option<Tokens> {
+    match letter {
+        b'/' => {
+            iter.next();
+            let next_letter = iter.peek();
+            match next_letter {
+                Some(b'/') => {
+                    consume_until_not_including(b'\n', iter);
+                    Some(Vec::new())
+                }
+                Some(_) => None,
+                None => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+pub fn consume_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) {
+    loop {
+        match iter.peek() {
+            Some(letter) if *letter == end_letter => return,
+            None => return,
+            Some(_) => {
+                iter.next();
+            }
+        }
+    }
 }
 
 pub fn parse_operator(letter: u8) -> Option<Operator> {
@@ -221,5 +254,10 @@ mod tests {
             lex("[5 6 7]").unwrap(),
             vec![OpenBracket, Number(5), Number(6), Number(7), CloseBracket,]
         );
+    }
+
+    #[test]
+    fn test_comments() {
+        assert_eq!(lex("5 // comment \n6").unwrap(), vec![Number(5), Number(6)])
     }
 }
