@@ -9,3 +9,5 @@
 - [ ] chars and strings
 - [ ] file imports, in a way that is compatible with LSP
 - [ ] code location
+- [ ] branching
+- [ ] assignment to identifiers
