@@ -1,9 +1,8 @@
 use crate::common::{context, AnyError};
-use crate::frontend::expression::type_names::FUNCTION;
 use crate::frontend::expression::{
     Chain, Expression, Function, Transformation, Type, TypedIdentifier,
 };
-use crate::frontend::lexer::{lex, Operator, Token, Tokens};
+use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
 use crate::frontend::slow_iterative_parser::error_expected;
 use std::collections::VecDeque;
 use std::fmt::Debug;
@@ -16,6 +15,7 @@ pub enum PartialExpression {
     Expression(Expression),
     Operation(Transformation),
     Operator(Operator),
+    Keyword(Keyword),
 }
 pub fn ast_deserialize(s: &str) -> Result<Expression, AnyError> {
     let tokens = lex(s).unwrap();
@@ -32,6 +32,7 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
             Token::OpenBrace => accumulated.push(PartialExpression::OpenBrace),
             Token::CloseBrace => construct_chain(&mut accumulated)?,
             Token::Operator(o) => accumulated.push(PartialExpression::Operator(o)),
+            Token::Keyword(keyword) => accumulated.push(PartialExpression::Keyword(keyword)),
             Token::Identifier(ident) => match ident.as_str() {
                 "Chain" => construct_chain(&mut accumulated)?,
                 "Op" => construct_operation(&mut accumulated)?,
@@ -158,56 +159,50 @@ pub fn construct_function_from_chain(
     body: Chain,
 ) -> Result<Function, (AnyError, Chain)> {
     let elem = accumulated.pop();
-    if let Some(PartialExpression::Expression(Expression::Identifier(func_or_param))) = elem {
-        if func_or_param == FUNCTION {
+    match elem {
+        Some(PartialExpression::Keyword(Keyword::Function)) => {
             let parameter = TypedIdentifier {
                 name: "".to_string(),
                 type_: Type::nothing(),
             };
             Ok(Function { parameter, body })
-        } else {
-            let param = func_or_param;
+        }
+        Some(PartialExpression::Expression(Expression::Identifier(param))) => {
             let elem = accumulated.pop();
-            if let Some(PartialExpression::Expression(Expression::Identifier(func))) = elem {
-                if func == FUNCTION {
+            match elem {
+                Some(PartialExpression::Keyword(Keyword::Function)) => {
                     let parameter = TypedIdentifier {
                         name: param,
                         type_: Type::Unknown, // TODO: accept typed parameter definition
                     };
                     Ok(Function { parameter, body })
-                } else {
-                    let to_push = PartialExpression::Expression(Expression::Identifier(func));
+                }
+                _ => {
                     let err = Err((
-                        format!("expected {} but was {:?}", "'function'", to_push).into(),
+                        format!("expected {} but was {:?}", "'function'", elem).into(),
                         body,
                     ));
-                    accumulated.push(to_push);
+                    if let Some(to_push) = elem {
+                        accumulated.push(to_push);
+                    }
                     err
                 }
-            } else {
-                let err = Err((
-                    format!("expected {} but was {:?}", "'function'", elem).into(),
-                    body,
-                ));
-                if let Some(elem) = elem {
-                    accumulated.push(elem);
-                }
-                err
             }
         }
-    } else {
-        let err = Err((
-            format!(
-                "expected {} but was {:?}",
-                "'function' or parameter name", elem
-            )
-            .into(),
-            body,
-        ));
-        if let Some(elem) = elem {
-            accumulated.push(elem);
+        _ => {
+            let err = Err((
+                format!(
+                    "expected {} but was {:?}",
+                    "'function' or parameter name", elem
+                )
+                .into(),
+                body,
+            ));
+            if let Some(elem) = elem {
+                accumulated.push(elem);
+            }
+            err
         }
-        err
     }
 }
 

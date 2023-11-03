@@ -26,14 +26,15 @@ impl Parser {
         };
         for token in tokens {
             match token {
-                Token::Number(n) => ast.push(Expression::Value(n))?,
-                Token::Operator(operator) => ast.push_vt(PartialExpression::Operator(operator))?,
-                Token::Identifier(ident) => ast.push(Expression::Identifier(ident))?,
-                Token::OpenBrace => ast.push_vt(PartialExpression::OpenBrace)?,
+                Token::Number(n) => ast.push(Expression::Value(n)),
+                Token::Operator(operator) => ast.push_pe(PartialExpression::Operator(operator)),
+                Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
+                Token::Keyword(keyword) => ast.push_pe(PartialExpression::Keyword(keyword)),
+                Token::OpenBrace => ast.push_pe(PartialExpression::OpenBrace),
                 Token::CloseBrace => ast.push_f(Self::construct_flat_chain)?,
-                Token::OpenBracket => ast.push_vt(PartialExpression::OpenBracket)?,
+                Token::OpenBracket => ast.push_pe(PartialExpression::OpenBracket),
                 Token::CloseBracket => ast.push_f(Self::construct_array)?,
-                Token::OpenParenthesis => ast.push_vt(PartialExpression::OpenParenthesis)?,
+                Token::OpenParenthesis => ast.push_pe(PartialExpression::OpenParenthesis),
                 Token::CloseParenthesis => ast.push_f(Self::construct_type)?,
                 // _ => return error_expected("anything else", token),
             };
@@ -46,15 +47,15 @@ impl Parser {
         construct_expression: fn(&mut Vec<PartialExpression>) -> Result<Expression, AnyError>,
     ) -> Result<(), AnyError> {
         let expression = construct_expression(&mut self.accumulated)?;
-        self.push(expression)
+        self.push(expression);
+        Ok(())
     }
 
-    fn push(&mut self, expression: Expression) -> Result<(), AnyError> {
-        self.push_vt(PartialExpression::Expression(expression))
+    fn push(&mut self, expression: Expression) {
+        self.push_pe(PartialExpression::Expression(expression));
     }
-    fn push_vt(&mut self, virtual_token: PartialExpression) -> Result<(), AnyError> {
-        self.accumulated.push(virtual_token);
-        Ok(())
+    fn push_pe(&mut self, partial_expression: PartialExpression) {
+        self.accumulated.push(partial_expression);
     }
 
     fn construct_flat_chain(
@@ -135,8 +136,8 @@ impl Parser {
     fn construct_type(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
         let mut types = VecDeque::new();
         let mut elem = accumulated.pop();
-        while let Some(vt) = elem {
-            match vt {
+        while let Some(pe) = elem {
+            match pe {
                 PartialExpression::OpenParenthesis => {
                     elem = accumulated.pop();
                     break;
@@ -147,7 +148,7 @@ impl Parser {
                 PartialExpression::Expression(Expression::Identifier(type_name)) => {
                     types.push_front(Type::simple(type_name));
                 }
-                _ => return error_expected("type start or type expression", vt),
+                _ => return error_expected("type start or type expression", pe),
             }
             elem = accumulated.pop();
         }

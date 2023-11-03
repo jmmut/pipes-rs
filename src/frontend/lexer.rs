@@ -1,4 +1,5 @@
 use crate::common::context;
+use crate::frontend::expression::keywords;
 use crate::AnyError;
 use std::iter::Peekable;
 use std::str::Bytes;
@@ -8,6 +9,7 @@ pub enum Token {
     Number(i64),
     Operator(Operator),
     Identifier(String),
+    Keyword(Keyword),
     OpenBracket,
     CloseBracket,
     OpenBrace,
@@ -26,6 +28,12 @@ pub enum Operator {
     Get,
     Type,
     Assignment,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Keyword {
+    Function,
+    Branch,
 }
 
 impl Token {
@@ -59,7 +67,7 @@ fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
             bytes.next();
         } else if let Some(letter) = parse_letter(letter) {
             let name = consume_identifier(letter, &mut bytes)?;
-            tokens.push(Token::Identifier(name));
+            tokens.push(name);
         } else if is_space(letter) {
             bytes.next();
         } else {
@@ -183,10 +191,7 @@ fn maybe_add_digit(mut accumulated: i64, new_digit: i64) -> Result<i64, AnyError
     };
 }
 
-pub fn consume_identifier(
-    first_letter: u8,
-    iter: &mut Peekable<Bytes>,
-) -> Result<String, AnyError> {
+pub fn consume_identifier(first_letter: u8, iter: &mut Peekable<Bytes>) -> Result<Token, AnyError> {
     let mut accumulated = vec![first_letter];
     loop {
         iter.next();
@@ -196,8 +201,18 @@ pub fn consume_identifier(
                 continue;
             }
         }
-        return Ok(String::from_utf8(accumulated)?);
+        return Ok(keyword_or_identifier(String::from_utf8(accumulated)?));
     }
+}
+
+pub fn keyword_or_identifier(identifier: String) -> Token {
+    return if identifier == keywords::FUNCTION {
+        Token::Keyword(Keyword::Function)
+    } else if identifier == keywords::BRANCH {
+        Token::Keyword(Keyword::Branch)
+    } else {
+        Token::Identifier(identifier)
+    };
 }
 
 #[cfg(test)]

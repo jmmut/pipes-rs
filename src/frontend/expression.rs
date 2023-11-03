@@ -130,10 +130,13 @@ pub struct Branch {
 pub type Expressions = Vec<Expression>;
 pub type Transformations = Vec<Transformation>;
 
+pub mod keywords {
+    pub const FUNCTION: &'static str = "function";
+    pub const BRANCH: &'static str = "branch";
+}
 pub mod type_names {
     #[allow(unused)]
     pub const I64: &'static str = "i64";
-    pub const FUNCTION: &'static str = "function";
     #[allow(unused)]
     pub const TUPLE: &'static str = "tuple";
     #[allow(unused)]
