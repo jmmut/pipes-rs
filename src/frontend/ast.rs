@@ -1,6 +1,6 @@
 use crate::common::{context, AnyError};
 use crate::frontend::expression::{
-    Chain, Expression, Function, Transformation, Type, TypedIdentifier,
+    Branch, Chain, Expression, Function, Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
 use crate::frontend::slow_iterative_parser::error_expected;
@@ -37,7 +37,7 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
                 "Chain" => construct_chain(&mut accumulated)?,
                 "Op" => construct_operation(&mut accumulated)?,
                 "Fn" => construct_function(&mut accumulated)?,
-                // "Br" => construct_branch(&mut accumulated)?,
+                "Br" => construct_branch(&mut accumulated)?,
                 // "Type" => construct_simple_type(&mut accumulated)?,
                 _ => accumulated.push(PartialExpression::Expression(Expression::Identifier(ident))),
             },
@@ -203,6 +203,29 @@ pub fn construct_function_from_chain(
             }
             err
         }
+    }
+}
+
+fn construct_branch(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    let elem = accumulated.pop();
+    if let Some(PartialExpression::Expression(Expression::Chain(no))) = elem {
+        let elem = accumulated.pop();
+        if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
+            let elem = accumulated.pop();
+            if let Some(PartialExpression::Keyword(Keyword::Branch)) = elem {
+                accumulated.push(PartialExpression::Expression(Expression::Branch(Branch {
+                    yes,
+                    no,
+                })));
+                Ok(())
+            } else {
+                error_expected("'branch' keyword", elem)
+            }
+        } else {
+            error_expected("branch 'if-then' case (chain)", elem)
+        }
+    } else {
+        error_expected("branch 'else' case (chain)", elem)
     }
 }
 

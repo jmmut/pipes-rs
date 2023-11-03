@@ -124,8 +124,8 @@ pub struct TypedIdentifier {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Branch {
-    yes: Chain,
-    no: Chain,
+    pub yes: Chain,
+    pub no: Chain,
 }
 pub type Expressions = Vec<Expression>;
 pub type Transformations = Vec<Transformation>;
