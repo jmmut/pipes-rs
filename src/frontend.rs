@@ -11,6 +11,7 @@ pub mod slow_iterative_parser;
 // pub mod fast_iterative_parser;
 #[cfg(test)]
 pub mod recursive_parser;
+mod reverse_iterative_parser;
 
 pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
     let tokens = lex(code_text);

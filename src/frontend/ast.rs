@@ -10,8 +10,11 @@ use std::fmt::Debug;
 #[derive(Debug)]
 pub enum PartialExpression {
     OpenBracket,
+    CloseBracket,
     OpenBrace,
+    CloseBrace,
     OpenParenthesis,
+    CloseParenthesis,
     Expression(Expression),
     Operation(Transformation),
     Operator(Operator),
