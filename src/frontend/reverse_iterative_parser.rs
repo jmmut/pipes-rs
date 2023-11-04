@@ -30,7 +30,7 @@ impl Parser {
                 Token::Operator(operator) => ast.push_pe(PartialExpression::Operator(operator)),
                 // Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
                 // Token::Keyword(keyword) => ast.push_pe(PartialExpression::Keyword(keyword)),
-                Token::OpenBrace => ast.push_f(Self::construct_flat_chain)?,
+                Token::OpenBrace => ast.push_f(Self::construct_chain)?,
                 Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace),
                 // Token::OpenBracket => ast.push_pe(PartialExpression::OpenBracket),
                 // Token::CloseBracket => ast.push_f(Self::construct_array)?,
@@ -40,8 +40,8 @@ impl Parser {
             };
         }
 
-        if let Some(PartialExpression::Expression(expression))= ast.accumulated.pop_front() {
-            return Ok(expression)
+        if let Some(PartialExpression::Expression(expression)) = ast.accumulated.pop_front() {
+            return Ok(expression);
         } else {
             Err("Couldn't parse a valid expression".into())
         }
@@ -64,31 +64,33 @@ impl Parser {
         self.accumulated.push_front(partial_expression);
     }
 
-    fn construct_flat_chain(
+    fn construct_chain(
         accumulated: &mut VecDeque<PartialExpression>,
     ) -> Result<Expression, AnyError> {
-        let mut elem_expression = accumulated.pop_front();
-        if let Some(PartialExpression::CloseBrace) = elem_expression {
-            return Ok(Expression::empty_chain());
-        } else if let Some(PartialExpression::Expression(initial)) = elem_expression {
-            let mut transformations = Transformations::new();
-            loop {
-                let mut elem_operator = accumulated.pop_front();
-                if let Some(PartialExpression::CloseBrace) = elem_operator {
-                    return Ok(Expression::chain(Box::new(initial), transformations));
-                } else if let Some(PartialExpression::Operator(operator)) = elem_operator {
-                    let elem_expression = accumulated.pop_front();
-                    if let Some(PartialExpression::Expression(operand)) = elem_expression {
-                        transformations.push(Transformation { operator, operand });
-                    } else {
-                        error_expected("expression after operator", elem_expression)?
+        let elem_expression = accumulated.pop_front();
+        match elem_expression {
+            Some(PartialExpression::CloseBrace) => Ok(Expression::empty_chain()),
+            Some(PartialExpression::Expression(initial)) => {
+                let mut transformations = Transformations::new();
+                loop {
+                    let elem_operator = accumulated.pop_front();
+                    match elem_operator {
+                        Some(PartialExpression::CloseBrace) => {
+                            return Ok(Expression::chain(Box::new(initial), transformations))
+                        }
+                        Some(PartialExpression::Operator(operator)) => {
+                            let elem_expression = accumulated.pop_front();
+                            if let Some(PartialExpression::Expression(operand)) = elem_expression {
+                                transformations.push(Transformation { operator, operand });
+                            } else {
+                                error_expected("expression after operator", elem_expression)?
+                            }
+                        }
+                        _ => error_expected("operator or closing brace", elem_operator)?,
                     }
-                } else {
-                    error_expected("operator or closing brace", elem_operator)?
                 }
             }
-        } else {
-            Err("Can't parse chain".into())
+            _ => error_expected("expression or closing brace", elem_expression),
         }
     }
 
@@ -173,7 +175,7 @@ impl Parser {
         } else {
             let error_message = format!("unfinished code: {:?}", accumulated);
             accumulated.insert(0, PartialExpression::OpenBrace);
-            let e = Self::construct_flat_chain(accumulated)?;
+            let e = Self::construct_chain(accumulated)?;
             if !accumulated.is_empty() {
                 Err(error_message.into())
             } else {
