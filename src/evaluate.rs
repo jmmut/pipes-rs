@@ -3,6 +3,7 @@ use std::io::Read;
 use std::rc::Rc;
 
 use crate::common::context;
+use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::{Chain, Expression, Expressions, Function, Transformation};
 use crate::frontend::lexer::Operator;
 use crate::AnyError;
@@ -16,8 +17,13 @@ pub const NOTHING: i64 = i64::MIN;
 pub struct Runtime {
     /// using a map<index,list> instead of a vec<list> to be able to deallocate individual lists
     lists: HashMap<ListPointer, Vec<GenericValue>>,
-    functions: Vec<Rc<Function>>,
+    functions: Vec<Rc<FunctionOrIntrinsic>>,
     identifiers: HashMap<String, BindingsStack>,
+}
+
+enum FunctionOrIntrinsic {
+    Function(Function),
+    Intrinsic(Intrinsic),
 }
 
 #[allow(unused)]
@@ -25,14 +31,48 @@ fn unimplemented<T>() -> Result<T, AnyError> {
     Err("unimplemented".into())
 }
 
+mod intrinsics {
+    #[derive(Copy, Clone)]
+    pub enum Intrinsic {
+        PrintChar,
+        ReadChar,
+    }
+    impl Intrinsic {
+        pub fn name(&self) -> &'static str {
+            match self {
+                Intrinsic::PrintChar => "print_char",
+                Intrinsic::ReadChar => "read_char",
+            }
+        }
+    }
+    use Intrinsic::*;
+    pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar];
+}
+
 impl Runtime {
     pub fn evaluate(expression: Expression) -> Result<GenericValue, AnyError> {
+        let (identifiers, functions) = Self::build_intrinsics();
         let mut runtime = Runtime {
             lists: HashMap::new(),
-            functions: Vec::new(),
-            identifiers: HashMap::new(),
+            functions,
+            identifiers,
         };
         context("Runtime", runtime.evaluate_recursive(&expression))
+    }
+
+    fn build_intrinsics() -> (
+        HashMap<String, Vec<GenericValue>>,
+        Vec<Rc<FunctionOrIntrinsic>>,
+    ) {
+        let mut identifiers = HashMap::new();
+        let mut functions = Vec::new();
+        let mut i = 0;
+        for intrinsic in intrinsics::INTRINSICS {
+            functions.push(Rc::new(FunctionOrIntrinsic::Intrinsic(*intrinsic)));
+            identifiers.insert(intrinsic.name().to_string(), vec![i]);
+            i += 1;
+        }
+        (identifiers, functions)
     }
 
     fn evaluate_recursive(&mut self, expression: &Expression) -> Result<GenericValue, AnyError> {
@@ -109,21 +149,18 @@ impl Runtime {
     fn call_function(&mut self, argument: i64, function: &Expression) -> Result<i64, AnyError> {
         match function {
             Expression::Identifier(function_name) => {
-                if function_name == "print_char" {
-                    print!("{}", argument as u8 as char);
-                    Ok(argument)
-                } else if function_name == "read_char" {
-                    let one_byte_buffer: &mut [u8] = &mut [0; 1];
-                    std::io::stdin().read_exact(one_byte_buffer)?;
-                    Ok(one_byte_buffer[0] as i64)
-                } else {
-                    let function_ptr = self.get_identifier(function_name)?;
-                    if let Some(function_expr) = self.functions.get(function_ptr as usize).cloned()
-                    {
-                        self.call_function_expression(argument, function_expr.as_ref())
-                    } else {
-                        Err(format!("Bug: Identifier '{}' is not a function", function_name).into())
+                let function_ptr = self.get_identifier(function_name)?;
+                if let Some(function_expr) = self.functions.get(function_ptr as usize).cloned() {
+                    match function_expr.as_ref() {
+                        FunctionOrIntrinsic::Function(function) => {
+                            self.call_function_expression(argument, function)
+                        }
+                        FunctionOrIntrinsic::Intrinsic(intrinsic) => {
+                            Self::call_intrinsic(argument, *intrinsic)
+                        }
                     }
+                } else {
+                    Err(format!("Bug: Identifier '{}' is not a function", function_name).into())
                 }
             }
             Expression::Function(function) => self.call_function_expression(argument, function),
@@ -147,7 +184,19 @@ impl Runtime {
         self.unbind_identifier(&parameter.name, 1)?;
         Ok(result)
     }
-
+    fn call_intrinsic(argument: GenericValue, intrinsic: Intrinsic) -> Result<GenericValue, AnyError>{
+        match intrinsic {
+            Intrinsic::PrintChar => {
+                print!("{}", argument as u8 as char);
+                Ok(argument)
+            }
+            Intrinsic::ReadChar => {
+                let one_byte_buffer: &mut [u8] = &mut [0; 1];
+                std::io::stdin().read_exact(one_byte_buffer)?;
+                Ok(one_byte_buffer[0] as i64)
+            }
+        }
+    }
     fn get_list_element(
         &mut self,
         list_pointer: ListPointer,
@@ -201,7 +250,7 @@ impl Runtime {
     }
 
     fn allocate_function(&mut self, function: Function) -> Result<FunctionPointer, AnyError> {
-        self.functions.push(Rc::new(function));
+        self.functions.push(Rc::new(FunctionOrIntrinsic::Function(function)));
         Ok((self.functions.len() - 1) as i64)
     }
 }
@@ -285,5 +334,10 @@ mod tests {
                 ;x
             }";
         assert_eq!(interpret(code), 5);
+    }
+    #[test]
+    fn test_pass_intrinsics() {
+        let code = " print_char |function(f) { 5 +48 |f }";
+        assert_eq!(interpret(code), 53);
     }
 }
