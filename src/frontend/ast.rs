@@ -17,7 +17,8 @@ pub enum PartialExpression {
     Operation(Transformation),
     Operator(Operator),
     Keyword(Keyword),
-    ChildrenTypes(Types)
+    ChildrenTypes(Types),
+    Transformation(Transformation),
 }
 pub fn ast_deserialize(s: &str) -> Result<Expression, AnyError> {
     let tokens = lex(s).unwrap();

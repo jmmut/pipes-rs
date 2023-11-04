@@ -27,7 +27,10 @@ impl Parser {
         for token in tokens.into_iter().rev() {
             match token {
                 Token::Number(n) => ast.push(Expression::Value(n)),
-                Token::Operator(operator) => ast.push_pe(PartialExpression::Operator(operator)),
+                Token::Operator(operator) => {
+                    let pe = construct_transformation(&mut ast.accumulated, operator)?;
+                    ast.push_pe(pe);
+                }
                 Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
                 // Token::Keyword(keyword) => ast.push_pe(PartialExpression::Keyword(keyword)),
                 Token::OpenBrace => ast.push_f(construct_chain)?,
@@ -89,6 +92,38 @@ impl Parser {
 
 }
 
+fn construct_transformation(accumulated: &mut VecDeque<PartialExpression>, operator: Operator) -> Result<PartialExpression, AnyError> {
+    let elem_operand = accumulated.pop_front();
+    if let Operator::Type = operator {
+        if let Some(PartialExpression::Expression(Expression::Identifier(typename))) = elem_operand {
+            let operand = get_type_maybe_pop_children(accumulated, typename);
+            Ok(PartialExpression::Transformation(Transformation { operator, operand }))
+        } else {
+            error_expected("type name after type operator ':'", elem_operand)
+        }
+    } else {
+        if let Some(PartialExpression::Expression(operand)) = elem_operand {
+            Ok(PartialExpression::Transformation(Transformation {operator, operand}))
+        } else {
+            error_expected("operand after operator", elem_operand)
+        }
+    }
+}
+
+
+fn get_type_maybe_pop_children(accumulated: &mut VecDeque<PartialExpression>, typename: String) -> Expression {
+    let maybe_children = accumulated.pop_front();
+    match maybe_children {
+        Some(PartialExpression::ChildrenTypes(children)) => {
+            return Expression::Type(Type::children(typename, children))
+        }
+        Some(not_children) => accumulated.push_front(not_children),
+        None => {}
+    }
+    Expression::Type(Type::simple(typename))
+}
+
+
 fn construct_chain(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {
     let elem_expression = accumulated.pop_front();
     match elem_expression {
@@ -111,13 +146,8 @@ fn construct_chain_transformations(
             Some(PartialExpression::CloseBrace) => {
                 return Ok(Expression::chain(Box::new(initial), transformations))
             }
-            Some(PartialExpression::Operator(operator)) => {
-                let elem_expression = accumulated.pop_front();
-                if let Some(PartialExpression::Expression(operand)) = elem_expression {
-                    transformations.push(Transformation { operator, operand });
-                } else {
-                    error_expected("expression after operator", elem_expression)?
-                }
+            Some(PartialExpression::Transformation(transformation)) => {
+                transformations.push(transformation);
             }
             _ => error_expected("operator or closing brace", elem_operator)?,
         }
@@ -175,7 +205,7 @@ fn finish_construction(
         }
     } else {
         let error_message = format!("unfinished code: {:?}", accumulated);
-        accumulated.push_back(PartialExpression::OpenBrace);
+        accumulated.push_back(PartialExpression::CloseBrace);
         let e = construct_chain(accumulated)?;
         if !accumulated.is_empty() {
             Err(error_message.into())
