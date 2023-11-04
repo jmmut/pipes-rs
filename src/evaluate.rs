@@ -184,7 +184,10 @@ impl Runtime {
         self.unbind_identifier(&parameter.name, 1)?;
         Ok(result)
     }
-    fn call_intrinsic(argument: GenericValue, intrinsic: Intrinsic) -> Result<GenericValue, AnyError>{
+    fn call_intrinsic(
+        argument: GenericValue,
+        intrinsic: Intrinsic,
+    ) -> Result<GenericValue, AnyError> {
         match intrinsic {
             Intrinsic::PrintChar => {
                 print!("{}", argument as u8 as char);
@@ -250,7 +253,8 @@ impl Runtime {
     }
 
     fn allocate_function(&mut self, function: Function) -> Result<FunctionPointer, AnyError> {
-        self.functions.push(Rc::new(FunctionOrIntrinsic::Function(function)));
+        self.functions
+            .push(Rc::new(FunctionOrIntrinsic::Function(function)));
         Ok((self.functions.len() - 1) as i64)
     }
 }
@@ -339,5 +343,18 @@ mod tests {
     fn test_pass_intrinsics() {
         let code = " print_char |function(f) { 5 +48 |f }";
         assert_eq!(interpret(code), 53);
+    }
+    #[test]
+    fn test_deshadow_intrinsics() {
+        let code = "
+            {
+                function(x) {x+1}
+                =print_char // shadowing print_char with an increment function
+                ;5 + 48
+                |print_char // 53 -> 54
+            }
+            |print_char     // print 54: '6'
+            ";
+        assert_eq!(interpret(code), 54);
     }
 }
