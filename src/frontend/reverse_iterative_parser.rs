@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, PartialExpression};
-use crate::frontend::expression::{Chain, Expression, Transformation, Type};
+use crate::frontend::expression::{Chain, Expression, Transformation, Transformations, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 
 #[cfg(test)]
@@ -27,7 +27,7 @@ impl Parser {
         for token in tokens.into_iter().rev() {
             match token {
                 Token::Number(n) => ast.push(Expression::Value(n)),
-                // Token::Operator(operator) => ast.push_pe(PartialExpression::Operator(operator)),
+                Token::Operator(operator) => ast.push_pe(PartialExpression::Operator(operator)),
                 // Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
                 // Token::Keyword(keyword) => ast.push_pe(PartialExpression::Keyword(keyword)),
                 Token::OpenBrace => ast.push_f(Self::construct_flat_chain)?,
@@ -67,46 +67,29 @@ impl Parser {
     fn construct_flat_chain(
         accumulated: &mut VecDeque<PartialExpression>,
     ) -> Result<Expression, AnyError> {
-        // let mut transformations = VecDeque::new();
-
         let mut elem_expression = accumulated.pop_front();
         if let Some(PartialExpression::CloseBrace) = elem_expression {
             return Ok(Expression::empty_chain());
-        } else {
-            if let Some(PartialExpression::Expression(expression)) = elem_expression {
-                let mut elem_expression = accumulated.pop_front();
-                if let Some(PartialExpression::CloseBrace) = elem_expression {
-                    return Ok(Expression::chain(Box::new(expression), Vec::new()));
+        } else if let Some(PartialExpression::Expression(initial)) = elem_expression {
+            let mut transformations = Transformations::new();
+            loop {
+                let mut elem_operator = accumulated.pop_front();
+                if let Some(PartialExpression::CloseBrace) = elem_operator {
+                    return Ok(Expression::chain(Box::new(initial), transformations));
+                } else if let Some(PartialExpression::Operator(operator)) = elem_operator {
+                    let elem_expression = accumulated.pop_front();
+                    if let Some(PartialExpression::Expression(operand)) = elem_expression {
+                        transformations.push(Transformation { operator, operand });
+                    } else {
+                        error_expected("expression after operator", elem_expression)?
+                    }
+                } else {
+                    error_expected("operator or closing brace", elem_operator)?
                 }
             }
-            // while let Some(PartialExpression::Expression(operand)) = elem_expression {
-            //     let elem_operator = accumulated.pop();
-            //     match elem_operator {
-            //         Some(PartialExpression::Operator(operator)) => {
-            //             transformations
-            //                 .push_front(Self::construct_transformation(operator, operand));
-            //         }
-            //         Some(PartialExpression::OpenBrace) => {
-            //             return Self::attempt_construct_function(
-            //                 accumulated,
-            //                 Chain::new(
-            //                     Box::new(operand),
-            //                     transformations.into_iter().collect::<Vec<_>>(),
-            //                 ),
-            //             );
-            //         }
-            //         None => {
-            //             return Err("unbalanced brace".into());
-            //         }
-            //         _ => {
-            //             return error_expected("operator or chain start", elem_operator)?;
-            //         }
-            //     }
-            //     elem_expression = accumulated.pop();
-            // }
+        } else {
+            Err("Can't parse chain".into())
         }
-        Err("Can't parse chain".into())
-
     }
 
     fn construct_transformation(operator: Operator, operand: Expression) -> Transformation {
