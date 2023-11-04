@@ -21,6 +21,7 @@ pub enum PartialExpression {
     Operator(Operator),
     Keyword(Keyword),
     ChildrenTypes(TypedIdentifiers),
+    TypedIdentifier(TypedIdentifier),
     Transformation(Transformation),
 }
 pub fn ast_deserialize(s: &str) -> Result<Expression, AnyError> {
@@ -34,7 +35,7 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
             Token::OpenBracket => accumulated.push(PartialExpression::OpenBracket),
             Token::CloseBracket => construct_list(&mut accumulated)?,
             Token::OpenParenthesis => accumulated.push(PartialExpression::OpenParenthesis),
-            Token::CloseParenthesis => construct_complex_type(&mut accumulated)?,
+            Token::CloseParenthesis => construct_type_with_children(&mut accumulated)?,
             Token::OpenBrace => accumulated.push(PartialExpression::OpenBrace),
             Token::CloseBrace => construct_chain(&mut accumulated)?,
             Token::Operator(o) => accumulated.push(PartialExpression::Operator(o)),
@@ -44,6 +45,9 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
                 "Op" => construct_operation(&mut accumulated)?,
                 "Fn" => construct_function(&mut accumulated)?,
                 "Br" => construct_branch(&mut accumulated)?,
+                "NT" => construct_named_type(&mut accumulated)?,
+                "UT" => construct_unnamed_type(&mut accumulated)?,
+                "NU" => construct_name_untyped(&mut accumulated)?,
                 // "Type" => construct_simple_type(&mut accumulated)?,
                 _ => accumulated.push(PartialExpression::Expression(Expression::Identifier(ident))),
             },
@@ -72,29 +76,24 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
     }
 }
 
-fn construct_complex_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let mut types = VecDeque::new();
-    while let Some(expr_type) = accumulated.pop() {
-        match expr_type {
-            PartialExpression::Expression(Expression::Type(a_type)) => {
-                types.push_front(a_type);
-            }
-            PartialExpression::Expression(Expression::Identifier(name)) => {
-                types.push_front(Type::simple(name));
-            }
-            PartialExpression::OpenParenthesis => {
-                break;
-            }
-            _ => return error_expected("type name or type expression", expr_type),
-        }
+    let mut elem = accumulated.pop();
+    while let Some(PartialExpression::TypedIdentifier(typed_identifier)) = elem {
+        types.push_front(typed_identifier);
+        elem = accumulated.pop();
     }
-    let elem = accumulated.pop();
-    if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
-        let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
-        accumulated.push(PartialExpression::Expression(Expression::Type(a_type)));
-        Ok(())
+    if let Some(PartialExpression::OpenParenthesis) = elem {
+        elem = accumulated.pop();
+        if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
+            let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
+            accumulated.push(PartialExpression::Expression(Expression::Type(a_type)));
+            Ok(())
+        } else {
+            error_expected("parent type name before parenthesis", elem)
+        }
     } else {
-        error_expected("array start or expression", elem)
+        error_expected("opening parenthesis after parent type name", elem)
     }
 }
 
@@ -235,6 +234,57 @@ fn construct_branch(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyE
     }
 }
 
+fn construct_named_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    let elem = accumulated.pop();
+    if let Some(PartialExpression::Expression(Expression::Type(type_))) = elem {
+        let elem = accumulated.pop();
+        if let Some(PartialExpression::Operator(Operator::Type)) = elem {
+            let elem = accumulated.pop();
+            if let Some(PartialExpression::Expression(Expression::Identifier(name))) = elem {
+                accumulated.push(PartialExpression::TypedIdentifier(TypedIdentifier {
+                    name,
+                    type_,
+                }));
+                Ok(())
+            } else {
+                error_expected("child type name before operator type ':'", elem)
+            }
+        } else {
+            error_expected("operator type ':' after type name", elem)
+        }
+    } else {
+        error_expected("type after type operator ':'", elem)
+    }
+}
+fn construct_unnamed_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    let elem = accumulated.pop();
+    if let Some(PartialExpression::Expression(Expression::Type(type_))) = elem {
+        let elem = accumulated.pop();
+        if let Some(PartialExpression::Operator(Operator::Type)) = elem {
+            accumulated.push(PartialExpression::TypedIdentifier(
+                TypedIdentifier::nameless(type_),
+            ));
+            Ok(())
+        } else {
+            error_expected("operator type ':' before type", elem)
+        }
+    } else {
+        error_expected("type after type operator ':'", elem)
+    }
+}
+
+fn construct_name_untyped(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    let elem = accumulated.pop();
+    if let Some(PartialExpression::Expression(Expression::Identifier(name))) = elem {
+        accumulated.push(PartialExpression::TypedIdentifier(
+            TypedIdentifier::unknown_type(name),
+        ));
+        Ok(())
+    } else {
+        error_expected("child type name", elem)
+    }
+}
+
 fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
     if accumulated.len() <= 1 {
         match accumulated.pop() {
@@ -277,11 +327,13 @@ mod tests {
     fn test_types() {
         ast_deserialize("5 :i64() Op Chain").expect("should parse");
         ast_deserialize("[] :i64() Op Chain").expect("should parse");
-        ast_deserialize("5 :tuple(i64()) Op Chain").expect("should parse");
+        ast_deserialize("5 :tuple(:i64() UT) Op Chain").expect("should parse");
+        ast_deserialize("5 :tuple(x :i64() NT) Op Chain").expect("should parse");
+        ast_deserialize("5 :tuple(x NU) Op Chain").expect("should parse");
         // ast_deserialize("5 :tuple[i64 i64] Type Chain").expect("should parse");
         // ast_deserialize("5 :tuple[:tuple[:i64 Type] Type :i64 Type] Type Chain").expect("should parse");
         // ast_deserialize("5 [[i64:]tuple: i64:]tuple: Chain").expect("should parse");
-        ast_deserialize("[] :tuple(tuple(i64()) i64()) Op Chain").expect("should parse");
+        ast_deserialize("[] :tuple(:tuple(:i64() UT) UT y NU) Op Chain").expect("should parse");
         // ast_deserialize("5 [[i64 n:]tuple ns: i64 outer:]tuple all: Chain").expect("should parse");
     }
 

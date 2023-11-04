@@ -48,7 +48,7 @@ pub enum Type {
     },
     NestedSingle {
         type_name: String,
-        child: Box<Type>,
+        child: Box<TypedIdentifier>,
     },
     NestedSeveral {
         type_name: String,
@@ -64,20 +64,23 @@ impl Type {
     pub fn simple(type_name: String) -> Type {
         Type::Simple { type_name }
     }
-    pub fn child(type_name: String, child: Box<Type>) -> Type {
-        Type::NestedSingle { type_name, child }
+    pub fn nameless_child(type_name: String, child: Box<Type>) -> Type {
+        Type::NestedSingle {
+            type_name,
+            child: Box::new(TypedIdentifier::nameless(*child)),
+        }
     }
     pub fn nameless_children(type_name: String, children: Vec<Type>) -> Type {
         Type::NestedSeveral {
             type_name,
             children: children
                 .into_iter()
-                .map(|t| TypedIdentifier {
-                    name: "".to_string(),
-                    type_: t,
-                })
+                .map(TypedIdentifier::nameless)
                 .collect(),
         }
+    }
+    pub fn child(type_name: String, child: Box<TypedIdentifier>) -> Type {
+        Type::NestedSingle { type_name, child }
     }
     pub fn children(type_name: String, children: TypedIdentifiers) -> Type {
         Type::NestedSeveral {
@@ -88,13 +91,22 @@ impl Type {
     pub fn nothing() -> Type {
         builtin_types::NOTHING
     }
-    pub fn from(parent: String, mut children: Vec<Type>) -> Type {
+    pub fn from_nameless(parent: String, mut children: Vec<Type>) -> Type {
+        if children.is_empty() {
+            Type::simple(parent)
+        } else if children.len() == 1 {
+            Type::nameless_child(parent, Box::new(children.pop().unwrap()))
+        } else {
+            Type::nameless_children(parent, children)
+        }
+    }
+    pub fn from(parent: String, mut children: Vec<TypedIdentifier>) -> Type {
         if children.is_empty() {
             Type::simple(parent)
         } else if children.len() == 1 {
             Type::child(parent, Box::new(children.pop().unwrap()))
         } else {
-            Type::nameless_children(parent, children)
+            Type::children(parent, children)
         }
     }
 }
@@ -148,10 +160,10 @@ impl TypedIdentifier {
     pub fn unknown_type(name: String) -> Self {
         Self {
             name,
-            type_:Type::Unknown,
+            type_: Type::Unknown,
         }
     }
-    pub fn nameless(type_:Type) -> Self {
+    pub fn nameless(type_: Type) -> Self {
         Self {
             name: "".to_string(),
             type_,

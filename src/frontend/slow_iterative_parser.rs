@@ -154,7 +154,7 @@ impl Parser {
         }
 
         if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
-            let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
+            let a_type = Type::from_nameless(parent, types.into_iter().collect::<Vec<_>>());
             Ok(Expression::Type(a_type))
         } else {
             error_expected("array start or expression", elem)
@@ -248,7 +248,7 @@ mod tests {
     #[test]
     fn test_complex_types() {
         let parsed = parse("5 :tuple(i64 i64)");
-        let expected = ast_deserialize("5 :tuple(i64() i64()) Op Chain").unwrap();
+        let expected = ast_deserialize("5 :tuple(:i64() UT :i64() UT) Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
     #[test]

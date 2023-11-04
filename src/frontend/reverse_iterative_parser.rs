@@ -323,18 +323,6 @@ mod tests {
     }
 
     #[test]
-    fn test_types() {
-        let parsed = parse("5 :i64");
-        let expected = ast_deserialize("5 :i64() Op Chain").unwrap();
-        assert_eq!(parsed.unwrap(), expected);
-    }
-    #[test]
-    fn test_complex_types() {
-        let parsed = parse("5 :tuple(:i64 :i64)");
-        let expected = ast_deserialize("5 :tuple(i64() i64()) Op Chain").unwrap();
-        assert_eq!(parsed.unwrap(), expected);
-    }
-    #[test]
     fn test_assignment() {
         assert_eq_ast("function {} = noop", "function {} Fn = noop Op Chain");
     }
@@ -345,6 +333,34 @@ mod tests {
             "5 |branch {7} {8}",
             "5 | branch 5 Chain 8 Chain Br Op Chain",
         );
+    }
+    mod types {
+        use super::*;
+
+        #[test]
+        fn test_basic_type() {
+            let parsed = parse("5 :i64");
+            let expected = ast_deserialize("5 :i64() Op Chain").unwrap();
+            assert_eq!(parsed.unwrap(), expected);
+        }
+        #[test]
+        fn test_nameless_children_types() {
+            let parsed = parse("5 :tuple(:i64 :i64)");
+            let expected = ast_deserialize("5 :tuple(:i64() UT :i64() UT) Op Chain").unwrap();
+            assert_eq!(parsed.unwrap(), expected);
+        }
+        #[test]
+        fn test_typeless_children_types() {
+            let parsed = parse("5 :tuple(x y)");
+            let expected = ast_deserialize("5 :tuple(x NU y NU) Op Chain").unwrap();
+            assert_eq!(parsed.unwrap(), expected);
+        }
+        #[test]
+        fn test_children_types() {
+            let parsed = parse("5 :tuple(x:i64 y:i64)");
+            let expected = ast_deserialize("5 :tuple(x :i64() NT y :i64() NT) Op Chain").unwrap();
+            assert_eq!(parsed.unwrap(), expected);
+        }
     }
 
     mod function {
