@@ -13,19 +13,24 @@ mod frontend;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// inline pipes code to be interpreted. Either this or the input file must be provided
+    /// Inline pipes code to be interpreted. Either this or the input file must be provided
     code_string: Option<String>,
 
-    /// input file with pipes code to interpret. Either this or the code string must be provided
+    /// Input file with pipes code to interpret. Either this or the code string must be provided
     #[arg(short, long)]
     input_file: Option<PathBuf>,
-
-    #[arg(short, long)]
-    prettify: bool,
 
     /// AST syntax, like `[ 5 +7 Op |print_char Op Chain 8 ]`
     #[arg(short, long)]
     ast: bool,
+
+    /// Print the AST
+    #[arg(short, long)]
+    debug_ast: bool,
+
+    /// Print the prettified AST
+    #[arg(short, long)]
+    prettify: bool,
 }
 
 fn main() -> Result<(), AnyError> {
@@ -44,6 +49,7 @@ fn interpret() -> Result<(), AnyError> {
         input_file,
         prettify,
         ast,
+        debug_ast,
     } = Args::parse();
     let code_string = read_input(code_string, input_file)?;
     let expression = if ast {
@@ -52,10 +58,12 @@ fn interpret() -> Result<(), AnyError> {
         lex_and_parse(&code_string)?
     };
 
-    if prettify {
-        println!("Expression: {:#?}", expression);
-    } else {
-        println!("Expression: {:?}", expression);
+    if debug_ast || prettify {
+        if prettify {
+            println!("Expression: {:#?}", expression);
+        } else {
+            println!("Expression: {:?}", expression);
+        }
     }
 
     let result = Runtime::evaluate(expression)?;
