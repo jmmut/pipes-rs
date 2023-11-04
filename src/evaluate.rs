@@ -247,26 +247,26 @@ mod tests {
     }
     #[test]
     fn test_function() {
-        assert_eq!(interpret("5 |function x {x}"), 5);
+        assert_eq!(interpret("5 |function(x) {x}"), 5);
     }
     #[test]
     fn test_pass_function() {
         assert_eq!(
-            interpret("function x {x +1} | function increment {6 |increment}"),
+            interpret("function(x) {x +1} | function(increment) {6 |increment}"),
             7
         );
     }
     #[test]
     fn test_name_function() {
-        assert_eq!(interpret("function x {x +1} =increment ;6 |increment"), 7);
+        assert_eq!(interpret("function(x) {x +1} =increment ;6 |increment"), 7);
     }
     #[test]
     fn test_deshadow_identifier() {
         let code = "
-            function x { x + 1 }
+            function (x) { x + 1 }
             =increment
             |function {
-                function x { x - 1 }
+                function(x) { x - 1 }
                 =increment // this is really decrement, but shadows the outer increment
                 ;5
                 |increment // really, decrement to 4
@@ -279,9 +279,9 @@ mod tests {
     fn test_deshadow_parameter() {
         let code = "
             5
-            |function x {
+            |function(x) {
                 8
-                |function x { x + 1 }
+                |function(x) { x + 1 }
                 ;x
             }";
         assert_eq!(interpret(code), 5);

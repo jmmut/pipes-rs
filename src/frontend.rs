@@ -1,11 +1,12 @@
 use crate::frontend::expression::Expression;
 use crate::frontend::lexer::lex;
-use crate::frontend::slow_iterative_parser::parse_tokens;
+use crate::frontend::reverse_iterative_parser::parse_tokens;
 use crate::AnyError;
 
 pub mod ast;
 pub mod expression;
 pub mod lexer;
+#[cfg(test)]
 pub mod slow_iterative_parser;
 
 // pub mod fast_iterative_parser;

@@ -98,7 +98,10 @@ fn is_space(letter: u8) -> bool {
 }
 
 pub fn parse_letter(letter: u8) -> Option<u8> {
-    if letter >= b'a' && letter <= b'z' || letter >= b'A' && letter <= b'Z' || letter == b'_' {
+    if letter >= b'a' && letter <= b'z'
+        || letter >= b'A' && letter <= b'Z'
+        || [b'_', b'/'].contains(&letter)
+    {
         return Some(letter);
     } else {
         None

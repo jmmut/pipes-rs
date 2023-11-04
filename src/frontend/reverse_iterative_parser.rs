@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
-use std::fmt::Debug;
 
 use crate::common::{context, AnyError};
-use crate::frontend::ast::PartialExpression;
+use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
     Branch, Expression, Function, Transformation, Transformations, Type, TypedIdentifier,
     TypedIdentifiers,
@@ -275,9 +274,6 @@ fn finish_construction(
             Ok(e)
         }
     }
-}
-pub fn error_expected<T: Debug, R>(expected: &str, actual: T) -> Result<R, AnyError> {
-    Err(format!("expected {} but was {:?}", expected, actual).into())
 }
 
 #[cfg(test)]

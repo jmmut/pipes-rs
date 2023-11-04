@@ -3,7 +3,6 @@ use crate::frontend::expression::{
     Branch, Chain, Expression, Function, Transformation, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
-use crate::frontend::slow_iterative_parser::error_expected;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -299,6 +298,9 @@ fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expre
     Err(format!("unfinished code: {:?}", accumulated).into())
 }
 
+pub fn error_expected<T: Debug, R>(expected: &str, actual: T) -> Result<R, AnyError> {
+    Err(format!("expected {} but was {:?}", expected, actual).into())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
