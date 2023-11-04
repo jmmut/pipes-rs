@@ -70,7 +70,13 @@ impl Type {
     pub fn nameless_children(type_name: String, children: Vec<Type>) -> Type {
         Type::NestedSeveral {
             type_name,
-            children: children.into_iter().map(|t|TypedIdentifier {name:"".to_string(), type_: t}).collect(),
+            children: children
+                .into_iter()
+                .map(|t| TypedIdentifier {
+                    name: "".to_string(),
+                    type_: t,
+                })
+                .collect(),
         }
     }
     pub fn children(type_name: String, children: TypedIdentifiers) -> Type {
@@ -139,8 +145,19 @@ impl TypedIdentifier {
             type_: Type::nothing(),
         }
     }
+    pub fn unknown_type(name: String) -> Self {
+        Self {
+            name,
+            type_:Type::Unknown,
+        }
+    }
+    pub fn nameless(type_:Type) -> Self {
+        Self {
+            name: "".to_string(),
+            type_,
+        }
+    }
 }
-
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Branch {
