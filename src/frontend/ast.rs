@@ -1,5 +1,5 @@
 use crate::common::{context, AnyError};
-use crate::frontend::expression::{Branch, Chain, Expression, Function, Transformation, Type, TypedIdentifier, Types};
+use crate::frontend::expression::{Branch, Chain, Expression, Function, Transformation, Type, TypedIdentifier, TypedIdentifiers, Types};
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
 use crate::frontend::slow_iterative_parser::error_expected;
 use std::collections::VecDeque;
@@ -17,7 +17,7 @@ pub enum PartialExpression {
     Operation(Transformation),
     Operator(Operator),
     Keyword(Keyword),
-    ChildrenTypes(Types),
+    ChildrenTypes(TypedIdentifiers),
     Transformation(Transformation),
 }
 pub fn ast_deserialize(s: &str) -> Result<Expression, AnyError> {

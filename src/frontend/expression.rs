@@ -52,7 +52,7 @@ pub enum Type {
     },
     NestedSeveral {
         type_name: String,
-        children: Types,
+        children: TypedIdentifiers,
     },
     // Function?
 }
@@ -67,7 +67,13 @@ impl Type {
     pub fn child(type_name: String, child: Box<Type>) -> Type {
         Type::NestedSingle { type_name, child }
     }
-    pub fn children(type_name: String, children: Vec<Type>) -> Type {
+    pub fn nameless_children(type_name: String, children: Vec<Type>) -> Type {
+        Type::NestedSeveral {
+            type_name,
+            children: children.into_iter().map(|t|TypedIdentifier {name:"".to_string(), type_: t}).collect(),
+        }
+    }
+    pub fn children(type_name: String, children: TypedIdentifiers) -> Type {
         Type::NestedSeveral {
             type_name,
             children,
@@ -82,7 +88,7 @@ impl Type {
         } else if children.len() == 1 {
             Type::child(parent, Box::new(children.pop().unwrap()))
         } else {
-            Type::children(parent, children)
+            Type::nameless_children(parent, children)
         }
     }
 }
@@ -123,6 +129,18 @@ pub struct TypedIdentifier {
     pub name: String,
     pub type_: Type,
 }
+
+pub type TypedIdentifiers = Vec<TypedIdentifier>;
+
+impl TypedIdentifier {
+    pub fn nothing() -> Self {
+        Self {
+            name: "".to_string(),
+            type_: Type::nothing(),
+        }
+    }
+}
+
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Branch {

@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, PartialExpression};
-use crate::frontend::expression::{Chain, Expression, Function, Transformation, Transformations, Type, TypedIdentifier, Types};
+use crate::frontend::expression::{Chain, Expression, Function, Transformation, Transformations, Type, TypedIdentifier, TypedIdentifiers, Types};
 use crate::frontend::lexer::{Keyword, Operator, Token, Tokens};
 
 #[cfg(test)]
@@ -122,21 +122,12 @@ fn construct_function(accumulated: &mut VecDeque<PartialExpression>) -> Result<P
         elem = accumulated.pop_front();
         children.truncate(1);
         if let Some(type_) = children.pop() {
-            TypedIdentifier {
-                name: "it".to_string(),
-                type_: type_.clone(),
-            }
+            type_
         } else {
-            TypedIdentifier {
-                name: "".to_string(),
-                type_: Type::nothing(),
-            }
+            TypedIdentifier::nothing()
         }
     } else {
-        TypedIdentifier {
-            name: "".to_string(),
-            type_: Type::nothing(),
-        }
+        TypedIdentifier::nothing()
     };
 
     if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
@@ -194,11 +185,31 @@ fn construct_array(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expr
     }
 }
 fn construct_children_types(accumulated: &mut VecDeque<PartialExpression>) -> Result<PartialExpression, AnyError> {
-    let mut types = Types::new();
-    let mut elem = accumulated.pop_front(); // TODO: create typed identifiers instead of expressions
-    while let Some(PartialExpression::Expression(e)) = elem {
-        types.push(type_from_expression(e)?);
-        elem = accumulated.pop_front()
+    let mut types = TypedIdentifiers::new();
+    let mut elem = accumulated.pop_front();
+    let mut name_opt = None;
+    loop {
+        match elem {
+            Some(PartialExpression::Expression(Expression::Identifier(name))) => {
+                if let Some(previous_name) = name_opt {
+                    types.push(TypedIdentifier { name: previous_name, type_: Type::Unknown });
+                }
+                name_opt = Some(name)
+            }
+            Some(PartialExpression::Transformation(Transformation{operator: Operator::Type, operand: Expression::Type( type_)})) => {
+                if let Some(previous_name) = name_opt {
+                    types.push(TypedIdentifier { name: previous_name, type_ });
+                    name_opt = None;
+                } else {
+                    types.push(TypedIdentifier { name: "".to_string(), type_ });
+                }
+            }
+            Some(_) | None => {break;}
+        }
+        elem = accumulated.pop_front();
+    }
+    if let Some(previous_name) = name_opt {
+        types.push(TypedIdentifier { name: previous_name, type_: Type::Unknown });
     }
     if let Some(PartialExpression::CloseParenthesis) = elem {
         Ok(PartialExpression::ChildrenTypes(types))
@@ -298,7 +309,7 @@ mod tests {
     }
     #[test]
     fn test_complex_types() {
-        let parsed = parse("5 :tuple(i64 i64)");
+        let parsed = parse("5 :tuple(:i64 :i64)");
         let expected = ast_deserialize("5 :tuple(i64() i64()) Op Chain").unwrap();
         assert_eq!(parsed.unwrap(), expected);
     }
@@ -328,7 +339,7 @@ mod tests {
         }
         #[test]
         fn test_function_arg() {
-            assert_eq_ast("function x {5}", "function x 5 Chain Fn");
+            assert_eq_ast("function(x) {5}", "function x 5 Chain Fn");
         }
     }
 
