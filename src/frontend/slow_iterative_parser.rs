@@ -98,7 +98,7 @@ impl Parser {
             )
         }
     }
-    fn construct_transformation(operator: Operator, operand: Expression) -> Transformation {
+    pub fn construct_transformation(operator: Operator, operand: Expression) -> Transformation {
         if let Operator::Type = operator {
             if let Expression::Identifier(name) = operand {
                 return Transformation {

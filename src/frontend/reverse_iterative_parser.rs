@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, PartialExpression};
-use crate::frontend::expression::{Chain, Expression, Transformation, Transformations, Type};
+use crate::frontend::expression::{Chain, Expression, Transformation, Transformations, Type, Types};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 
 #[cfg(test)]
@@ -28,24 +28,18 @@ impl Parser {
             match token {
                 Token::Number(n) => ast.push(Expression::Value(n)),
                 Token::Operator(operator) => ast.push_pe(PartialExpression::Operator(operator)),
-                // Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
+                Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
                 // Token::Keyword(keyword) => ast.push_pe(PartialExpression::Keyword(keyword)),
-                Token::OpenBrace => ast.push_f(Self::construct_chain)?,
+                Token::OpenBrace => ast.push_f(construct_chain)?,
                 Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace),
-                // Token::OpenBracket => ast.push_pe(PartialExpression::OpenBracket),
-                // Token::CloseBracket => ast.push_f(Self::construct_array)?,
-                // Token::OpenParenthesis => ast.push_pe(PartialExpression::OpenParenthesis),
-                // Token::CloseParenthesis => ast.push_f(Self::construct_type)?,
+                Token::OpenBracket => ast.push_f(construct_array)?,
+                Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket),
+                Token::OpenParenthesis => ast.push_f_pe(construct_children_types)?,
+                Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis),
                 _ => return error_expected("anything else", token),
             };
         }
-
-        if let Some(PartialExpression::Expression(expression)) = ast.accumulated.pop_front() {
-            return Ok(expression);
-        } else {
-            Err("Couldn't parse a valid expression".into())
-        }
-        // Self::finish_construction(&mut ast.accumulated)
+        finish_construction(&mut ast.accumulated)
     }
 
     fn push_f(
@@ -56,42 +50,20 @@ impl Parser {
         self.push(expression);
         Ok(())
     }
+    fn push_f_pe(
+        &mut self,
+        construct_expression: fn(&mut VecDeque<PartialExpression>) -> Result<PartialExpression, AnyError>,
+    ) -> Result<(), AnyError> {
+        let expression = construct_expression(&mut self.accumulated)?;
+        self.push_pe(expression);
+        Ok(())
+    }
 
     fn push(&mut self, expression: Expression) {
         self.push_pe(PartialExpression::Expression(expression));
     }
     fn push_pe(&mut self, partial_expression: PartialExpression) {
         self.accumulated.push_front(partial_expression);
-    }
-
-    fn construct_chain(
-        accumulated: &mut VecDeque<PartialExpression>,
-    ) -> Result<Expression, AnyError> {
-        let elem_expression = accumulated.pop_front();
-        match elem_expression {
-            Some(PartialExpression::CloseBrace) => Ok(Expression::empty_chain()),
-            Some(PartialExpression::Expression(initial)) => {
-                let mut transformations = Transformations::new();
-                loop {
-                    let elem_operator = accumulated.pop_front();
-                    match elem_operator {
-                        Some(PartialExpression::CloseBrace) => {
-                            return Ok(Expression::chain(Box::new(initial), transformations))
-                        }
-                        Some(PartialExpression::Operator(operator)) => {
-                            let elem_expression = accumulated.pop_front();
-                            if let Some(PartialExpression::Expression(operand)) = elem_expression {
-                                transformations.push(Transformation { operator, operand });
-                            } else {
-                                error_expected("expression after operator", elem_expression)?
-                            }
-                        }
-                        _ => error_expected("operator or closing brace", elem_operator)?,
-                    }
-                }
-            }
-            _ => error_expected("expression or closing brace", elem_expression),
-        }
     }
 
     fn construct_transformation(operator: Operator, operand: Expression) -> Transformation {
@@ -114,77 +86,104 @@ impl Parser {
             Err((_error, chain)) => Ok(Expression::Chain(chain)),
         }
     }
-    fn construct_array(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
-        let mut expressions = VecDeque::new();
-        let mut elem = accumulated.pop();
-        while let Some(PartialExpression::Expression(e)) = elem {
-            expressions.push_front(e);
-            elem = accumulated.pop()
+
+}
+
+fn construct_chain(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {
+    let elem_expression = accumulated.pop_front();
+    match elem_expression {
+        Some(PartialExpression::CloseBrace) => Ok(Expression::empty_chain()),
+        Some(PartialExpression::Expression(initial)) => {
+            construct_chain_transformations(accumulated, initial)
         }
-        if let Some(PartialExpression::OpenBracket) = elem {
-            Ok(Expression::StaticList {
-                elements: expressions.into_iter().collect::<Vec<_>>(),
-            })
-        } else {
-            error_expected("array start or expression", elem)
-        }
+        _ => error_expected("expression or closing brace", elem_expression),
     }
-    fn construct_type(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
-        let mut types = VecDeque::new();
-        let mut elem = accumulated.pop();
-        while let Some(pe) = elem {
-            match pe {
-                PartialExpression::OpenParenthesis => {
-                    elem = accumulated.pop();
-                    break;
-                }
-                PartialExpression::Expression(Expression::Type(a_type)) => {
-                    types.push_front(a_type);
-                }
-                PartialExpression::Expression(Expression::Identifier(type_name)) => {
-                    types.push_front(Type::simple(type_name));
-                }
-                _ => return error_expected("type start or type expression", pe),
+}
+
+fn construct_chain_transformations(
+    accumulated: &mut VecDeque<PartialExpression>,
+    initial: Expression,
+) -> Result<Expression, AnyError> {
+    let mut transformations = Transformations::new();
+    loop {
+        let elem_operator = accumulated.pop_front();
+        match elem_operator {
+            Some(PartialExpression::CloseBrace) => {
+                return Ok(Expression::chain(Box::new(initial), transformations))
             }
-            elem = accumulated.pop();
-        }
-
-        if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
-            let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
-            Ok(Expression::Type(a_type))
-        } else {
-            error_expected("array start or expression", elem)
-        }
-    }
-
-    fn finish_construction(
-        accumulated: &mut VecDeque<PartialExpression>,
-    ) -> Result<Expression, AnyError> {
-        if accumulated.len() <= 1 {
-            match accumulated.pop_front() {
-                Some(PartialExpression::Expression(e)) => {
-                    return Ok(e);
-                }
-
-                None => Ok(Expression::Nothing),
-                Some(v) => {
-                    accumulated.push_front(v);
-                    Err(format!("unfinished code: {:?}", accumulated).into())
+            Some(PartialExpression::Operator(operator)) => {
+                let elem_expression = accumulated.pop_front();
+                if let Some(PartialExpression::Expression(operand)) = elem_expression {
+                    transformations.push(Transformation { operator, operand });
+                } else {
+                    error_expected("expression after operator", elem_expression)?
                 }
             }
-        } else {
-            let error_message = format!("unfinished code: {:?}", accumulated);
-            accumulated.insert(0, PartialExpression::OpenBrace);
-            let e = Self::construct_chain(accumulated)?;
-            if !accumulated.is_empty() {
-                Err(error_message.into())
-            } else {
-                Ok(e)
-            }
+            _ => error_expected("operator or closing brace", elem_operator)?,
         }
     }
 }
 
+fn construct_array(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {
+    let mut elements = Vec::new();
+    let mut elem = accumulated.pop_front();
+    while let Some(PartialExpression::Expression(e)) = elem {
+        elements.push(e);
+        elem = accumulated.pop_front()
+    }
+    if let Some(PartialExpression::CloseBracket) = elem {
+        Ok(Expression::StaticList { elements })
+    } else {
+        error_expected("array start or expression", elem)
+    }
+}
+fn construct_children_types(accumulated: &mut VecDeque<PartialExpression>) -> Result<PartialExpression, AnyError> {
+    let mut types = Types::new();
+    let mut elem = accumulated.pop_front();
+    while let Some(PartialExpression::Expression(e)) = elem {
+        types.push(type_from_expression(e)?);
+        elem = accumulated.pop_front()
+    }
+    if let Some(PartialExpression::CloseParenthesis) = elem {
+        Ok(PartialExpression::ChildrenTypes(types))
+    } else {
+        error_expected("closing parenthesis or expression", elem)
+    }
+}
+
+fn type_from_expression(expression: Expression) -> Result<Type, AnyError> {
+    match expression {
+        Expression::Type(a_type) => Ok(a_type),
+        Expression::Identifier(type_name) => Ok(Type::simple(type_name)),
+        _ => error_expected("type start or type expression", expression),
+    }
+}
+
+fn finish_construction(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<Expression, AnyError> {
+    if accumulated.len() <= 1 {
+        match accumulated.pop_front() {
+            Some(PartialExpression::Expression(e)) => {
+                return Ok(e);
+            }
+            None => Ok(Expression::Nothing),
+            Some(v) => {
+                accumulated.push_front(v);
+                Err(format!("unfinished code: {:?}", accumulated).into())
+            }
+        }
+    } else {
+        let error_message = format!("unfinished code: {:?}", accumulated);
+        accumulated.push_back(PartialExpression::OpenBrace);
+        let e = construct_chain(accumulated)?;
+        if !accumulated.is_empty() {
+            Err(error_message.into())
+        } else {
+            Ok(e)
+        }
+    }
+}
 pub fn error_expected<T: Debug, R>(expected: &str, actual: T) -> Result<R, AnyError> {
     Err(format!("expected {} but was {:?}", expected, actual).into())
 }

@@ -52,10 +52,12 @@ pub enum Type {
     },
     NestedSeveral {
         type_name: String,
-        children: Vec<Type>,
+        children: Types,
     },
     // Function?
 }
+
+pub type Types = Vec<Type>;
 
 #[allow(unused)]
 impl Type {
