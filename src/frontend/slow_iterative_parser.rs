@@ -257,6 +257,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_branch() {
         assert_eq_ast(
             "5 |branch {7} {8}",

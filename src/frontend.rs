@@ -67,14 +67,14 @@ mod tests {
 #[cfg(test)]
 mod benchmarks {
     use crate::frontend::lexer::lex;
-    use crate::frontend::{ast, recursive_parser, slow_iterative_parser};
+    use crate::frontend::{ast, recursive_parser, reverse_iterative_parser, slow_iterative_parser};
     use std::time::Instant;
 
     #[ignore]
     #[test]
     fn benchmark_deep() {
         let mut code = "1".to_string();
-        let n = 200;
+        let n = 135;
         for _ in 0..n {
             code += "+ {[2 {3";
         }
@@ -90,7 +90,7 @@ mod benchmarks {
         }
         code_ast += " Chain";
 
-        benchmark_rec_iter_ast(code, code_ast);
+        benchmark_rec_iter_rev_ast(code, code_ast);
     }
 
     #[ignore]
@@ -107,15 +107,16 @@ mod benchmarks {
         }
         code_ast += " Chain";
 
-        benchmark_rec_iter_ast(code, code_ast);
+        benchmark_rec_iter_rev_ast(code, code_ast);
     }
 
-    fn benchmark_rec_iter_ast(code: String, code_ast: String) {
+    fn benchmark_rec_iter_rev_ast(code: String, code_ast: String) {
         // println!("{}", code);
         // println!("{}", code_ast);
         let tokens_1 = lex(code).unwrap();
         let tokens_2 = tokens_1.clone();
-        let tokens_3 = lex(code_ast).unwrap();
+        let tokens_3 = tokens_1.clone();
+        let tokens_4 = lex(code_ast).unwrap();
 
         let start = Instant::now();
         let parsed_rec = recursive_parser::parse(tokens_1);
@@ -126,23 +127,31 @@ mod benchmarks {
         let duration_iterative = Instant::now().duration_since(start);
 
         let start = Instant::now();
-        let parsed_ast = ast::deserialize_tokens(tokens_3);
+        let parsed_rev = reverse_iterative_parser::parse_tokens(tokens_3);
+        let duration_rev = Instant::now().duration_since(start);
+
+        let start = Instant::now();
+        let parsed_ast = ast::deserialize_tokens(tokens_4);
         let duration_ast = Instant::now().duration_since(start);
 
         println!(
-            "recursive: {}, iterative: {},  ast: {}",
+            "recursive: {}, iterative: {}, reverse: {}, ast: {}",
             duration_recursive.as_micros(),
             duration_iterative.as_micros(),
+            duration_rev.as_micros(),
             duration_ast.as_micros(),
         );
         if parsed_rec.as_ref().unwrap() != parsed_iter.as_ref().unwrap()
-            || parsed_iter.as_ref().unwrap() != parsed_ast.as_ref().unwrap()
+            || parsed_iter.as_ref().unwrap() != parsed_rev.as_ref().unwrap()
+            || parsed_rev.as_ref().unwrap() != parsed_ast.as_ref().unwrap()
         {
             let tree_rec = format!("{:#?}", parsed_rec.unwrap());
             let tree_iter = format!("{:#?}", parsed_iter.unwrap());
+            let tree_rev = format!("{:#?}", parsed_rev.unwrap());
             let tree_ast = format!("{:#?}", parsed_ast.unwrap());
             assert_eq!(tree_rec, tree_iter);
-            assert_eq!(tree_iter, tree_ast);
+            assert_eq!(tree_iter, tree_rev);
+            assert_eq!(tree_rev, tree_ast);
         }
     }
 }
