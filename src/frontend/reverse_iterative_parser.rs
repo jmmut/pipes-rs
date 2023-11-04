@@ -2,10 +2,10 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::common::{context, AnyError};
-use crate::frontend::ast::{construct_function_from_chain, PartialExpression};
+use crate::frontend::ast::PartialExpression;
 use crate::frontend::expression::{
-    Branch, Chain, Expression, Function, Transformation, Transformations, Type, TypedIdentifier,
-    TypedIdentifiers, Types,
+    Branch, Expression, Function, Transformation, Transformations, Type, TypedIdentifier,
+    TypedIdentifiers,
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, Tokens};
 
@@ -83,27 +83,22 @@ fn construct_transformation(
     operator: Operator,
 ) -> Result<PartialExpression, AnyError> {
     let elem_operand = accumulated.pop_front();
-    if let Operator::Type = operator {
+    let transformation = if let Operator::Type = operator {
         if let Some(PartialExpression::Expression(Expression::Identifier(typename))) = elem_operand
         {
             let operand = get_type_maybe_pop_children(accumulated, typename);
-            Ok(PartialExpression::Transformation(Transformation {
-                operator,
-                operand,
-            }))
+            Transformation { operator, operand }
         } else {
-            error_expected("type name after type operator ':'", elem_operand)
+            error_expected("type name after type operator ':'", elem_operand)?
         }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
-            Ok(PartialExpression::Transformation(Transformation {
-                operator,
-                operand,
-            }))
+            Transformation { operator, operand }
         } else {
-            error_expected("operand after operator", elem_operand)
+            error_expected("operand after operator", elem_operand)?
         }
-    }
+    };
+    Ok(PartialExpression::Transformation(transformation))
 }
 
 fn get_type_maybe_pop_children(
@@ -159,9 +154,9 @@ fn construct_function(
 fn construct_branch(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    let mut elem = accumulated.pop_front();
+    let elem = accumulated.pop_front();
     if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
-        let mut elem = accumulated.pop_front();
+        let elem = accumulated.pop_front();
         if let Some(PartialExpression::Expression(Expression::Chain(no))) = elem {
             Ok(PartialExpression::Expression(Expression::Branch(Branch {
                 yes,
@@ -253,14 +248,6 @@ fn construct_children_types(
             Some(_) | None => return error_expected("closing parenthesis or expression", elem),
         }
         elem = accumulated.pop_front();
-    }
-}
-
-fn type_from_expression(expression: Expression) -> Result<Type, AnyError> {
-    match expression {
-        Expression::Type(a_type) => Ok(a_type),
-        Expression::Identifier(type_name) => Ok(Type::simple(type_name)),
-        _ => error_expected("type start or type expression", expression),
     }
 }
 

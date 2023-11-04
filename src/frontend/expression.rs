@@ -57,6 +57,7 @@ pub enum Type {
     // Function?
 }
 
+#[allow(unused)]
 pub type Types = Vec<Type>;
 
 #[allow(unused)]

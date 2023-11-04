@@ -1,7 +1,6 @@
 use crate::common::{context, AnyError};
 use crate::frontend::expression::{
     Branch, Chain, Expression, Function, Transformation, Type, TypedIdentifier, TypedIdentifiers,
-    Types,
 };
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
 use crate::frontend::slow_iterative_parser::error_expected;
