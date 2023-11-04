@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, PartialExpression};
 use crate::frontend::expression::{
-    Chain, Expression, Function, Transformation, Transformations, Type, TypedIdentifier,
+    Branch, Chain, Expression, Function, Transformation, Transformations, Type, TypedIdentifier,
     TypedIdentifiers, Types,
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, Tokens};
@@ -127,9 +127,7 @@ fn construct_keyword(
 ) -> Result<PartialExpression, AnyError> {
     match keyword {
         Keyword::Function => construct_function(accumulated),
-        Keyword::Branch => {
-            unimplemented!()
-        }
+        Keyword::Branch => construct_branch(accumulated),
     }
 }
 
@@ -155,6 +153,25 @@ fn construct_function(
         )))
     } else {
         error_expected("chain for the function body", elem)
+    }
+}
+
+fn construct_branch(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    let mut elem = accumulated.pop_front();
+    if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
+        let mut elem = accumulated.pop_front();
+        if let Some(PartialExpression::Expression(Expression::Chain(no))) = elem {
+            Ok(PartialExpression::Expression(Expression::Branch(Branch {
+                yes,
+                no,
+            })))
+        } else {
+            error_expected("chain for the branch negative case", elem)
+        }
+    } else {
+        error_expected("chain for the branch positive case", elem)
     }
 }
 
@@ -331,7 +348,7 @@ mod tests {
     fn test_branch() {
         assert_eq_ast(
             "5 |branch {7} {8}",
-            "5 | branch 5 Chain 8 Chain Br Op Chain",
+            "5 | branch 7 Chain 8 Chain Br Op Chain",
         );
     }
     mod types {
