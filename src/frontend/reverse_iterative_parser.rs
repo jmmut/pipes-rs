@@ -230,13 +230,16 @@ fn construct_children_types(
                 operator: Operator::Type,
                 operand: Expression::Type(type_),
             })) => {
-                let name = if let Some(previous_name) = name_opt {
+                let typed_identifier = if let Some(previous_name) = name_opt {
                     name_opt = None;
-                    previous_name
+                    TypedIdentifier {
+                        name: previous_name,
+                        type_,
+                    }
                 } else {
-                    "".to_string()
+                    TypedIdentifier::nameless(type_)
                 };
-                types.push(TypedIdentifier { name, type_ });
+                types.push(typed_identifier);
             }
             Some(PartialExpression::CloseParenthesis) => {
                 if let Some(previous_name) = name_opt {

@@ -58,6 +58,7 @@ fn interpret() -> Result<(), AnyError> {
         lex_and_parse(&code_string)?
     };
 
+    // two ifs so that --debug-ast and --prettify only prints once, prettified
     if debug_ast || prettify {
         if prettify {
             println!("Expression: {:#?}", expression);

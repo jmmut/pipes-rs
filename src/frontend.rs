@@ -67,9 +67,11 @@ mod tests {
 
 #[cfg(test)]
 mod benchmarks {
-    use crate::frontend::lexer::lex;
+    use crate::common::AnyError;
+    use crate::frontend::expression::Expression;
+    use crate::frontend::lexer::{lex, Tokens};
     use crate::frontend::{ast, recursive_parser, reverse_iterative_parser, slow_iterative_parser};
-    use std::time::Instant;
+    use std::time::{Duration, Instant};
 
     #[ignore]
     #[test]
@@ -119,22 +121,21 @@ mod benchmarks {
         let tokens_3 = tokens_1.clone();
         let tokens_4 = lex(code_ast).unwrap();
 
-        let start = Instant::now();
-        let parsed_rec = recursive_parser::parse(tokens_1);
-        let duration_recursive = Instant::now().duration_since(start);
+        fn parse(
+            tokens: Tokens,
+            parse_func: fn(Tokens) -> Result<Expression, AnyError>,
+        ) -> (Result<Expression, AnyError>, Duration) {
+            let start = Instant::now();
+            let parsed = parse_func(tokens);
+            let duration_recursive = Instant::now().duration_since(start);
+            (parsed, duration_recursive)
+        }
 
-        let start = Instant::now();
-        let parsed_iter = slow_iterative_parser::parse_tokens(tokens_2);
-        let duration_iterative = Instant::now().duration_since(start);
-
-        let start = Instant::now();
-        let parsed_rev = reverse_iterative_parser::parse_tokens(tokens_3);
-        let duration_rev = Instant::now().duration_since(start);
-
-        let start = Instant::now();
-        let parsed_ast = ast::deserialize_tokens(tokens_4);
-        let duration_ast = Instant::now().duration_since(start);
-
+        let (parsed_rec, duration_recursive) = parse(tokens_1, recursive_parser::parse);
+        let (parsed_iter, duration_iterative) =
+            parse(tokens_2, slow_iterative_parser::parse_tokens);
+        let (parsed_rev, duration_rev) = parse(tokens_3, reverse_iterative_parser::parse_tokens);
+        let (parsed_ast, duration_ast) = parse(tokens_4, ast::deserialize_tokens);
         println!(
             "recursive: {}, iterative: {}, reverse: {}, ast: {}",
             duration_recursive.as_micros(),
