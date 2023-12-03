@@ -88,10 +88,15 @@ fn construct_transformation(
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
             Transformation { operator, operand }
         } else if operator == Operator::Ignore {
-            Transformation {
-                operator,
-                operand: Expression::empty_chain(),
-            }
+            let operand = if let None = elem_operand {
+                Expression::empty_chain()
+            } else if let Some(PartialExpression::CloseBrace) = elem_operand {
+                accumulated.push_front(PartialExpression::CloseBrace);
+                Expression::empty_chain()
+            } else {
+                error_expected("expression or close brace or end of file", elem_operand)?
+            };
+            Transformation { operator, operand }
         } else {
             error_expected("operand after operator", elem_operand)?
         }

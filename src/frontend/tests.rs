@@ -53,6 +53,18 @@ fn test_final_semicolon() {
     let expected = ast_deserialize("4 ;{} Op Chain").unwrap();
     assert_eq!(parsed.unwrap(), expected);
 }
+#[test]
+fn test_final_semicolon_in_chain() {
+    let parsed = lex_and_parse("4 + {{5;} ;3}");
+    let expected = ast_deserialize("4 + 5 ;{} Op Chain ;3 Op Chain Op Chain").unwrap();
+    assert_eq!(parsed.unwrap(), expected);
+}
+#[test]
+fn test_final_semicolon_in_simple_chain() {
+    let parsed = lex_and_parse("{5;}");
+    let expected = ast_deserialize("5 ;{} Op Chain").unwrap();
+    assert_eq!(parsed.unwrap(), expected);
+}
 
 #[test]
 fn test_chained_value() {
