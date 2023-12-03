@@ -95,7 +95,7 @@ impl Runtime {
             .ok_or_else(|| format!("Bug: Undefined identifier {}. This should have been detected by earlier stages.", name))?
             .last()
             .cloned()
-            .ok_or_else(|| format!("Bug: Identifier '{}' is not binded to any value", name).into())
+            .ok_or_else(|| format!("Bug: Identifier '{}' is not bound to any value", name).into())
     }
 
     fn evaluate_chain(
@@ -166,6 +166,11 @@ impl Runtime {
                 }
             }
             Expression::Function(function) => self.call_function_expression(argument, function),
+            Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
+                &branch.yes
+            } else {
+                &branch.no
+            }),
             _ => Err(format!(
                 "Can not use expression as a function: {:?}",
                 function
@@ -325,6 +330,11 @@ mod tests {
             7
         );
     }
+    #[test]
+    fn test_branch() {
+        assert_eq!(interpret("1 |branch {5} {7}"), 5)
+    }
+
     #[test]
     #[ignore] // for now
     fn test_pass_branch() {
