@@ -310,6 +310,11 @@ mod tests {
         );
     }
     #[test]
+    fn test_pass_branch() {
+        assert_eq!(interpret("branch {5} {7} |function(f) {0 |f}"), 7)
+    }
+
+    #[test]
     fn test_name_function() {
         assert_eq!(interpret("function(x) {x +1} =increment ;6 |increment"), 7);
     }
