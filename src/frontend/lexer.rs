@@ -69,7 +69,7 @@ fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
         } else if let Some(letter) = parse_letter(letter) {
             let name = consume_identifier(letter, &mut bytes)?;
             tokens.push(name);
-        } else if let Some(string) = consume_string(letter, &mut bytes) {
+        } else if let Some(string) = consume_string(letter, &mut bytes)? {
             tokens.push(Token::String(string));
             bytes.next();
         } else if is_space(letter) {
@@ -145,29 +145,54 @@ pub fn ignore_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) {
     }
 }
 
-pub fn consume_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) -> Vec<u8> {
+pub fn consume_escaped_until_not_including(
+    end_letter: u8,
+    iter: &mut Peekable<Bytes>,
+) -> Result<Vec<u8>, AnyError> {
     let mut consumed = Vec::new();
     loop {
         match iter.peek() {
             Some(letter) => {
                 if *letter == end_letter {
-                    return consumed;
+                    return Ok(consumed);
+                } else if *letter == b'\\' {
+                    iter.next();
+                    match iter.peek() {
+                        Some(b'"') => consumed.push(b'"'),
+                        Some(b'n') => consumed.push(b'\n'),
+                        Some(b'0') => consumed.push(b'\0'),
+                        Some(b'\\') => consumed.push(b'\\'),
+                        None => return Err("Incomplete escaped character")?,
+                        Some(other) => {
+                            return Err(format!(
+                                "Unknown escaped character with code {} ({})",
+                                *other, *other as char
+                            )
+                            .into())
+                        }
+                    }
+                    iter.next();
                 } else {
                     consumed.push(*letter);
                     iter.next();
                 }
             }
-            None => return consumed,
+            None => return Ok(consumed),
         }
     }
 }
 
-pub fn consume_string(quote: u8, iter: &mut Peekable<Bytes>) -> Option<Vec<u8>> {
+pub fn consume_string(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<Vec<u8>>, AnyError> {
     if quote == b'"' {
         iter.next();
-        Some(consume_until_not_including(b'"', iter))
+        let inner_string = consume_escaped_until_not_including(b'"', iter)?;
+        if let Some(b'"') = iter.peek() {
+            Ok(Some(inner_string))
+        } else {
+            Err("Unclosed quote".into())
+        }
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -315,5 +340,16 @@ mod tests {
             lex("\"abc\"").unwrap(),
             vec![Token::String(vec![b'a', b'b', b'c'])]
         );
+    }
+    #[test]
+    fn test_escaped_strings() {
+        assert_eq!(
+            lex(r#""\"\\\n\0""#).unwrap(),
+            vec![Token::String(vec![b'"', b'\\', b'\n', 0])]
+        );
+    }
+    #[test]
+    fn test_incomplete_string() {
+        lex(r#"""#).expect_err("should have failed");
     }
 }
