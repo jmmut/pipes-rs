@@ -38,7 +38,7 @@ impl Parser {
                 Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket),
                 Token::OpenParenthesis => ast.push_f_pe(construct_children_types)?,
                 Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis),
-                // _ => return error_expected("anything else", token),
+                Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
             };
         }
         finish_construction(&mut ast.accumulated)
@@ -245,6 +245,14 @@ fn construct_children_types(
         }
         elem = accumulated.pop_front();
     }
+}
+
+pub fn construct_string(string: Vec<u8>) -> PartialExpression {
+    let elements = string
+        .iter()
+        .map(|b| Expression::Value(*b as i64))
+        .collect::<Vec<_>>();
+    PartialExpression::Expression(Expression::StaticList { elements })
 }
 
 fn finish_construction(

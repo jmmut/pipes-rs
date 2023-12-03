@@ -9,6 +9,7 @@ pub enum Token {
     Number(i64),
     Operator(Operator),
     Identifier(String),
+    String(Vec<u8>),
     Keyword(Keyword),
     OpenBracket,
     CloseBracket,
@@ -68,6 +69,9 @@ fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
         } else if let Some(letter) = parse_letter(letter) {
             let name = consume_identifier(letter, &mut bytes)?;
             tokens.push(name);
+        } else if let Some(string) = consume_string(letter, &mut bytes) {
+            tokens.push(Token::String(string));
+            bytes.next();
         } else if is_space(letter) {
             bytes.next();
         } else {
@@ -118,7 +122,7 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Optio
             let next_letter = iter.peek();
             match next_letter {
                 Some(b'/') => {
-                    consume_until_not_including(b'\n', iter);
+                    ignore_until_not_including(b'\n', iter);
                     Some(Vec::new())
                 }
                 Some(_) => None,
@@ -129,7 +133,7 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Optio
     }
 }
 
-pub fn consume_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) {
+pub fn ignore_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) {
     loop {
         match iter.peek() {
             Some(letter) if *letter == end_letter => return,
@@ -138,6 +142,32 @@ pub fn consume_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) {
                 iter.next();
             }
         }
+    }
+}
+
+pub fn consume_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) -> Vec<u8> {
+    let mut consumed = Vec::new();
+    loop {
+        match iter.peek() {
+            Some(letter) => {
+                if *letter == end_letter {
+                    return consumed;
+                } else {
+                    consumed.push(*letter);
+                    iter.next();
+                }
+            }
+            None => return consumed,
+        }
+    }
+}
+
+pub fn consume_string(quote: u8, iter: &mut Peekable<Bytes>) -> Option<Vec<u8>> {
+    if quote == b'"' {
+        iter.next();
+        Some(consume_until_not_including(b'"', iter))
+    } else {
+        None
     }
 }
 
@@ -277,5 +307,13 @@ mod tests {
     #[test]
     fn test_comments() {
         assert_eq!(lex("5 // comment \n6").unwrap(), vec![Number(5), Number(6)])
+    }
+
+    #[test]
+    fn test_strings() {
+        assert_eq!(
+            lex("\"abc\"").unwrap(),
+            vec![Token::String(vec![b'a', b'b', b'c'])]
+        );
     }
 }

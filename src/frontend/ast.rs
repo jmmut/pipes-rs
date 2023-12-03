@@ -52,6 +52,7 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
             Token::Number(n) => {
                 accumulated.push(PartialExpression::Expression(Expression::Value(n)))
             }
+            Token::String(string) => construct_string(string, &mut accumulated)?,
         };
     }
     finish_construction(&mut accumulated)
@@ -72,6 +73,15 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
     } else {
         error_expected("array start or expression", elem)
     }
+}
+
+fn construct_string(
+    string: Vec<u8>,
+    accumulated: &mut Vec<PartialExpression>,
+) -> Result<(), AnyError> {
+    let pe = crate::frontend::parser::reverse_iterative_parser::construct_string(string);
+    accumulated.push(pe);
+    Ok(())
 }
 
 fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {

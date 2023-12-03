@@ -4,6 +4,7 @@ use crate::common::{context, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, error_expected, PartialExpression};
 use crate::frontend::expression::{Chain, Expression, Transformation, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
+use crate::frontend::parser::reverse_iterative_parser::construct_string;
 
 #[cfg(test)]
 pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
@@ -35,6 +36,7 @@ impl Parser {
                 Token::CloseBracket => ast.push_f(Self::construct_array)?,
                 Token::OpenParenthesis => ast.push_pe(PartialExpression::OpenParenthesis),
                 Token::CloseParenthesis => ast.push_f(Self::construct_type)?,
+                Token::String(string) => ast.push_pe(construct_string(string)),
                 // _ => return error_expected("anything else", token),
             };
         }
