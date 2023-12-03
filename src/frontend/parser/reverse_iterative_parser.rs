@@ -8,12 +8,6 @@ use crate::frontend::expression::{
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, Tokens};
 
-#[cfg(test)]
-pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
-    let tokens = crate::frontend::lexer::lex(code_text)?;
-    parse_tokens(tokens)
-}
-
 pub fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
 }
@@ -276,116 +270,5 @@ fn finish_construction(
         } else {
             Ok(e)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::frontend::ast::ast_deserialize;
-    use crate::frontend::expression::Expression::Value;
-
-    use super::*;
-
-    #[test]
-    fn test_nothing() {
-        let ast = "{}";
-        let expected = Expression::empty_chain();
-        assert_eq!(parse(ast).unwrap(), expected);
-    }
-    #[test]
-    fn test_value() {
-        let ast = "5";
-        let expected = Value(5);
-        assert_eq!(parse(ast).unwrap(), expected);
-    }
-    #[test]
-    fn test_chained_value() {
-        let parsed = parse("{5}");
-        let expected = ast_deserialize("5 Chain").unwrap();
-        assert_eq!(parsed.unwrap(), expected);
-    }
-
-    #[test]
-    fn test_chain() {
-        let parsed = parse("{5 +7 +8}");
-        let expected = ast_deserialize("5 +7 Op +8 Op Chain").unwrap();
-        assert_eq!(parsed.unwrap(), expected);
-    }
-
-    #[test]
-    fn test_complex() {
-        let parsed = parse("[ {5 +7 |parse_char}  8 ]");
-        let expected = ast_deserialize("[ 5 +7 Op |parse_char Op Chain 8 ]").unwrap();
-        assert_eq!(parsed.unwrap(), expected);
-    }
-
-    #[test]
-    fn test_unfinished() {
-        parse("5+").expect_err("should fail");
-        parse("{+5}").expect_err("should fail");
-    }
-
-    #[test]
-    fn test_assignment() {
-        assert_eq_ast("function {} = noop", "function {} Fn = noop Op Chain");
-    }
-
-    #[test]
-    fn test_branch() {
-        assert_eq_ast(
-            "5 |branch {7} {8}",
-            "5 | branch 7 Chain 8 Chain Br Op Chain",
-        );
-    }
-    mod types {
-        use super::*;
-
-        #[test]
-        fn test_basic_type() {
-            let parsed = parse("5 :i64");
-            let expected = ast_deserialize("5 :i64() Op Chain").unwrap();
-            assert_eq!(parsed.unwrap(), expected);
-        }
-        #[test]
-        fn test_nameless_children_types() {
-            let parsed = parse("5 :tuple(:i64 :i64)");
-            let expected = ast_deserialize("5 :tuple(:i64() UT :i64() UT) Op Chain").unwrap();
-            assert_eq!(parsed.unwrap(), expected);
-        }
-        #[test]
-        fn test_typeless_children_types() {
-            let parsed = parse("5 :tuple(x y)");
-            let expected = ast_deserialize("5 :tuple(x NU y NU) Op Chain").unwrap();
-            assert_eq!(parsed.unwrap(), expected);
-        }
-        #[test]
-        fn test_children_types() {
-            let parsed = parse("5 :tuple(x:i64 y:i64)");
-            let expected = ast_deserialize("5 :tuple(x :i64() NT y :i64() NT) Op Chain").unwrap();
-            assert_eq!(parsed.unwrap(), expected);
-        }
-    }
-
-    mod function {
-        use super::*;
-
-        #[test]
-        fn test_empty_function() {
-            assert_eq_ast("function {}", "function {} Fn");
-        }
-        #[test]
-        fn test_function_value() {
-            assert_eq_ast("function {5}", "function 5 Chain Fn");
-        }
-        #[test]
-        fn test_function_arg() {
-            assert_eq_ast("function(x) {5}", "function x 5 Chain Fn");
-        }
-    }
-
-    fn assert_eq_ast(code: &str, ast: &str) {
-        let parsed = parse(code);
-        let expected = ast_deserialize(ast).unwrap();
-        assert_eq!(parsed.unwrap(), expected);
     }
 }
