@@ -36,17 +36,19 @@ mod intrinsics {
     pub enum Intrinsic {
         PrintChar,
         ReadChar,
+        Print,
     }
     impl Intrinsic {
         pub fn name(&self) -> &'static str {
             match self {
                 Intrinsic::PrintChar => "print_char",
                 Intrinsic::ReadChar => "read_char",
+                Intrinsic::Print => "print",
             }
         }
     }
     use Intrinsic::*;
-    pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar];
+    pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar, Print];
 }
 
 impl Runtime {
@@ -156,7 +158,7 @@ impl Runtime {
                             self.call_function_expression(argument, function)
                         }
                         FunctionOrIntrinsic::Intrinsic(intrinsic) => {
-                            Self::call_intrinsic(argument, *intrinsic)
+                            self.call_intrinsic(argument, *intrinsic)
                         }
                     }
                 } else {
@@ -185,6 +187,7 @@ impl Runtime {
         Ok(result)
     }
     fn call_intrinsic(
+        &mut self,
         argument: GenericValue,
         intrinsic: Intrinsic,
     ) -> Result<GenericValue, AnyError> {
@@ -197,6 +200,19 @@ impl Runtime {
                 let one_byte_buffer: &mut [u8] = &mut [0; 1];
                 std::io::stdin().read_exact(one_byte_buffer)?;
                 Ok(one_byte_buffer[0] as i64)
+            }
+            Intrinsic::Print => {
+                match self.lists.get(&argument) {
+                    Some(list) => {
+                        let s = String::from_utf8(list.iter().map(|b| *b as u8).collect())?;
+                        println!("{}", s);
+                    }
+                    None => Err(format!(
+                        "\"print\" was called with an invalid array {}",
+                        argument
+                    ))?,
+                }
+                Ok(argument)
             }
         }
     }
