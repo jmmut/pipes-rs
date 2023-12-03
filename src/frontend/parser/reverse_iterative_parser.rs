@@ -87,6 +87,11 @@ fn construct_transformation(
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
             Transformation { operator, operand }
+        } else if operator == Operator::Ignore {
+            Transformation {
+                operator,
+                operand: Expression::empty_chain(),
+            }
         } else {
             error_expected("operand after operator", elem_operand)?
         }
