@@ -1,10 +1,12 @@
 use crate::common::AnyError;
 use clap::Parser;
+use std::io::Write;
 use std::path::PathBuf;
 
 use crate::evaluate::{Runtime, NOTHING};
-use crate::frontend::ast::ast_deserialize;
-use crate::frontend::lex_and_parse;
+use crate::frontend::ast::{ast_deserialize, ast_deserialize_source};
+use crate::frontend::location::SourceCode;
+use crate::frontend::{lex_and_parse, lex_and_parse_source};
 
 mod common;
 mod evaluate;
@@ -34,7 +36,7 @@ struct Args {
 }
 
 fn main() -> Result<(), AnyError> {
-    let result = interpret();
+    let result = interpret(Args::parse(), std::io::stdout());
     match result {
         Ok(()) => {}
         Err(e) => {
@@ -43,19 +45,19 @@ fn main() -> Result<(), AnyError> {
     }
     Ok(())
 }
-fn interpret() -> Result<(), AnyError> {
+fn interpret<W: Write>(args: Args, out: W) -> Result<(), AnyError> {
     let Args {
         code_string,
         input_file,
         prettify,
         ast,
         debug_ast,
-    } = Args::parse();
+    } = args;
     let code_string = read_input(code_string, input_file)?;
     let expression = if ast {
-        ast_deserialize(&code_string)?
+        ast_deserialize_source(&code_string)?
     } else {
-        lex_and_parse(&code_string)?
+        lex_and_parse_source(&code_string)?
     };
 
     // two ifs so that --debug-ast and --prettify only prints once, prettified
@@ -67,7 +69,7 @@ fn interpret() -> Result<(), AnyError> {
         }
     }
 
-    let result = Runtime::evaluate(expression)?;
+    let result = Runtime::evaluate(expression, out)?;
     if result != NOTHING {
         println!("{}", result);
     }
@@ -77,14 +79,36 @@ fn interpret() -> Result<(), AnyError> {
 fn read_input(
     code_string: Option<String>,
     input_file: Option<PathBuf>,
-) -> Result<String, AnyError> {
+) -> Result<SourceCode, AnyError> {
     if code_string.is_some() && input_file.is_some() {
         Err("Only the code string or the input file should be provided")?
     } else if let Some(code) = code_string {
-        Ok(code)
+        Ok(SourceCode::new_fileless(code))
     } else if let Some(file) = input_file {
-        Ok(std::fs::read_to_string(file)?)
+        Ok(SourceCode::new(file)?)
     } else {
         Err("Either the code string or the input file should be provided")?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_read_file() {
+        let mut print_dst = Vec::<u8>::new();
+        let args = Args {
+            code_string: None,
+            input_file: Some(PathBuf::from("pipes_programs/demos/hello_world.pipes")),
+            ast: false,
+            debug_ast: false,
+            prettify: false,
+        };
+        interpret(args, &mut print_dst).unwrap();
+        assert_eq!(
+            String::from_utf8(print_dst).unwrap().as_str(),
+            "Hello World!\n"
+        );
     }
 }

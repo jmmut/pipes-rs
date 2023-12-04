@@ -3,6 +3,7 @@ use crate::frontend::expression::{
     Branch, Chain, Expression, Function, Transformation, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
+use crate::frontend::location::SourceCode;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -25,6 +26,9 @@ pub enum PartialExpression {
 pub fn ast_deserialize(s: &str) -> Result<Expression, AnyError> {
     let tokens = lex(s).unwrap();
     context("AST parser", deserialize_tokens(tokens))
+}
+pub fn ast_deserialize_source(s: &SourceCode) -> Result<Expression, AnyError> {
+    ast_deserialize(&s.text)
 }
 pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
     let mut accumulated = Vec::new();

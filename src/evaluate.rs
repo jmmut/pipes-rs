@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::rc::Rc;
 
 use crate::common::context;
@@ -14,11 +14,12 @@ pub type GenericValue = i64;
 pub type BindingsStack = Vec<GenericValue>;
 pub const NOTHING: i64 = i64::MIN;
 
-pub struct Runtime {
+pub struct Runtime<W: Write> {
     /// using a map<index,list> instead of a vec<list> to be able to deallocate individual lists
     lists: HashMap<ListPointer, Vec<GenericValue>>,
     functions: Vec<Rc<FunctionOrIntrinsic>>,
     identifiers: HashMap<String, BindingsStack>,
+    print_dst: W,
 }
 
 enum FunctionOrIntrinsic {
@@ -51,13 +52,14 @@ mod intrinsics {
     pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar, Print];
 }
 
-impl Runtime {
-    pub fn evaluate(expression: Expression) -> Result<GenericValue, AnyError> {
+impl<W: Write> Runtime<W> {
+    pub fn evaluate(expression: Expression, print_dst: W) -> Result<GenericValue, AnyError> {
         let (identifiers, functions) = Self::build_intrinsics();
         let mut runtime = Runtime {
             lists: HashMap::new(),
             functions,
             identifiers,
+            print_dst,
         };
         context("Runtime", runtime.evaluate_recursive(&expression))
     }
@@ -198,7 +200,7 @@ impl Runtime {
     ) -> Result<GenericValue, AnyError> {
         match intrinsic {
             Intrinsic::PrintChar => {
-                print!("{}", argument as u8 as char);
+                write!(self.print_dst, "{}", argument as u8 as char)?;
                 Ok(argument)
             }
             Intrinsic::ReadChar => {
@@ -210,7 +212,7 @@ impl Runtime {
                 match self.lists.get(&argument) {
                     Some(list) => {
                         let s = String::from_utf8(list.iter().map(|b| *b as u8).collect())?;
-                        println!("{}", s);
+                        writeln!(self.print_dst, "{}", s)?;
                     }
                     None => Err(format!(
                         "\"print\" was called with an invalid array {}",
@@ -288,7 +290,7 @@ mod tests {
 
     fn interpret(code_text: &str) -> GenericValue {
         let expression = lex_and_parse(code_text).unwrap();
-        let result = Runtime::evaluate(expression);
+        let result = Runtime::evaluate(expression, std::io::stdout());
         result.unwrap()
     }
 
