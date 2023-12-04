@@ -7,7 +7,7 @@ use crate::frontend::{
 };
 use std::time::{Duration, Instant};
 
-#[ignore]
+// #[ignore]
 #[test]
 fn benchmark_deep() {
     let mut code = "1".to_string();
@@ -30,11 +30,11 @@ fn benchmark_deep() {
     benchmark_rec_iter_rev_ast(code, code_ast);
 }
 
-#[ignore]
+// #[ignore]
 #[test]
 fn benchmark_wide() {
     let mut code = "1".to_string();
-    let n = 200000;
+    let n = 20000;
     for _ in 0..n {
         code += "+ {[2 3]#1}";
     }

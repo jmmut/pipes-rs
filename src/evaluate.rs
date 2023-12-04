@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use crate::common::context;
 use crate::evaluate::intrinsics::Intrinsic;
+use crate::frontend::ast::error_expected;
 use crate::frontend::expression::{Chain, Expression, Expressions, Function, Transformation};
 use crate::frontend::lexer::Operator;
 use crate::AnyError;
@@ -14,12 +15,13 @@ pub type GenericValue = i64;
 pub type BindingsStack = Vec<GenericValue>;
 pub const NOTHING: i64 = i64::MIN;
 
-pub struct Runtime<W: Write> {
+pub struct Runtime<R: Read, W: Write> {
     /// using a map<index,list> instead of a vec<list> to be able to deallocate individual lists
     lists: HashMap<ListPointer, Vec<GenericValue>>,
     functions: Vec<Rc<FunctionOrIntrinsic>>,
     identifiers: HashMap<String, BindingsStack>,
-    print_dst: W,
+    read_input: R,
+    print_output: W,
 }
 
 enum FunctionOrIntrinsic {
@@ -52,14 +54,19 @@ mod intrinsics {
     pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar, Print];
 }
 
-impl<W: Write> Runtime<W> {
-    pub fn evaluate(expression: Expression, print_dst: W) -> Result<GenericValue, AnyError> {
+impl<R: Read, W: Write> Runtime<R, W> {
+    pub fn evaluate(
+        expression: Expression,
+        read_input: R,
+        print_output: W,
+    ) -> Result<GenericValue, AnyError> {
         let (identifiers, functions) = Self::build_intrinsics();
         let mut runtime = Runtime {
             lists: HashMap::new(),
             functions,
             identifiers,
-            print_dst,
+            read_input,
+            print_output,
         };
         context("Runtime", runtime.evaluate_recursive(&expression))
     }
@@ -200,7 +207,7 @@ impl<W: Write> Runtime<W> {
     ) -> Result<GenericValue, AnyError> {
         match intrinsic {
             Intrinsic::PrintChar => {
-                write!(self.print_dst, "{}", argument as u8 as char)?;
+                write!(self.print_output, "{}", argument as u8 as char)?;
                 Ok(argument)
             }
             Intrinsic::ReadChar => {
@@ -212,7 +219,7 @@ impl<W: Write> Runtime<W> {
                 match self.lists.get(&argument) {
                     Some(list) => {
                         let s = String::from_utf8(list.iter().map(|b| *b as u8).collect())?;
-                        writeln!(self.print_dst, "{}", s)?;
+                        writeln!(self.print_output, "{}", s)?;
                     }
                     None => Err(format!(
                         "\"print\" was called with an invalid array {}",
@@ -228,20 +235,25 @@ impl<W: Write> Runtime<W> {
         list_pointer: ListPointer,
         operand: &Expression,
     ) -> Result<GenericValue, AnyError> {
-        let list = self
-            .lists
-            .get(&list_pointer)
-            .ok_or("Tried to access elements of something that is not a valid array")?;
         match operand {
-            Expression::Value(index) => list.get(*index as usize).cloned().ok_or_else(|| {
-                format!(
-                    "Index out of bounds. Index: {}, list ({} elements): {:?}",
-                    index,
-                    list.len(),
-                    list
-                )
-                .into()
-            }),
+            Expression::Value(index) => {
+                let list = self.lists.get(&list_pointer).ok_or_else(|| {
+                    Into::<AnyError>::into(format!(
+                        "Attempted accessing element '{}' of array '{}' \
+                             which is not a valid array pointer",
+                        index, list_pointer,
+                    ))
+                })?;
+                list.get(*index as usize).cloned().ok_or_else(|| {
+                    format!(
+                        "Index out of bounds. Index: {}, list ({} elements): {:?}",
+                        index,
+                        list.len(),
+                        list
+                    )
+                    .into()
+                })
+            }
             _ => Err(format!("Index should be an integer, but was {:?}", operand))?,
         }
     }
@@ -284,14 +296,20 @@ impl<W: Write> Runtime<W> {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::assert_mentions;
     use crate::frontend::lex_and_parse;
 
     use super::*;
 
     fn interpret(code_text: &str) -> GenericValue {
         let expression = lex_and_parse(code_text).unwrap();
-        let result = Runtime::evaluate(expression, std::io::stdout());
+        let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result.unwrap()
+    }
+    fn interpret_fallible(code_text: &str) -> Result<GenericValue, AnyError> {
+        let expression = lex_and_parse(code_text)?;
+        let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
+        result
     }
 
     #[test]
@@ -312,6 +330,21 @@ mod tests {
     #[test]
     fn test_get_element() {
         assert_eq!(interpret("[5 6 7] #1"), 6);
+    }
+    #[test]
+    fn test_get_non_existing_element() {
+        let err = interpret_fallible("[5 6 7] #3").expect_err("should have failed");
+        assert_mentions(err, &["index", "3", "out of bounds"])
+    }
+    #[test]
+    fn test_get_on_non_array() {
+        let err = interpret_fallible("4 #3").expect_err("should have failed");
+        assert_mentions(err, &["array", "4"])
+    }
+    #[test]
+    fn test_get_on_non_number_index() {
+        let err = interpret_fallible("4 #[]").expect_err("should have failed");
+        assert_mentions(err, &["index"])
     }
     #[test]
     fn test_nested_array_operations() {
@@ -390,5 +423,11 @@ mod tests {
             |print_char     // print 54: '6'
             ";
         assert_eq!(interpret(code), 54);
+    }
+
+    #[test]
+    fn test_wrong_assignment() {
+        let err = interpret_fallible("4+1=5").expect_err("should have failed");
+        assert_mentions(err, &["assign", "5"]);
     }
 }

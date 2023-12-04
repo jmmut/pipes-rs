@@ -1,6 +1,6 @@
 use crate::common::AnyError;
 use clap::Parser;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use crate::evaluate::{Runtime, NOTHING};
@@ -36,7 +36,7 @@ struct Args {
 }
 
 fn main() -> Result<(), AnyError> {
-    let result = interpret(Args::parse(), std::io::stdout());
+    let result = interpret(Args::parse(), std::io::stdin(), std::io::stdout());
     match result {
         Ok(()) => {}
         Err(e) => {
@@ -45,7 +45,7 @@ fn main() -> Result<(), AnyError> {
     }
     Ok(())
 }
-fn interpret<W: Write>(args: Args, out: W) -> Result<(), AnyError> {
+fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result<(), AnyError> {
     let Args {
         code_string,
         input_file,
@@ -69,7 +69,7 @@ fn interpret<W: Write>(args: Args, out: W) -> Result<(), AnyError> {
         }
     }
 
-    let result = Runtime::evaluate(expression, out)?;
+    let result = Runtime::evaluate(expression, read_src, print_dst)?;
     if result != NOTHING {
         println!("{}", result);
     }
@@ -103,9 +103,9 @@ mod tests {
             input_file: Some(PathBuf::from("pipes_programs/demos/hello_world.pipes")),
             ast: false,
             debug_ast: false,
-            prettify: false,
+            prettify: true,
         };
-        interpret(args, &mut print_dst).unwrap();
+        interpret(args, std::io::stdin(), &mut print_dst).unwrap();
         assert_eq!(
             String::from_utf8(print_dst).unwrap().as_str(),
             "Hello World!\n"
