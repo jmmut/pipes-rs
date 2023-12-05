@@ -39,6 +39,7 @@ mod intrinsics {
         PrintChar,
         ReadChar,
         Print,
+        ToStr,
     }
     impl Intrinsic {
         pub fn name(&self) -> &'static str {
@@ -46,11 +47,12 @@ mod intrinsics {
                 Intrinsic::PrintChar => "print_char",
                 Intrinsic::ReadChar => "read_char",
                 Intrinsic::Print => "print",
+                Intrinsic::ToStr => "to_str",
             }
         }
     }
     use Intrinsic::*;
-    pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar, Print];
+    pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar, Print, ToStr];
 }
 
 impl<R: Read, W: Write> Runtime<R, W> {
@@ -91,7 +93,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Value(n) => Ok(*n),
             Expression::Identifier(name) => self.get_identifier(name),
             Expression::Chain(chain) => self.evaluate_chain(chain),
-            Expression::StaticList { elements } => self.allocate_list(elements),
+            Expression::StaticList { elements } => self.evaluate_list(elements),
             Expression::Function(function) => self.allocate_function(function.clone()),
             _ => Err(format!("Can't evaluate expression {:?}", expression))?,
         }
@@ -169,18 +171,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
         match function {
             Expression::Identifier(function_name) => {
                 let function_ptr = self.get_identifier(function_name)?;
-                if let Some(function_expr) = self.functions.get(function_ptr as usize).cloned() {
-                    match function_expr.as_ref() {
-                        FunctionOrIntrinsic::Function(function) => {
-                            self.call_function_expression(argument, function)
-                        }
-                        FunctionOrIntrinsic::Intrinsic(intrinsic) => {
-                            self.call_intrinsic(argument, *intrinsic)
-                        }
-                    }
-                } else {
-                    Err(format!("Bug: Identifier '{}' is not a function", function_name).into())
-                }
+                self.call_function_pointer(argument, function_ptr)
+                    .map_err(|err| {
+                        format!(
+                            "Bug: Identifier '{}' is not a function. Details: {}",
+                            function_name, err
+                        )
+                        .into()
+                    })
             }
             Expression::Function(function) => self.call_function_expression(argument, function),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
@@ -188,10 +186,33 @@ impl<R: Read, W: Write> Runtime<R, W> {
             } else {
                 &branch.no
             }),
+            Expression::Chain(chain) => {
+                let function_pointer = self.evaluate_chain(chain)?;
+                self.call_function_pointer(argument, function_pointer)
+            }
             _ => Err(format!(
                 "Can not use expression as a function: {:?}",
                 function
             ))?,
+        }
+    }
+
+    fn call_function_pointer(
+        &mut self,
+        argument: i64,
+        function_ptr: GenericValue,
+    ) -> Result<i64, AnyError> {
+        if let Some(function_expr) = self.functions.get(function_ptr as usize).cloned() {
+            match function_expr.as_ref() {
+                FunctionOrIntrinsic::Function(function) => {
+                    self.call_function_expression(argument, function)
+                }
+                FunctionOrIntrinsic::Intrinsic(intrinsic) => {
+                    self.call_intrinsic(argument, *intrinsic)
+                }
+            }
+        } else {
+            Err(format!("invalid function pointer {}", function_ptr).into())
         }
     }
     fn call_function_expression(
@@ -234,6 +255,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     ))?,
                 }
                 Ok(argument)
+            }
+            Intrinsic::ToStr => {
+                let string = format!("{}", argument);
+                let bytes = string.bytes().map(|b| b as i64).collect();
+                Ok(self.allocate_list(bytes))
             }
         }
     }
@@ -290,8 +316,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
         operand: &Expression,
     ) -> Result<ListPointer, AnyError> {
         let second_pointer = match operand {
-            Expression::StaticList { elements } => self.allocate_list(&elements),
+            Expression::StaticList { elements } => self.evaluate_list(&elements),
             Expression::Identifier(name) => self.get_identifier(name),
+            Expression::Chain(chain) => self.evaluate_chain(chain),
             _ => Err(format!(
                 "Expected to concatenate two lists, second operand is {:?}",
                 operand
@@ -302,19 +329,21 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let second_elems = self.get_list(&second_pointer)?;
         let mut new_list = first_elems.clone();
         new_list.append(&mut second_elems.clone());
-        let new_pointer = self.lists.len() as i64;
-        self.lists.insert(new_pointer, new_list);
-        Ok(new_pointer)
+        Ok(self.allocate_list(new_list))
     }
 
-    fn allocate_list(&mut self, elements: &Expressions) -> Result<ListPointer, AnyError> {
+    fn evaluate_list(&mut self, elements: &Expressions) -> Result<ListPointer, AnyError> {
         let mut to_allocate = Vec::with_capacity(elements.len());
         for e in elements {
             to_allocate.push(self.evaluate_recursive(e)?);
         }
+        Ok(self.allocate_list(to_allocate))
+    }
+
+    fn allocate_list(&mut self, to_allocate: Vec<GenericValue>) -> ListPointer {
         let new_pointer = self.lists.len() as i64;
         self.lists.insert(new_pointer, to_allocate);
-        Ok(new_pointer)
+        new_pointer
     }
 
     fn allocate_function(&mut self, function: Function) -> Result<FunctionPointer, AnyError> {
@@ -391,6 +420,22 @@ mod tests {
         assert_mentions(err, &["as a function", "3"])
     }
     #[test]
+    fn test_function_closure() {
+        assert_eq!(
+            interpret(
+                r#"
+        3 |{
+            5 |function(x){
+                function(y){
+                    x-y
+                }
+            }
+        }"#
+            ),
+            2
+        );
+    }
+    #[test]
     fn test_pass_function() {
         assert_eq!(
             interpret("function(x) {x +1} | function(increment) {6 |increment}"),
@@ -449,6 +494,11 @@ mod tests {
         assert_eq!(out, vec![b'5']);
     }
     #[test]
+    fn test_to_str() {
+        let result = interpret("123 |to_str #1");
+        assert_eq!(result, b'2' as i64);
+    }
+    #[test]
     fn test_print_wrong_array() {
         let err = interpret_fallible("0|print").expect_err("should have failed");
         assert_mentions(err, &["print", "invalid array"])
@@ -482,5 +532,6 @@ mod tests {
         assert_eq!(interpret("[10 11] ++[12 13] #2"), 12);
         assert_eq!(interpret("[10 11] |function(list) {list ++[12 13] #2}"), 12);
         assert_eq!(interpret("[10 11] |function(list) {[12 13] ++list #2}"), 10);
+        assert_eq!(interpret("[10 11] ++{[12] ++[13]} #2"), 12);
     }
 }

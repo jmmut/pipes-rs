@@ -4,6 +4,7 @@ pub fn context<T>(module: &str, result: Result<T, AnyError>) -> Result<T, AnyErr
     result.map_err(|error| format!("{module}: {error}").into())
 }
 
+#[cfg(test)]
 pub fn assert_mentions(err: AnyError, mentions: &[&str]) {
     let err_message = err.to_string().to_ascii_lowercase();
     for mention in mentions {
