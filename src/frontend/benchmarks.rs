@@ -30,11 +30,11 @@ fn benchmark_deep() {
     benchmark_rec_iter_rev_ast(code, code_ast);
 }
 
-// #[ignore]
+#[ignore]
 #[test]
 fn benchmark_wide() {
     let mut code = "1".to_string();
-    let n = 20000;
+    let n = 200000;
     for _ in 0..n {
         code += "+ {[2 3]#1}";
     }

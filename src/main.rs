@@ -4,9 +4,9 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use crate::evaluate::{Runtime, NOTHING};
-use crate::frontend::ast::{ast_deserialize, ast_deserialize_source};
+use crate::frontend::ast::ast_deserialize_source;
+use crate::frontend::lex_and_parse_source;
 use crate::frontend::location::SourceCode;
-use crate::frontend::{lex_and_parse, lex_and_parse_source};
 
 mod common;
 mod evaluate;
@@ -53,7 +53,7 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         ast,
         debug_ast,
     } = args;
-    let code_string = read_input(code_string, input_file)?;
+    let code_string = SourceCode::new_from_string_or_file(code_string, input_file)?;
     let expression = if ast {
         ast_deserialize_source(&code_string)?
     } else {
@@ -74,21 +74,6 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         println!("{}", result);
     }
     Ok(())
-}
-
-fn read_input(
-    code_string: Option<String>,
-    input_file: Option<PathBuf>,
-) -> Result<SourceCode, AnyError> {
-    if code_string.is_some() && input_file.is_some() {
-        Err("Only the code string or the input file should be provided")?
-    } else if let Some(code) = code_string {
-        Ok(SourceCode::new_fileless(code))
-    } else if let Some(file) = input_file {
-        Ok(SourceCode::new(file)?)
-    } else {
-        Err("Either the code string or the input file should be provided")?
-    }
 }
 
 #[cfg(test)]

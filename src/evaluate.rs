@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use crate::common::context;
 use crate::evaluate::intrinsics::Intrinsic;
-use crate::frontend::ast::error_expected;
 use crate::frontend::expression::{Chain, Expression, Expressions, Function, Transformation};
 use crate::frontend::lexer::Operator;
 use crate::AnyError;
@@ -212,7 +211,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
             Intrinsic::ReadChar => {
                 let one_byte_buffer: &mut [u8] = &mut [0; 1];
-                std::io::stdin().read_exact(one_byte_buffer)?;
+                self.read_input.read_exact(one_byte_buffer)?;
                 Ok(one_byte_buffer[0] as i64)
             }
             Intrinsic::Print => {
@@ -357,6 +356,8 @@ mod tests {
     #[test]
     fn test_function() {
         assert_eq!(interpret("5 |function(x) {x}"), 5);
+        let err = interpret_fallible("4|3").expect_err("should have failed");
+        assert_mentions(err, &["as a function", "3"])
     }
     #[test]
     fn test_pass_function() {
@@ -367,7 +368,8 @@ mod tests {
     }
     #[test]
     fn test_branch() {
-        assert_eq!(interpret("1 |branch {5} {7}"), 5)
+        assert_eq!(interpret("1 |branch {5} {7}"), 5);
+        assert_eq!(interpret("0 |branch {5} {7}"), 7);
     }
 
     #[test]
@@ -405,6 +407,20 @@ mod tests {
                 ;x
             }";
         assert_eq!(interpret(code), 5);
+    }
+    #[test]
+    fn test_intrinsics() {
+        let mut out = Vec::<u8>::new();
+        let mut into = vec![b'7'];
+        let expression = lex_and_parse("5 +48 |print_char; 0|read_char").unwrap();
+        let result = Runtime::evaluate(expression, &*into, &mut out);
+        assert_eq!(result.unwrap() as u8, '7' as u8);
+        assert_eq!(out, vec![b'5']);
+    }
+    #[test]
+    fn test_print_wrong_array() {
+        let err = interpret_fallible("0|print").expect_err("should have failed");
+        assert_mentions(err, &["print", "invalid array"])
     }
     #[test]
     fn test_pass_intrinsics() {

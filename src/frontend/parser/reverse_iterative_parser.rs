@@ -146,8 +146,8 @@ fn construct_function(
     };
 
     if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(Expression::Function(
-            Function { parameter, body },
+        Ok(PartialExpression::Expression(Expression::function(
+            parameter, body,
         )))
     } else {
         error_expected("chain for the function body", elem)

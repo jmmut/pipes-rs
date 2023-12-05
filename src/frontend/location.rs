@@ -1,3 +1,4 @@
+use crate::common::AnyError;
 use std::path::PathBuf;
 
 pub struct Location {
@@ -8,26 +9,26 @@ pub struct Location {
     pub column_end: i32,
 }
 
-impl Location {
-    pub fn new(file: PathBuf, line: i32, column: i32, line_end: i32, column_end: i32) -> Self {
-        Self {
-            file: Some(file),
-            line,
-            column,
-            line_end,
-            column_end,
-        }
-    }
-    pub fn new_fileless(line: i32, column: i32, line_end: i32, column_end: i32) -> Self {
-        Self {
-            file: None,
-            line,
-            column,
-            line_end,
-            column_end,
-        }
-    }
-}
+// impl Location {
+//     pub fn new(file: PathBuf, line: i32, column: i32, line_end: i32, column_end: i32) -> Self {
+//         Self {
+//             file: Some(file),
+//             line,
+//             column,
+//             line_end,
+//             column_end,
+//         }
+//     }
+//     pub fn new_fileless(line: i32, column: i32, line_end: i32, column_end: i32) -> Self {
+//         Self {
+//             file: None,
+//             line,
+//             column,
+//             line_end,
+//             column_end,
+//         }
+//     }
+// }
 
 pub struct SourceCode {
     pub text: String,
@@ -37,6 +38,21 @@ pub struct SourceCode {
 }
 
 impl SourceCode {
+    pub fn new_from_string_or_file(
+        code_string: Option<String>,
+        input_file: Option<PathBuf>,
+    ) -> Result<SourceCode, AnyError> {
+        if code_string.is_some() && input_file.is_some() {
+            Err("Only the code string or the input file should be provided")?
+        } else if let Some(code) = code_string {
+            Ok(SourceCode::new_fileless(code))
+        } else if let Some(file) = input_file {
+            Ok(SourceCode::new(file)?)
+        } else {
+            Err("Either the code string or the input file should be provided")?
+        }
+    }
+
     pub fn new(file: PathBuf) -> Result<Self, std::io::Error> {
         let text = std::fs::read_to_string(&file)?;
         Ok(Self {

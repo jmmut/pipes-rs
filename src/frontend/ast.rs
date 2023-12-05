@@ -105,7 +105,7 @@ fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Res
             error_expected("parent type name before parenthesis", elem)
         }
     } else {
-        error_expected("opening parenthesis after parent type name", elem)
+        error_expected("opening parenthesis before first child type", elem)
     }
 }
 
@@ -196,7 +196,8 @@ pub fn construct_function_from_chain(
                 }
                 _ => {
                     let err = Err((
-                        format!("expected {} but was {:?}", "'function'", elem).into(),
+                        anyerror_expected("'function'", &elem),
+                        // format!("expected {} but was {:?}", "'function'", elem).into(),
                         body,
                     ));
                     if let Some(to_push) = elem {
@@ -208,11 +209,7 @@ pub fn construct_function_from_chain(
         }
         _ => {
             let err = Err((
-                format!(
-                    "expected {} but was {:?}",
-                    "'function' or parameter name", elem
-                )
-                .into(),
+                anyerror_expected("'function' or parameter name", &elem),
                 body,
             ));
             if let Some(elem) = elem {
@@ -313,7 +310,10 @@ fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expre
 }
 
 pub fn error_expected<T: Debug, R>(expected: &str, actual: T) -> Result<R, AnyError> {
-    Err(format!("expected {} but was {:?}", expected, actual).into())
+    Err(anyerror_expected(expected, &actual))
+}
+pub fn anyerror_expected<T: Debug>(expected: &str, actual: &T) -> AnyError {
+    format!("expected {} but was {:?}", expected, actual).into()
 }
 #[cfg(test)]
 mod tests {
@@ -324,6 +324,8 @@ mod tests {
     fn test_nothing() {
         let ast = ast_deserialize("{}").unwrap();
         assert_eq!(ast, Expression::empty_chain());
+        let ast = ast_deserialize("").unwrap();
+        assert_eq!(ast, Expression::Nothing);
     }
     #[test]
     fn test_braced_value() {
@@ -332,12 +334,26 @@ mod tests {
         assert_eq!(ast, code);
     }
     #[test]
+    fn test_array() {
+        ast_deserialize("[1 2 3]").expect("should parse");
+        ast_deserialize("1 2 3]").expect_err("should NOT parse");
+    }
+    #[test]
     fn test_complex() {
         let ast = ast_deserialize("[5 +7 Op |parse_char Op Chain 8]").unwrap();
         let code = lex_and_parse("[ {5 +7 |parse_char}  8 ]").unwrap();
         assert_eq!(ast, code);
     }
 
+    #[test]
+    fn test_chain() {
+        ast_deserialize("Chain").expect_err("should NOT parse");
+        ast_deserialize("; Chain").expect_err("should NOT parse");
+        ast_deserialize(";").expect_err("should NOT parse");
+        ast_deserialize("{ 5 Chain").expect_err("should NOT parse");
+        ast_deserialize("{ + 5 Op Chain").expect_err("should NOT parse");
+        ast_deserialize("{ + 5 Op Chain").expect_err("should NOT parse");
+    }
     #[test]
     fn test_types() {
         ast_deserialize("5 :i64() Op Chain").expect("should parse");
@@ -350,6 +366,15 @@ mod tests {
         // ast_deserialize("5 [[i64:]tuple: i64:]tuple: Chain").expect("should parse");
         ast_deserialize("[] :tuple(:tuple(:i64() UT) UT y NU) Op Chain").expect("should parse");
         // ast_deserialize("5 [[i64 n:]tuple ns: i64 outer:]tuple all: Chain").expect("should parse");
+
+        ast_deserialize("tuple x NU y NU)").expect_err("should NOT parse");
+        ast_deserialize("(x NU y NU)").expect_err("should NOT parse");
+        ast_deserialize("tuple(:i64() NT)").expect_err("should NOT parse");
+        ast_deserialize("tuple(i64() NT)").expect_err("should NOT parse");
+        ast_deserialize("tuple(x NT)").expect_err("should NOT parse");
+        ast_deserialize("tuple(i64() UT)").expect_err("should NOT parse");
+        ast_deserialize("tuple(: UT)").expect_err("should NOT parse");
+        ast_deserialize("tuple(NU)").expect_err("should NOT parse");
     }
 
     #[test]
@@ -358,5 +383,21 @@ mod tests {
         ast_deserialize("function 5 Chain Fn").expect("should parse");
         ast_deserialize("function 5+7 Op Chain Fn").expect("should parse");
         ast_deserialize("function x 5 Chain Fn").expect("should parse");
+
+        ast_deserialize("function x y 5 Chain Fn").expect_err("should NOT parse");
+        ast_deserialize("function x Fn").expect_err("should NOT parse");
+    }
+    #[test]
+    fn test_branch() {
+        ast_deserialize("branch 3 Chain 5 Chain Br").expect("should parse");
+
+        ast_deserialize("3 Chain 5 Chain Br").expect_err("should NOT parse");
+        ast_deserialize("branch 3 Chain Br").expect_err("should NOT parse");
+        ast_deserialize("branch 3 Chain 5 Br").expect_err("should NOT parse");
+    }
+
+    #[test]
+    fn test_string() {
+        ast_deserialize(r#""asdf" #1 Op Chain"#).expect("should parse");
     }
 }

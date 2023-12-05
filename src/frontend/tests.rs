@@ -91,6 +91,7 @@ fn test_complex() {
 fn test_unfinished() {
     lex_and_parse("5+").expect_err("should fail");
     lex_and_parse("{+5}").expect_err("should fail");
+    lex_and_parse(";").expect_err("should fail");
 }
 
 #[test]
@@ -143,7 +144,8 @@ mod function {
     }
     #[test]
     fn test_function_value() {
-        assert_eq_ast("function {5}", "function 5 Chain Fn");
+        assert_eq_ast("function   {5}", "function 5 Chain Fn");
+        assert_eq_ast("function() {5}", "function 5 Chain Fn");
     }
     #[test]
     fn test_function_arg() {

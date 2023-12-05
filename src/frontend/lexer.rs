@@ -36,14 +36,6 @@ pub enum Keyword {
     Function,
     Branch,
 }
-
-impl Token {
-    #[allow(unused)]
-    pub fn add() -> Self {
-        Token::Operator(Operator::Add)
-    }
-}
-
 pub type Tokens = Vec<Token>;
 
 pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
@@ -66,7 +58,7 @@ fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
         } else if let Some(operator) = parse_operator(letter) {
             tokens.push(Token::Operator(operator));
             bytes.next();
-        } else if let Some(letter) = parse_letter(letter) {
+        } else if let Some(letter) = parse_letter_start(letter) {
             let name = consume_identifier(letter, &mut bytes)?;
             tokens.push(name);
         } else if let Some(string) = consume_string(letter, &mut bytes)? {
@@ -101,15 +93,24 @@ fn is_space(letter: u8) -> bool {
     [b' ', b'\n', b'\t', b'\r'].contains(&letter)
 }
 
-pub fn parse_letter(letter: u8) -> Option<u8> {
+pub fn parse_letter_start(letter: u8) -> Option<u8> {
     if letter >= b'a' && letter <= b'z'
         || letter >= b'A' && letter <= b'Z'
-        || [b'_', b'/'].contains(&letter)
+        || [b'_'].contains(&letter)
     {
         return Some(letter);
     } else {
         None
     }
+}
+pub fn parse_letter(letter: u8) -> Option<u8> {
+    parse_letter_start(letter).or_else(|| {
+        if [b'/'].contains(&letter) {
+            Some(letter)
+        } else {
+            None
+        }
+    })
 }
 pub fn parse_alphanum(letter: u8) -> Option<u8> {
     parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
@@ -280,6 +281,10 @@ mod tests {
     use Token::{CloseBracket, Identifier, Number, OpenBracket, Operator};
 
     #[test]
+    fn test_unkown_char() {
+        lex("@").expect_err("should have failed");
+    }
+    #[test]
     fn test_overflow_positive() {
         lex("9223372036854775808").expect_err("should have failed");
     }
@@ -312,14 +317,15 @@ mod tests {
     #[test]
     fn test_identifier() {
         assert_eq!(
-            lex("5asdf12+34").unwrap(),
+            lex("5as/df12+34").unwrap(),
             vec![
                 Number(5),
-                Identifier("asdf12".to_string()),
+                Identifier("as/df12".to_string()),
                 Operator(Add),
                 Number(34)
             ]
         );
+        lex("/asdf").expect_err("should have failed");
     }
     #[test]
     fn test_list() {
@@ -331,7 +337,9 @@ mod tests {
 
     #[test]
     fn test_comments() {
-        assert_eq!(lex("5 // comment \n6").unwrap(), vec![Number(5), Number(6)])
+        assert_eq!(lex("5 // comment \n6").unwrap(), vec![Number(5), Number(6)]);
+        lex("/").expect_err("should have failed");
+        lex("6/3").expect_err("should have failed");
     }
 
     #[test]
@@ -347,6 +355,8 @@ mod tests {
             lex(r#""\"\\\n\0""#).unwrap(),
             vec![Token::String(vec![b'"', b'\\', b'\n', 0])]
         );
+        lex(r#""\"#).expect_err("should have failed");
+        lex(r#""\a""#).expect_err("should have failed");
     }
     #[test]
     fn test_incomplete_string() {
