@@ -29,6 +29,7 @@ pub enum Operator {
     Get,
     Type,
     Assignment,
+    Concatenate,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -54,7 +55,6 @@ fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
             bytes.next();
         } else if let Some(mut multichar_tokens) = consume_multichar_tokens(letter, &mut bytes) {
             tokens.append(&mut multichar_tokens);
-            bytes.next();
         } else if let Some(operator) = parse_operator(letter) {
             tokens.push(Token::Operator(operator));
             bytes.next();
@@ -124,10 +124,22 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Optio
             match next_letter {
                 Some(b'/') => {
                     ignore_until_not_including(b'\n', iter);
+                    iter.next();
                     Some(Vec::new())
                 }
                 Some(_) => None,
                 None => None,
+            }
+        }
+        b'+' => {
+            iter.next();
+            let next_letter = iter.peek();
+            match next_letter {
+                Some(b'+') => {
+                    iter.next();
+                    Some(vec![Token::Operator(Operator::Concatenate)])
+                }
+                _ => Some(vec![Token::Operator(Operator::Add)]),
             }
         }
         _ => None,

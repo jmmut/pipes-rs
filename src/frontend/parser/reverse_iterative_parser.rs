@@ -3,8 +3,7 @@ use std::collections::VecDeque;
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
-    Branch, Expression, Function, Transformation, Transformations, Type, TypedIdentifier,
-    TypedIdentifiers,
+    Branch, Expression, Transformation, Transformations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, Tokens};
 

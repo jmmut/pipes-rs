@@ -106,6 +106,12 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .ok_or_else(|| format!("Bug: Identifier '{}' is not bound to any value", name).into())
     }
 
+    fn get_list(&self, list_pointer: &ListPointer) -> Result<&Vec<GenericValue>, AnyError> {
+        self.lists
+            .get(&list_pointer)
+            .ok_or_else(|| format!("Pointer {} is not a valid array", list_pointer).into())
+    }
+
     fn evaluate_chain(
         &mut self,
         Chain {
@@ -125,6 +131,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Type => {}
                 Operator::Assignment => {
                     self.evaluate_assignment(accumulated, operand, &mut identifiers)?
+                }
+                Operator::Concatenate => {
+                    accumulated = self.evaluate_concatenate(accumulated, operand)?
                 }
             }
         }
@@ -185,7 +194,6 @@ impl<R: Read, W: Write> Runtime<R, W> {
             ))?,
         }
     }
-
     fn call_function_expression(
         &mut self,
         argument: i64,
@@ -229,6 +237,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
         }
     }
+
     fn get_list_element(
         &mut self,
         list_pointer: ListPointer,
@@ -256,7 +265,6 @@ impl<R: Read, W: Write> Runtime<R, W> {
             _ => Err(format!("Index should be an integer, but was {:?}", operand))?,
         }
     }
-
     fn evaluate_assignment(
         &mut self,
         accumulated: GenericValue,
@@ -274,6 +282,29 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
             _ => Err(format!("Can only assign to identifiers, not to a {:?}", operand).into()),
         }
+    }
+
+    fn evaluate_concatenate(
+        &mut self,
+        accumulated: GenericValue,
+        operand: &Expression,
+    ) -> Result<ListPointer, AnyError> {
+        let second_pointer = match operand {
+            Expression::StaticList { elements } => self.allocate_list(&elements),
+            Expression::Identifier(name) => self.get_identifier(name),
+            _ => Err(format!(
+                "Expected to concatenate two lists, second operand is {:?}",
+                operand
+            )
+            .into()),
+        }?;
+        let first_elems = self.get_list(&accumulated)?;
+        let second_elems = self.get_list(&second_pointer)?;
+        let mut new_list = first_elems.clone();
+        new_list.append(&mut second_elems.clone());
+        let new_pointer = self.lists.len() as i64;
+        self.lists.insert(new_pointer, new_list);
+        Ok(new_pointer)
     }
 
     fn allocate_list(&mut self, elements: &Expressions) -> Result<ListPointer, AnyError> {
@@ -411,7 +442,7 @@ mod tests {
     #[test]
     fn test_intrinsics() {
         let mut out = Vec::<u8>::new();
-        let mut into = vec![b'7'];
+        let into = vec![b'7'];
         let expression = lex_and_parse("5 +48 |print_char; 0|read_char").unwrap();
         let result = Runtime::evaluate(expression, &*into, &mut out);
         assert_eq!(result.unwrap() as u8, '7' as u8);
@@ -445,5 +476,11 @@ mod tests {
     fn test_wrong_assignment() {
         let err = interpret_fallible("4+1=5").expect_err("should have failed");
         assert_mentions(err, &["assign", "5"]);
+    }
+    #[test]
+    fn test_concat() {
+        assert_eq!(interpret("[10 11] ++[12 13] #2"), 12);
+        assert_eq!(interpret("[10 11] |function(list) {list ++[12 13] #2}"), 12);
+        assert_eq!(interpret("[10 11] |function(list) {[12 13] ++list #2}"), 10);
     }
 }
