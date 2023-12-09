@@ -4,7 +4,9 @@ use std::rc::Rc;
 
 use crate::common::context;
 use crate::evaluate::intrinsics::Intrinsic;
-use crate::frontend::expression::{Chain, Expression, Expressions, Function, Transformation};
+use crate::frontend::expression::{
+    Chain, Expression, Expressions, Function, Loop, Transformation, Transformations,
+};
 use crate::frontend::lexer::Operator;
 use crate::AnyError;
 
@@ -61,15 +63,19 @@ impl<R: Read, W: Write> Runtime<R, W> {
         read_input: R,
         print_output: W,
     ) -> Result<GenericValue, AnyError> {
+        let mut runtime = Self::new(read_input, print_output);
+        context("Runtime", runtime.evaluate_recursive(&expression))
+    }
+
+    fn new(read_input: R, print_output: W) -> Runtime<R, W> {
         let (identifiers, functions) = Self::build_intrinsics();
-        let mut runtime = Runtime {
+        Runtime {
             lists: HashMap::new(),
             functions,
             identifiers,
             read_input,
             print_output,
-        };
-        context("Runtime", runtime.evaluate_recursive(&expression))
+        }
     }
 
     fn build_intrinsics() -> (
@@ -108,7 +114,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .ok_or_else(|| format!("Bug: Identifier '{}' is not bound to any value", name).into())
     }
 
-    fn get_list(&self, list_pointer: &ListPointer) -> Result<&Vec<GenericValue>, AnyError> {
+    fn get_list(&self, list_pointer: ListPointer) -> Result<&Vec<GenericValue>, AnyError> {
         self.lists
             .get(&list_pointer)
             .ok_or_else(|| format!("Pointer {} is not a valid array", list_pointer).into())
@@ -181,6 +187,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     })
             }
             Expression::Function(function) => self.call_function_expression(argument, function),
+            Expression::Loop(loop_) => self.call_loop_expression(argument, loop_),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
                 &branch.yes
             } else {
@@ -226,6 +233,40 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .push(argument);
         let result = self.evaluate_chain(body)?;
         self.unbind_identifier(&parameter.name, 1)?;
+        Ok(result)
+    }
+    fn call_loop_expression(
+        &mut self,
+        argument: i64,
+        Loop {
+            iteration_elem,
+            body,
+        }: &Loop,
+    ) -> Result<i64, AnyError> {
+        let list = self.get_list(argument)?.clone();
+        let mut transformations: Transformations = vec![Transformation {
+            operator: Operator::Ignore,
+            operand: *body.initial.clone(),
+        }];
+        transformations.append(&mut body.transformations.clone());
+        let mut chain = Chain {
+            initial: Box::new(Expression::Nothing),
+            transformations,
+        };
+        let mut result = NOTHING;
+        for value in list {
+            self.identifiers
+                .entry(iteration_elem.name.clone())
+                .or_insert(Vec::new())
+                .push(value);
+            let initial = Box::new(Expression::Value(value));
+            chain.initial = initial;
+            result = self.evaluate_chain(&chain)?;
+            self.unbind_identifier(&iteration_elem.name, 1)?;
+            if result != NOTHING {
+                break;
+            }
+        }
         Ok(result)
     }
     fn call_intrinsic(
@@ -325,8 +366,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
             )
             .into()),
         }?;
-        let first_elems = self.get_list(&accumulated)?;
-        let second_elems = self.get_list(&second_pointer)?;
+        let first_elems = self.get_list(accumulated)?;
+        let second_elems = self.get_list(second_pointer)?;
         let mut new_list = first_elems.clone();
         new_list.append(&mut second_elems.clone());
         Ok(self.allocate_list(new_list))
@@ -369,6 +410,13 @@ mod tests {
         let expression = lex_and_parse(code_text)?;
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result
+    }
+    fn interpret_io<R: Read>(code_text: &str, read_input: R) -> (GenericValue, Vec<u8>) {
+        let print_output = Vec::<u8>::new();
+        let expression = lex_and_parse(code_text).unwrap();
+        let mut runtime = Runtime::new(read_input, print_output);
+        let result = runtime.evaluate_recursive(&expression);
+        (result.unwrap(), runtime.print_output)
     }
 
     #[test]
@@ -533,5 +581,14 @@ mod tests {
         assert_eq!(interpret("[10 11] |function(list) {list ++[12 13] #2}"), 12);
         assert_eq!(interpret("[10 11] |function(list) {[12 13] ++list #2}"), 10);
         assert_eq!(interpret("[10 11] ++{[12] ++[13]} #2"), 12);
+    }
+
+    #[test]
+    fn test_loop() {
+        let input: &[u8] = &[];
+        let (result, print_output) =
+            interpret_io("[10 11] |loop(n :i64) {n |to_str |print;}", input);
+        assert_eq!(result, NOTHING);
+        assert_eq!(print_output, "10\n11\n".bytes().collect::<Vec<u8>>())
     }
 }
