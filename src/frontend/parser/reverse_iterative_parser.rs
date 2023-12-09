@@ -124,6 +124,7 @@ fn construct_keyword(
 ) -> Result<PartialExpression, AnyError> {
     match keyword {
         Keyword::Function => construct_function(accumulated),
+        Keyword::Loop => construct_loop(accumulated),
         Keyword::Branch => construct_branch(accumulated),
     }
 }
@@ -131,7 +132,34 @@ fn construct_keyword(
 fn construct_function(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    let mut elem = accumulated.pop_front();
+    let elem = accumulated.pop_front();
+    let (parameter, elem) = extract_single_child_type(accumulated, elem);
+
+    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
+        Ok(PartialExpression::Expression(Expression::function(
+            parameter, body,
+        )))
+    } else {
+        error_expected("chain for the function body", elem)
+    }
+}
+
+fn construct_loop(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    let elem = accumulated.pop_front();
+    let (parameter, elem) = extract_single_child_type(accumulated, elem);
+
+    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
+        Ok(PartialExpression::Expression(Expression::loop_(
+            parameter, body,
+        )))
+    } else {
+        error_expected("chain for the loop body", elem)
+    }
+}
+
+fn extract_single_child_type(accumulated: &mut VecDeque<PartialExpression>, mut elem: Option<PartialExpression>) -> (TypedIdentifier, Option<PartialExpression>) {
     let parameter = if let Some(PartialExpression::ChildrenTypes(mut children)) = elem {
         elem = accumulated.pop_front();
         children.truncate(1);
@@ -143,14 +171,7 @@ fn construct_function(
     } else {
         TypedIdentifier::nothing()
     };
-
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(Expression::function(
-            parameter, body,
-        )))
-    } else {
-        error_expected("chain for the function body", elem)
-    }
+    (parameter, elem)
 }
 
 fn construct_branch(

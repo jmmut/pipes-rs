@@ -16,6 +16,7 @@ pub enum Expression {
     Chain(Chain),
     StaticList { elements: Expressions },
     Function(Function),
+    Loop(Loop),
     Branch(Branch),
 }
 
@@ -33,6 +34,10 @@ impl Expression {
     #[allow(unused)]
     pub fn function(parameter: TypedIdentifier, body: Chain) -> Self {
         Self::Function(Function { parameter, body })
+    }
+    #[allow(unused)]
+    pub fn loop_(elem: TypedIdentifier, body: Chain) -> Self {
+        Self::Loop(Loop { elem, body })
     }
 }
 
@@ -173,10 +178,17 @@ impl TypedIdentifier {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct Loop {
+    pub elem: TypedIdentifier,
+    pub body: Chain,
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct Branch {
     pub yes: Chain,
     pub no: Chain,
 }
+
 pub type Expressions = Vec<Expression>;
 pub type Transformations = Vec<Transformation>;
 

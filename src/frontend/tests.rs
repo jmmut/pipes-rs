@@ -153,6 +153,10 @@ mod function {
     }
 }
 
+#[test]
+fn test_loop() {
+    assert_eq_ast("loop(x) {5}", "loop x 5 Chain Loop");
+}
 fn assert_eq_ast(code: &str, ast: &str) {
     let parsed = lex_and_parse(code);
     let expected = ast_deserialize(ast).unwrap();

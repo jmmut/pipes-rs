@@ -36,6 +36,7 @@ pub enum Operator {
 pub enum Keyword {
     Function,
     Branch,
+    Loop,
 }
 pub type Tokens = Vec<Token>;
 
@@ -230,7 +231,7 @@ pub fn consume_char(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<u8>,
                             "Unknown escaped character with code {} ({})",
                             *other, *other as char
                         )
-                            .into());
+                        .into());
                     }
                 }
             }
