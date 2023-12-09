@@ -159,7 +159,10 @@ fn construct_loop(
     }
 }
 
-fn extract_single_child_type(accumulated: &mut VecDeque<PartialExpression>, mut elem: Option<PartialExpression>) -> (TypedIdentifier, Option<PartialExpression>) {
+fn extract_single_child_type(
+    accumulated: &mut VecDeque<PartialExpression>,
+    mut elem: Option<PartialExpression>,
+) -> (TypedIdentifier, Option<PartialExpression>) {
     let parameter = if let Some(PartialExpression::ChildrenTypes(mut children)) = elem {
         elem = accumulated.pop_front();
         children.truncate(1);

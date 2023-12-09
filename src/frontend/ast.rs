@@ -1,6 +1,7 @@
 use crate::common::{context, AnyError};
 use crate::frontend::expression::{
-    Branch, Chain, Expression, Function, Transformation, Type, TypedIdentifier, TypedIdentifiers,
+    Branch, Chain, Expression, Function, Loop, Transformation, Type, TypedIdentifier,
+    TypedIdentifiers,
 };
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
 use crate::frontend::location::SourceCode;
@@ -44,6 +45,7 @@ pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
             Token::Keyword(keyword) => accumulated.push(PartialExpression::Keyword(keyword)),
             Token::Identifier(ident) => match ident.as_str() {
                 "Chain" => construct_chain(&mut accumulated)?,
+                "Loop" => construct_loop(&mut accumulated)?,
                 "Op" => construct_operation(&mut accumulated)?,
                 "Fn" => construct_function(&mut accumulated)?,
                 "Br" => construct_branch(&mut accumulated)?,
@@ -195,11 +197,7 @@ pub fn construct_function_from_chain(
                     Ok(Function { parameter, body })
                 }
                 _ => {
-                    let err = Err((
-                        anyerror_expected("'function'", &elem),
-                        // format!("expected {} but was {:?}", "'function'", elem).into(),
-                        body,
-                    ));
+                    let err = Err((anyerror_expected("'function'", &elem), body));
                     if let Some(to_push) = elem {
                         accumulated.push(to_push);
                     }
@@ -210,6 +208,72 @@ pub fn construct_function_from_chain(
         _ => {
             let err = Err((
                 anyerror_expected("'function' or parameter name", &elem),
+                body,
+            ));
+            if let Some(elem) = elem {
+                accumulated.push(elem);
+            }
+            err
+        }
+    }
+}
+
+fn construct_loop(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+    let elem = accumulated.pop();
+    return if let Some(PartialExpression::Expression(Expression::Chain(chain))) = elem {
+        match construct_loop_from_chain(accumulated, chain) {
+            Ok(loop_) => {
+                accumulated.push(PartialExpression::Expression(Expression::Loop(loop_)));
+                Ok(())
+            }
+            Err((error, _chain)) => Err(error),
+        }
+    } else {
+        error_expected("loop body (chain)", elem)
+    };
+}
+
+pub fn construct_loop_from_chain(
+    accumulated: &mut Vec<PartialExpression>,
+    body: Chain,
+) -> Result<Loop, (AnyError, Chain)> {
+    let elem = accumulated.pop();
+    match elem {
+        Some(PartialExpression::Keyword(Keyword::Loop)) => {
+            let elem = TypedIdentifier {
+                name: "".to_string(),
+                type_: Type::nothing(),
+            };
+            Ok(Loop {
+                iteration_elem: elem,
+                body,
+            })
+        }
+        Some(PartialExpression::Expression(Expression::Identifier(param))) => {
+            let elem = accumulated.pop();
+            match elem {
+                Some(PartialExpression::Keyword(Keyword::Loop)) => {
+                    let iteration_elem = TypedIdentifier {
+                        name: param,
+                        type_: Type::Unknown, // TODO: accept typed parameter definition
+                    };
+                    Ok(Loop {
+                        iteration_elem,
+                        body,
+                    })
+                }
+                _ => {
+                    let err = Err((anyerror_expected("'loop'", &elem), body));
+                    if let Some(to_push) = elem {
+                        accumulated.push(to_push);
+                    }
+                    err
+                }
+            }
+        }
+        _ => {
+            let err = Err((
+                anyerror_expected("'loop' or iteration element name", &elem),
                 body,
             ));
             if let Some(elem) = elem {

@@ -35,8 +35,8 @@ pub enum Operator {
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Keyword {
     Function,
-    Branch,
     Loop,
+    Branch,
 }
 pub type Tokens = Vec<Token>;
 
@@ -318,6 +318,8 @@ pub fn consume_identifier(first_letter: u8, iter: &mut Peekable<Bytes>) -> Resul
 pub fn keyword_or_identifier(identifier: String) -> Token {
     return if identifier == keywords::FUNCTION {
         Token::Keyword(Keyword::Function)
+    } else if identifier == keywords::LOOP {
+        Token::Keyword(Keyword::Loop)
     } else if identifier == keywords::BRANCH {
         Token::Keyword(Keyword::Branch)
     } else {

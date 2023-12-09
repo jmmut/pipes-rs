@@ -37,7 +37,10 @@ impl Expression {
     }
     #[allow(unused)]
     pub fn loop_(elem: TypedIdentifier, body: Chain) -> Self {
-        Self::Loop(Loop { elem, body })
+        Self::Loop(Loop {
+            iteration_elem: elem,
+            body,
+        })
     }
 }
 
@@ -179,7 +182,7 @@ impl TypedIdentifier {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Loop {
-    pub elem: TypedIdentifier,
+    pub iteration_elem: TypedIdentifier,
     pub body: Chain,
 }
 
@@ -194,6 +197,7 @@ pub type Transformations = Vec<Transformation>;
 
 pub mod keywords {
     pub const FUNCTION: &'static str = "function";
+    pub const LOOP: &'static str = "loop";
     pub const BRANCH: &'static str = "branch";
 }
 pub mod type_names {
