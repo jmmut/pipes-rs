@@ -7,7 +7,7 @@ use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::{
     Chain, Expression, Expressions, Function, Loop, Transformation, Transformations,
 };
-use crate::frontend::lexer::Operator;
+use crate::frontend::lexer::{Comparison, Operator};
 use crate::AnyError;
 
 pub type ListPointer = i64;
@@ -142,6 +142,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 }
                 Operator::Concatenate => {
                     accumulated = self.evaluate_concatenate(accumulated, operand)?
+                }
+                Operator::Comparison(comparison) => {
+                    accumulated = Self::evaluate_compare(accumulated, *comparison, operand)?
                 }
             }
         }
@@ -350,6 +353,28 @@ impl<R: Read, W: Write> Runtime<R, W> {
             _ => Err(format!("Can only assign to identifiers, not to a {:?}", operand).into()),
         }
     }
+    fn evaluate_compare(
+        accumulated: GenericValue,
+        operator: Comparison,
+        operand: &Expression,
+    ) -> Result<GenericValue, AnyError> {
+        if let Expression::Value(value) = operand {
+            let compared = match operator {
+                Comparison::Equals => accumulated == *value,
+                Comparison::LessThan => accumulated < *value,
+                Comparison::GreaterThan => accumulated > *value,
+                Comparison::LessThanEquals => accumulated <= *value,
+                Comparison::GreaterThanEquals => accumulated >= *value,
+            };
+            Ok(compared as i64)
+        } else {
+            Err(format!(
+                "Can only compare ({:?}) values, not a {:?}",
+                operator, operand
+            )
+            .into())
+        }
+    }
 
     fn evaluate_concatenate(
         &mut self,
@@ -411,7 +436,7 @@ mod tests {
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result
     }
-    fn interpret_io<R: Read>(code_text: &str, read_input: R) -> (GenericValue, Vec<u8>) {
+    fn interpret_io(code_text: &str, read_input: &[u8]) -> (GenericValue, Vec<u8>) {
         let print_output = Vec::<u8>::new();
         let expression = lex_and_parse(code_text).unwrap();
         let mut runtime = Runtime::new(read_input, print_output);
@@ -585,10 +610,38 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let input: &[u8] = &[];
-        let (result, print_output) =
-            interpret_io("[10 11] |loop(n :i64) {n |to_str |print;}", input);
+        let (result, print_output) = interpret_io("[10 11] |loop(n :i64) {n |to_str |print;}", &[]);
         assert_eq!(result, NOTHING);
-        assert_eq!(print_output, "10\n11\n".bytes().collect::<Vec<u8>>())
+        assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n11\n")
+    }
+
+    #[test]
+    fn test_loop_broken() {
+        let (result, print_output) =
+            interpret_io("[10 11] |loop(n :i64) {n |to_str |print; 5}", &[]);
+        assert_eq!(result, 5);
+        assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n")
+    }
+    #[test]
+    fn test_comparison() {
+        assert_eq!(interpret("5 <9"), 1);
+        assert_eq!(interpret("5 <4"), 0);
+        assert_eq!(interpret("5 <5"), 0);
+
+        assert_eq!(interpret("5 <=9"), 1);
+        assert_eq!(interpret("5 <=4"), 0);
+        assert_eq!(interpret("5 <=5"), 1);
+
+        assert_eq!(interpret("5 >9"), 0);
+        assert_eq!(interpret("5 >4"), 1);
+        assert_eq!(interpret("5 >5"), 0);
+
+        assert_eq!(interpret("5 >=9"), 0);
+        assert_eq!(interpret("5 >=4"), 1);
+        assert_eq!(interpret("5 >=5"), 1);
+
+        assert_eq!(interpret("5 =?9"), 0);
+        assert_eq!(interpret("5 =?4"), 0);
+        assert_eq!(interpret("5 =?5"), 1);
     }
 }

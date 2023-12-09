@@ -30,6 +30,16 @@ pub enum Operator {
     Type,
     Assignment,
     Concatenate,
+    Comparison(Comparison),
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Comparison {
+    Equals,
+    LessThan,
+    GreaterThan,
+    LessThanEquals,
+    GreaterThanEquals,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -121,9 +131,12 @@ pub fn parse_alphanum(letter: u8) -> Option<u8> {
 }
 
 pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Option<Tokens> {
+    use Comparison::*;
+    use Operator::Comparison as OpComp;
     match letter {
         b'/' => {
             iter.next();
+            // if_next_or(b'/', Operator::Concatenate, Operator::Add, iter)
             let next_letter = iter.peek();
             match next_letter {
                 Some(b'/') => {
@@ -137,17 +150,37 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Optio
         }
         b'+' => {
             iter.next();
-            let next_letter = iter.peek();
-            match next_letter {
-                Some(b'+') => {
-                    iter.next();
-                    Some(vec![Token::Operator(Operator::Concatenate)])
-                }
-                _ => Some(vec![Token::Operator(Operator::Add)]),
-            }
+            if_next_or(b'+', Operator::Concatenate, Operator::Add, iter)
+        }
+        b'=' => {
+            iter.next();
+            if_next_or(b'?', OpComp(Equals), Operator::Assignment, iter)
+        }
+        b'<' => {
+            iter.next();
+            if_next_or(b'=', OpComp(LessThanEquals), OpComp(LessThan), iter)
+        }
+        b'>' => {
+            iter.next();
+            if_next_or(b'=', OpComp(GreaterThanEquals), OpComp(GreaterThan), iter)
         }
         _ => None,
     }
+}
+
+fn if_next_or(
+    next: u8,
+    then: Operator,
+    or: Operator,
+    iter: &mut Peekable<Bytes>,
+) -> Option<Tokens> {
+    if let Some(next_letter) = iter.peek() {
+        if *next_letter == next {
+            iter.next();
+            return Some(vec![Token::Operator(then)]);
+        }
+    }
+    Some(vec![Token::Operator(or)])
 }
 
 pub fn ignore_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) {
@@ -256,7 +289,6 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
         b'|' => Some(Operator::Call),
         b'#' => Some(Operator::Get),
         b':' => Some(Operator::Type),
-        b'=' => Some(Operator::Assignment),
         _ => None,
     }
 }
