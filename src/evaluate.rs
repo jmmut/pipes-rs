@@ -144,7 +144,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     accumulated = self.evaluate_concatenate(accumulated, operand)?
                 }
                 Operator::Comparison(comparison) => {
-                    accumulated = Self::evaluate_compare(accumulated, *comparison, operand)?
+                    accumulated = self.evaluate_compare(accumulated, *comparison, operand)?
                 }
             }
         }
@@ -354,26 +354,20 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
     }
     fn evaluate_compare(
+        &mut self,
         accumulated: GenericValue,
         operator: Comparison,
         operand: &Expression,
     ) -> Result<GenericValue, AnyError> {
-        if let Expression::Value(value) = operand {
-            let compared = match operator {
-                Comparison::Equals => accumulated == *value,
-                Comparison::LessThan => accumulated < *value,
-                Comparison::GreaterThan => accumulated > *value,
-                Comparison::LessThanEquals => accumulated <= *value,
-                Comparison::GreaterThanEquals => accumulated >= *value,
-            };
-            Ok(compared as i64)
-        } else {
-            Err(format!(
-                "Can only compare ({:?}) values, not a {:?}",
-                operator, operand
-            )
-            .into())
-        }
+        let value = self.evaluate_recursive(operand)?;
+        let compared = match operator {
+            Comparison::Equals => accumulated == value,
+            Comparison::LessThan => accumulated < value,
+            Comparison::GreaterThan => accumulated > value,
+            Comparison::LessThanEquals => accumulated <= value,
+            Comparison::GreaterThanEquals => accumulated >= value,
+        };
+        Ok(compared as i64)
     }
 
     fn evaluate_concatenate(
@@ -643,5 +637,10 @@ mod tests {
         assert_eq!(interpret("5 =?9"), 0);
         assert_eq!(interpret("5 =?4"), 0);
         assert_eq!(interpret("5 =?5"), 1);
+    }
+
+    #[test]
+    fn test_complex_comparisons() {
+        assert_eq!(interpret("5 =?{5}"), 1);
     }
 }
