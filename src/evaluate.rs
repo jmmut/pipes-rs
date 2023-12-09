@@ -42,6 +42,8 @@ mod intrinsics {
         ReadChar,
         Print,
         ToStr,
+        NewArray,
+        Size,
     }
     impl Intrinsic {
         pub fn name(&self) -> &'static str {
@@ -50,11 +52,13 @@ mod intrinsics {
                 Intrinsic::ReadChar => "read_char",
                 Intrinsic::Print => "print",
                 Intrinsic::ToStr => "to_str",
+                Intrinsic::NewArray => "new_array",
+                Intrinsic::Size => "size",
             }
         }
     }
     use Intrinsic::*;
-    pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar, Print, ToStr];
+    pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar, Print, ToStr, NewArray, Size];
 }
 
 impl<R: Read, W: Write> Runtime<R, W> {
@@ -304,6 +308,15 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 let string = format!("{}", argument);
                 let bytes = string.bytes().map(|b| b as i64).collect();
                 Ok(self.allocate_list(bytes))
+            }
+            Intrinsic::NewArray => {
+                let mut new_vec = Vec::<GenericValue>::new();
+                new_vec.resize(argument as usize, 0);
+                Ok(self.allocate_list(new_vec))
+            }
+            Intrinsic::Size => {
+                let list = self.get_list(argument)?;
+                Ok(list.len() as i64)
             }
         }
     }
