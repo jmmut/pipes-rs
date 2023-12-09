@@ -64,6 +64,9 @@ fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
         } else if let Some(string) = consume_string(letter, &mut bytes)? {
             tokens.push(Token::String(string));
             bytes.next();
+        } else if let Some(char) = consume_char(letter, &mut bytes)? {
+            tokens.push(Token::Number(char as i64));
+            bytes.next();
         } else if is_space(letter) {
             bytes.next();
         } else {
@@ -202,7 +205,43 @@ pub fn consume_string(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<Ve
         if let Some(b'"') = iter.peek() {
             Ok(Some(inner_string))
         } else {
-            Err("Unclosed quote".into())
+            Err("Unclosed double quote".into())
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn consume_char(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<u8>, AnyError> {
+    if quote == b'\'' {
+        iter.next();
+        let letter = iter.peek();
+        let character = match letter {
+            Some(b'\\') => {
+                iter.next();
+                match iter.peek() {
+                    Some(b'\'') => Some(b'\''),
+                    Some(b'n') => Some(b'\n'),
+                    Some(b'0') => Some(b'\0'),
+                    Some(b'\\') => Some(b'\\'),
+                    None => return Err("Incomplete escaped character")?,
+                    Some(other) => {
+                        return Err(format!(
+                            "Unknown escaped character with code {} ({})",
+                            *other, *other as char
+                        )
+                            .into());
+                    }
+                }
+            }
+            Some(regular_letter) => Some(*regular_letter),
+            None => return Err("Unclosed single quote".into()),
+        };
+        iter.next();
+        if let Some(b'\'') = iter.peek() {
+            Ok(character)
+        } else {
+            Err("Unclosed single quote".into())
         }
     } else {
         Ok(None)
@@ -211,7 +250,6 @@ pub fn consume_string(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<Ve
 
 pub fn parse_operator(letter: u8) -> Option<Operator> {
     match letter {
-        b'+' => Some(Operator::Add),
         b'-' => Some(Operator::Substract),
         b';' => Some(Operator::Ignore),
         b'|' => Some(Operator::Call),
@@ -367,11 +405,30 @@ mod tests {
             lex(r#""\"\\\n\0""#).unwrap(),
             vec![Token::String(vec![b'"', b'\\', b'\n', 0])]
         );
-        lex(r#""\"#).expect_err("should have failed");
-        lex(r#""\a""#).expect_err("should have failed");
+        lex(r#""\"#).expect_err("unclosed string with escaped quote should fail");
+        lex(r#""\a""#).expect_err("unknown escaped char should fail");
     }
     #[test]
     fn test_incomplete_string() {
         lex(r#"""#).expect_err("should have failed");
+    }
+    #[test]
+    fn test_char() {
+        assert_eq!(lex("'b'").unwrap(), vec![Token::Number('b' as i64)]);
+        assert_eq!(
+            lex(r#"'"' '\'' '\\' '\n' '\0'"#).unwrap(),
+            vec![
+                Token::Number('"' as i64),
+                Token::Number('\'' as i64),
+                Token::Number('\\' as i64),
+                Token::Number('\n' as i64),
+                Token::Number('\0' as i64),
+            ]
+        );
+
+        lex(r"'\a'").expect_err("unknown escaped char should fail");
+        lex(r"'\'").expect_err("unfinished escaped char should fail");
+        lex(r"'\").expect_err("unclosed char should fail");
+        lex(r"'").expect_err("unclosed char should fail");
     }
 }
