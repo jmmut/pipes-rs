@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use crate::common::context;
 use crate::evaluate::intrinsics::Intrinsic;
+use crate::frontend::expression::Map;
 use crate::frontend::expression::{
     Chain, Expression, Expressions, Function, Loop, Transformation, Transformations,
 };
@@ -195,6 +196,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
             Expression::Function(function) => self.call_function_expression(argument, function),
             Expression::Loop(loop_) => self.call_loop_expression(argument, loop_),
+            Expression::Map(map) => self.call_map_expression(argument, map),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
                 &branch.yes
             } else {
@@ -276,6 +278,38 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
         Ok(result)
     }
+    fn call_map_expression(
+        &mut self,
+        argument: i64,
+        Map {
+            iteration_elem,
+            body,
+        }: &Map,
+    ) -> Result<i64, AnyError> {
+        let mut list = self.get_list(argument)?.clone();
+        let mut transformations: Transformations = vec![Transformation {
+            operator: Operator::Ignore,
+            operand: *body.initial.clone(),
+        }];
+        transformations.append(&mut body.transformations.clone());
+        let mut chain = Chain {
+            initial: Box::new(Expression::Nothing),
+            transformations,
+        };
+        for value in &mut list {
+            self.identifiers
+                .entry(iteration_elem.name.clone())
+                .or_insert(Vec::new())
+                .push(*value);
+            let initial = Box::new(Expression::Value(*value));
+            chain.initial = initial;
+            *value = self.evaluate_chain(&chain)?;
+            self.unbind_identifier(&iteration_elem.name, 1)?;
+        }
+        self.lists.insert(argument, list);
+        Ok(argument)
+    }
+
     fn call_intrinsic(
         &mut self,
         argument: GenericValue,
@@ -628,6 +662,11 @@ mod tests {
             interpret_io("[10 11] |loop(n :i64) {n |to_str |print; 5}", &[]);
         assert_eq!(result, 5);
         assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n")
+    }
+
+    #[test]
+    fn test_map() {
+        assert_eq!(interpret("[10 11] |map(e :i64) {e +100} #1"), 111);
     }
     #[test]
     fn test_comparison() {

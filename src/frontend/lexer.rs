@@ -46,6 +46,7 @@ pub enum Comparison {
 pub enum Keyword {
     Function,
     Loop,
+    Map,
     Branch,
 }
 pub type Tokens = Vec<Token>;
@@ -352,6 +353,8 @@ pub fn keyword_or_identifier(identifier: String) -> Token {
         Token::Keyword(Keyword::Function)
     } else if identifier == keywords::LOOP {
         Token::Keyword(Keyword::Loop)
+    } else if identifier == keywords::MAP {
+        Token::Keyword(Keyword::Map)
     } else if identifier == keywords::BRANCH {
         Token::Keyword(Keyword::Branch)
     } else {

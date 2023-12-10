@@ -17,6 +17,7 @@ pub enum Expression {
     StaticList { elements: Expressions },
     Function(Function),
     Loop(Loop),
+    Map(Map),
     Branch(Branch),
 }
 
@@ -38,6 +39,13 @@ impl Expression {
     #[allow(unused)]
     pub fn loop_(elem: TypedIdentifier, body: Chain) -> Self {
         Self::Loop(Loop {
+            iteration_elem: elem,
+            body,
+        })
+    }
+    #[allow(unused)]
+    pub fn map(elem: TypedIdentifier, body: Chain) -> Self {
+        Self::Map(Map {
             iteration_elem: elem,
             body,
         })
@@ -185,6 +193,11 @@ pub struct Loop {
     pub iteration_elem: TypedIdentifier,
     pub body: Chain,
 }
+#[derive(PartialEq, Debug, Clone)]
+pub struct Map {
+    pub iteration_elem: TypedIdentifier,
+    pub body: Chain,
+}
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Branch {
@@ -198,6 +211,7 @@ pub type Transformations = Vec<Transformation>;
 pub mod keywords {
     pub const FUNCTION: &'static str = "function";
     pub const LOOP: &'static str = "loop";
+    pub const MAP: &'static str = "map";
     pub const BRANCH: &'static str = "branch";
 }
 pub mod type_names {
