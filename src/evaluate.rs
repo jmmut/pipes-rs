@@ -253,24 +253,13 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }: &Loop,
     ) -> Result<i64, AnyError> {
         let list = self.get_list(argument)?.clone();
-        let mut transformations: Transformations = vec![Transformation {
-            operator: Operator::Ignore,
-            operand: *body.initial.clone(),
-        }];
-        transformations.append(&mut body.transformations.clone());
-        let mut chain = Chain {
-            initial: Box::new(Expression::Nothing),
-            transformations,
-        };
         let mut result = NOTHING;
         for value in list {
             self.identifiers
                 .entry(iteration_elem.name.clone())
                 .or_insert(Vec::new())
                 .push(value);
-            let initial = Box::new(Expression::Value(value));
-            chain.initial = initial;
-            result = self.evaluate_chain(&chain)?;
+            result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
                 break;
@@ -287,23 +276,12 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }: &Map,
     ) -> Result<i64, AnyError> {
         let mut list = self.get_list(argument)?.clone();
-        let mut transformations: Transformations = vec![Transformation {
-            operator: Operator::Ignore,
-            operand: *body.initial.clone(),
-        }];
-        transformations.append(&mut body.transformations.clone());
-        let mut chain = Chain {
-            initial: Box::new(Expression::Nothing),
-            transformations,
-        };
         for value in &mut list {
             self.identifiers
                 .entry(iteration_elem.name.clone())
                 .or_insert(Vec::new())
                 .push(*value);
-            let initial = Box::new(Expression::Value(*value));
-            chain.initial = initial;
-            *value = self.evaluate_chain(&chain)?;
+            *value = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
         self.lists.insert(argument, list);
