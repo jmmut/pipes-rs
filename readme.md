@@ -4,7 +4,8 @@
 
 - [x] basic numbers, arrays and operators (`+`, `-`, `;`, `|`, `#`)
 - [ ] iteration (`||` as foreach)
-- [x] functions
+- [/] functions
+  - [ ] closures
 - [ ] semantic types (`:t` as "the previous expression is of type t)
 - [/] chars and strings
 - [ ] file imports, in a way that is compatible with LSP

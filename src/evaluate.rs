@@ -176,7 +176,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             )
             .into());
         } else {
-            stack.truncate(times);
+            stack.truncate(stack.len() - times);
             Ok(())
         }
     }
