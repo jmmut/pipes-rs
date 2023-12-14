@@ -590,7 +590,9 @@ mod tests {
     #[test]
     fn test_pass_intrinsics() {
         let code = " print_char |function(f) { 5 +48 |f }";
-        assert_eq!(interpret(code), 53);
+        let (result, print_output) = interpret_io(code, &[]);
+        assert_eq!(result, 53);
+        assert_eq!(print_output, vec![b'5']);
     }
     #[test]
     fn test_deshadow_intrinsics() {
