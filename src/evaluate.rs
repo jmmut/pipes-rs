@@ -2,14 +2,13 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::rc::Rc;
 
-use crate::common::context;
+use crate::common::{AnyError, context};
 use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::Map;
 use crate::frontend::expression::{
     Chain, Expression, Expressions, Function, Loop, Transformation, Transformations,
 };
 use crate::frontend::lexer::{Comparison, Operator};
-use crate::AnyError;
 
 pub type ListPointer = i64;
 pub type FunctionPointer = i64;

@@ -1,0 +1,38 @@
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>hello-rust-from-js</title>
+</head>
+
+<body>
+    <div id="loading_status_div">WebAssembly not loaded</div>
+    <div id="results_div"></div>
+    <button id="main_button" disabled>click me</button>
+    <script type="module">
+        "use strict";
+        document.getElementById("loading_status_div").innerText = "Attempting to import the WebAssembly package";
+        import init, { interpret_in_web } from './pkg/pipes_rs.js';
+        document.getElementById("loading_status_div").innerText = "WebAssembly package imported, not initialized";
+
+        async function run() {
+            function addListener(dom_id, event_type, callback) {
+                document.getElementById(dom_id).addEventListener(event_type, callback);
+            }
+            addListener("main_button", "click", update_div);
+            document.getElementById("loading_status_div").innerText = "Attempting to initialize the WebAssembly package";
+            await init();
+            document.getElementById("loading_status_div").innerText = "WebAssembly loaded";
+            document.getElementById("main_button").removeAttribute("disabled");
+
+            function update_div() {
+                const result = interpret_in_web("34 + 4");
+                document.getElementById("results_div").innerText = "Result from rust: " + result;
+            }
+        }
+
+        run();
+    </script>
+</body>
+
+</html>

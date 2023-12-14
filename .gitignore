@@ -1,3 +1,5 @@
 /target
-.idea/
-untracked/
+/.idea/
+/untracked/
+/built_html/
+/pkg/

@@ -1,16 +1,12 @@
-use crate::common::AnyError;
+use pipes_rs::common::AnyError;
 use clap::Parser;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-use crate::evaluate::{Runtime, NOTHING};
-use crate::frontend::ast::ast_deserialize_source;
-use crate::frontend::lex_and_parse_source;
-use crate::frontend::location::SourceCode;
-
-mod common;
-mod evaluate;
-mod frontend;
+use pipes_rs::evaluate::{Runtime, NOTHING};
+use pipes_rs::frontend::ast::ast_deserialize_source;
+use pipes_rs::frontend::lex_and_parse_source;
+use pipes_rs::frontend::location::SourceCode;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
