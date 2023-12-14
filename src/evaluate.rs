@@ -188,7 +188,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 self.call_function_pointer(argument, function_ptr)
                     .map_err(|err| {
                         format!(
-                            "Bug: Identifier '{}' is not a function. Details: {}",
+                            "Bug: Identifier '{}' is not a valid function. Details: {}",
                             function_name, err
                         )
                         .into()
@@ -338,27 +338,23 @@ impl<R: Read, W: Write> Runtime<R, W> {
         list_pointer: ListPointer,
         operand: &Expression,
     ) -> Result<GenericValue, AnyError> {
-        match operand {
-            Expression::Value(index) => {
-                let list = self.lists.get(&list_pointer).ok_or_else(|| {
-                    Into::<AnyError>::into(format!(
-                        "Attempted accessing element '{}' of array '{}' \
-                             which is not a valid array pointer",
-                        index, list_pointer,
-                    ))
-                })?;
-                list.get(*index as usize).cloned().ok_or_else(|| {
-                    format!(
-                        "Index out of bounds. Index: {}, list ({} elements): {:?}",
-                        index,
-                        list.len(),
-                        list
-                    )
-                    .into()
-                })
-            }
-            _ => Err(format!("Index should be an integer, but was {:?}", operand))?,
-        }
+        let index = self.evaluate_recursive(operand)?;
+        let list = self.lists.get(&list_pointer).ok_or_else(|| {
+            Into::<AnyError>::into(format!(
+                "Attempted accessing element '{}' of array '{}' \
+                         which is not a valid array pointer",
+                index, list_pointer,
+            ))
+        })?;
+        list.get(index as usize).cloned().ok_or_else(|| {
+            format!(
+                "Index out of bounds. Index: {}, list ({} elements): {:?}",
+                index,
+                list.len(),
+                list
+            )
+            .into()
+        })
     }
     fn evaluate_assignment(
         &mut self,
@@ -481,6 +477,7 @@ mod tests {
     #[test]
     fn test_get_element() {
         assert_eq!(interpret("[5 6 7] #1"), 6);
+        assert_eq!(interpret("[5 6 7] #{1+1}"), 7);
     }
     #[test]
     fn test_get_non_existing_element() {
@@ -491,11 +488,6 @@ mod tests {
     fn test_get_on_non_array() {
         let err = interpret_fallible("4 #3").expect_err("should have failed");
         assert_mentions(err, &["array", "4"])
-    }
-    #[test]
-    fn test_get_on_non_number_index() {
-        let err = interpret_fallible("4 #[]").expect_err("should have failed");
-        assert_mentions(err, &["index"])
     }
     #[test]
     fn test_nested_array_operations() {
