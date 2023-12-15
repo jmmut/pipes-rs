@@ -3,6 +3,7 @@ name: Deployment to itch.io
 on:
   # workflow_dispatch will enable manual triggers
   workflow_dispatch:
+  pull_request:
   push:
     tags: [ "*.*.*" ]
   
@@ -59,19 +60,25 @@ jobs:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: ./butler push wasm.zip jmmut/pipes:html5
 
-      - name: Compile and package Windows
-        run: |
-          rustup target add x86_64-pc-windows-gnu
-          cargo build -r --target x86_64-pc-windows-gnu
-          mkdir -p ${PROJECT_NAME}_windows
-          cp target/x86_64-pc-windows-gnu/release/${PROJECT_NAME}.exe ${PROJECT_NAME}_windows/
-          zip -FS -r ${PROJECT_NAME}_windows.zip ${PROJECT_NAME}_windows/*
-          sha512sum ${PROJECT_NAME}_windows.zip
-
-      - name: Deploy Windows to itch.io
-        env:
-          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-        run: ./butler push ${PROJECT_NAME}_windows.zip jmmut/pipes:windows
+###### For some reason the windows build fails:
+  #  rustup target add x86_64-pc-windows-gnu
+  #  Compiling pipes-rs v0.1.0 (/home/runner/work/pipes-rs/pipes-rs)
+  # error: linker `x86_64-w64-mingw32-gcc` not found
+  #  |
+  #  = note: No such file or directory (os error 2)
+#      - name: Compile and package Windows
+#        run: |
+#          rustup target add x86_64-pc-windows-gnu
+#          cargo build -r --target x86_64-pc-windows-gnu
+#          mkdir -p ${PROJECT_NAME}_windows
+#          cp target/x86_64-pc-windows-gnu/release/${PROJECT_NAME}.exe ${PROJECT_NAME}_windows/
+#          zip -FS -r ${PROJECT_NAME}_windows.zip ${PROJECT_NAME}_windows/*
+#          sha512sum ${PROJECT_NAME}_windows.zip
+#
+#      - name: Deploy Windows to itch.io
+#        env:
+#          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+#        run: ./butler push ${PROJECT_NAME}_windows.zip jmmut/pipes:windows
 
   deploy-mac:
     runs-on: macos-latest
