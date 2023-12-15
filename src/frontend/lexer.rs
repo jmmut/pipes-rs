@@ -24,6 +24,9 @@ pub enum Token {
 pub enum Operator {
     Add,
     Substract,
+    Multiply,
+    Divide,
+    Modulo,
     Ignore,
     Call,
     Get,
@@ -165,6 +168,15 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Optio
             iter.next();
             if_next_or(b'=', OpComp(GreaterThanEquals), OpComp(GreaterThan), iter)
         }
+        b'|' => {
+            iter.next();
+            let op = if_next_or(b'*', Operator::Multiply, Operator::Call, iter);
+            if let Some(Token::Operator(Operator::Call)) = op.as_ref().unwrap().first() {
+                if_next_or(b'/', Operator::Divide, Operator::Call, iter)
+            } else {
+                op
+            }
+        }
         _ => None,
     }
 }
@@ -287,9 +299,9 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
     match letter {
         b'-' => Some(Operator::Substract),
         b';' => Some(Operator::Ignore),
-        b'|' => Some(Operator::Call),
         b'#' => Some(Operator::Get),
         b':' => Some(Operator::Type),
+        b'%' => Some(Operator::Modulo),
         _ => None,
     }
 }
@@ -365,7 +377,7 @@ pub fn keyword_or_identifier(identifier: String) -> Token {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frontend::lexer::Operator::Add;
+    use crate::frontend::lexer::Operator::{Add, Divide, Modulo, Multiply, Substract};
     use Token::{CloseBracket, Identifier, Number, OpenBracket, Operator};
 
     #[test]
@@ -398,6 +410,25 @@ mod tests {
                 Number(12),
                 Operator(Add),
                 Number(34)
+            ]
+        );
+    }
+    #[test]
+    fn test_arithmetic() {
+        assert_eq!(
+            lex("5 +7 |*12 |/ident -4 %2").unwrap(),
+            vec![
+                Number(5),
+                Operator(Add),
+                Number(7),
+                Operator(Multiply),
+                Number(12),
+                Operator(Divide),
+                Identifier("ident".to_string()),
+                Operator(Substract),
+                Number(4),
+                Operator(Modulo),
+                Number(2),
             ]
         );
     }

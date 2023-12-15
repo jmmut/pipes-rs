@@ -169,6 +169,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
             match operator {
                 Operator::Add => accumulated += self.evaluate_recursive(operand)?,
                 Operator::Substract => accumulated -= self.evaluate_recursive(operand)?,
+                Operator::Multiply => accumulated *= self.evaluate_recursive(operand)?,
+                Operator::Divide => accumulated /= self.evaluate_recursive(operand)?,
+                Operator::Modulo => accumulated %= self.evaluate_recursive(operand)?,
                 Operator::Ignore => accumulated = self.evaluate_recursive(operand)?,
                 Operator::Call => accumulated = self.call_function(accumulated, operand)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
@@ -509,6 +512,11 @@ mod tests {
     #[test]
     fn test_substraction() {
         assert_eq!(interpret("22 - 5 + 1000 - 10"), 1007);
+    }
+
+    #[test]
+    fn test_arithmetic() {
+        assert_eq!(interpret("3 =ident ;5 +7 |*12 |/ident -4 %20"), 4);
     }
 
     #[test]
