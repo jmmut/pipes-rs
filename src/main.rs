@@ -1,5 +1,5 @@
-use pipes_rs::common::AnyError;
 use clap::Parser;
+use pipes_rs::common::AnyError;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
@@ -11,12 +11,12 @@ use pipes_rs::frontend::location::SourceCode;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Inline pipes code to be interpreted. Either this or the input file must be provided
-    code_string: Option<String>,
-
     /// Input file with pipes code to interpret. Either this or the code string must be provided
-    #[arg(short, long)]
     input_file: Option<PathBuf>,
+
+    /// Inline pipes code to be interpreted. Either this or the input file must be provided
+    #[arg(short, long)]
+    code_string: Option<String>,
 
     /// AST syntax, like `[ 5 +7 Op |print_char Op Chain 8 ]`
     #[arg(short, long)]

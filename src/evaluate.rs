@@ -2,12 +2,10 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::rc::Rc;
 
-use crate::common::{AnyError, context};
+use crate::common::{context, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::Map;
-use crate::frontend::expression::{
-    Chain, Expression, Expressions, Function, Loop, Transformation,
-};
+use crate::frontend::expression::{Chain, Expression, Expressions, Function, Loop, Transformation};
 use crate::frontend::lexer::{Comparison, Operator};
 
 pub type ListPointer = i64;
@@ -26,8 +24,39 @@ pub struct Runtime<R: Read, W: Write> {
 }
 
 enum FunctionOrIntrinsic {
-    Function(Function),
+    Function(Function, Closure),
     Intrinsic(Intrinsic),
+}
+
+struct Closure {
+    captured_identifiers: HashMap<String, GenericValue>,
+}
+
+impl Closure {
+    pub fn new() -> Closure {
+        Self {
+            captured_identifiers: HashMap::new(),
+        }
+    }
+    pub fn new_from_current_scope(identifiers: &HashMap<String, BindingsStack>) -> Closure {
+        let mut captured_identifiers = HashMap::new();
+        for (name, stack) in identifiers {
+            if let Some(last) = stack.last() {
+                captured_identifiers.insert(name.clone(), *last);
+            }
+        }
+        Self {
+            captured_identifiers,
+        }
+    }
+    pub fn add_to(&self, all_identifiers: &mut HashMap<String, BindingsStack>) {
+        for (captured_name, captured_value) in &self.captured_identifiers {
+            all_identifiers
+                .entry(captured_name.clone())
+                .or_insert(Vec::new())
+                .push(*captured_value);
+        }
+    }
 }
 
 #[allow(unused)]
@@ -104,7 +133,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Identifier(name) => self.get_identifier(name),
             Expression::Chain(chain) => self.evaluate_chain(chain),
             Expression::StaticList { elements } => self.evaluate_list(elements),
-            Expression::Function(function) => self.allocate_function(function.clone()),
+            Expression::Function(function) => self.allocate_function(
+                function.clone(),
+                Closure::new_from_current_scope(&self.identifiers),
+            ),
             _ => Err(format!("Can't evaluate expression {:?}", expression))?,
         }
     }
@@ -193,7 +225,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
                         .into()
                     })
             }
-            Expression::Function(function) => self.call_function_expression(argument, function),
+            Expression::Function(function) => {
+                self.call_function_expression(argument, function, &Closure::new())
+            }
             Expression::Loop(loop_) => self.call_loop_expression(argument, loop_),
             Expression::Map(map) => self.call_map_expression(argument, map),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
@@ -219,8 +253,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         if let Some(function_expr) = self.functions.get(function_ptr as usize).cloned() {
             match function_expr.as_ref() {
-                FunctionOrIntrinsic::Function(function) => {
-                    self.call_function_expression(argument, function)
+                FunctionOrIntrinsic::Function(function, closure) => {
+                    self.call_function_expression(argument, function, closure)
                 }
                 FunctionOrIntrinsic::Intrinsic(intrinsic) => {
                     self.call_intrinsic(argument, *intrinsic)
@@ -234,13 +268,18 @@ impl<R: Read, W: Write> Runtime<R, W> {
         &mut self,
         argument: i64,
         Function { parameter, body }: &Function,
+        closure: &Closure,
     ) -> Result<i64, AnyError> {
+        let identifiers_outside = self.identifiers.clone();
+        closure.add_to(&mut self.identifiers);
         self.identifiers
             .entry(parameter.name.clone())
             .or_insert(Vec::new())
             .push(argument);
+
         let result = self.evaluate_chain(body)?;
-        self.unbind_identifier(&parameter.name, 1)?;
+
+        self.identifiers = identifiers_outside;
         Ok(result)
     }
     fn call_loop_expression(
@@ -426,9 +465,13 @@ impl<R: Read, W: Write> Runtime<R, W> {
         new_pointer
     }
 
-    fn allocate_function(&mut self, function: Function) -> Result<FunctionPointer, AnyError> {
+    fn allocate_function(
+        &mut self,
+        function: Function,
+        closure: Closure,
+    ) -> Result<FunctionPointer, AnyError> {
         self.functions
-            .push(Rc::new(FunctionOrIntrinsic::Function(function)));
+            .push(Rc::new(FunctionOrIntrinsic::Function(function, closure)));
         Ok((self.functions.len() - 1) as i64)
     }
 }
@@ -503,7 +546,6 @@ mod tests {
         assert_mentions(err, &["as a function", "3"])
     }
     #[test]
-    #[ignore] // TODO: fix closures and de-ignore this test
     fn test_function_closure() {
         assert_eq!(
             interpret(
