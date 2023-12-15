@@ -70,6 +70,7 @@ mod intrinsics {
         PrintChar,
         ReadChar,
         Print,
+        ReadLines,
         ToStr,
         NewArray,
         Size,
@@ -80,6 +81,7 @@ mod intrinsics {
                 Intrinsic::PrintChar => "print_char",
                 Intrinsic::ReadChar => "read_char",
                 Intrinsic::Print => "print",
+                Intrinsic::ReadLines => "read_lines",
                 Intrinsic::ToStr => "to_str",
                 Intrinsic::NewArray => "new_array",
                 Intrinsic::Size => "size",
@@ -87,7 +89,8 @@ mod intrinsics {
         }
     }
     use Intrinsic::*;
-    pub const INTRINSICS: &[Intrinsic] = &[PrintChar, ReadChar, Print, ToStr, NewArray, Size];
+    pub const INTRINSICS: &[Intrinsic] =
+        &[PrintChar, ReadChar, Print, ReadLines, ToStr, NewArray, Size];
 }
 
 impl<R: Read, W: Write> Runtime<R, W> {
@@ -356,6 +359,18 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     ))?,
                 }
                 Ok(argument)
+            }
+            Intrinsic::ReadLines => {
+                let mut all_lines = "".to_string();
+                self.read_input.read_to_string(&mut all_lines)?;
+                let list_of_lists = all_lines
+                    .split("\n")
+                    .map(|str_line| {
+                        self.allocate_list(str_line.bytes().map(|x| x as i64).collect())
+                    })
+                    .collect();
+                let list_ptr = self.allocate_list(list_of_lists);
+                Ok(list_ptr)
             }
             Intrinsic::ToStr => {
                 let string = format!("{}", argument);
@@ -626,6 +641,15 @@ mod tests {
         let result = Runtime::evaluate(expression, &*into, &mut out);
         assert_eq!(result.unwrap() as u8, '7' as u8);
         assert_eq!(out, vec![b'5']);
+    }
+    #[test]
+    fn test_read_lines() {
+        let (result, print_output) = interpret_io(
+            "{} |read_lines |function(lines) {lines #1 |print |size |to_str |print;lines |size}",
+            &"asdf\nqwer\nzxcv".bytes().collect::<Vec<_>>(),
+        );
+        assert_eq!(result, 3);
+        assert_eq!(String::from_utf8(print_output).unwrap(), "qwer\n4\n");
     }
     #[test]
     fn test_to_str() {
