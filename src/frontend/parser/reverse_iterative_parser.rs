@@ -125,6 +125,7 @@ fn construct_keyword(
     match keyword {
         Keyword::Function => construct_function(accumulated),
         Keyword::Loop => construct_loop(accumulated),
+        Keyword::Times => construct_times(accumulated),
         Keyword::Map => construct_map(accumulated),
         Keyword::Branch => construct_branch(accumulated),
     }
@@ -156,7 +157,22 @@ fn construct_loop(
             parameter, body,
         )))
     } else {
-        error_expected("chain for the loop body", elem)
+        error_expected("chain for the 'loop' body", elem)
+    }
+}
+
+fn construct_times(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    let elem = accumulated.pop_front();
+    let (parameter, elem) = extract_single_child_type(accumulated, elem);
+
+    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
+        Ok(PartialExpression::Expression(Expression::times(
+            parameter, body,
+        )))
+    } else {
+        error_expected("chain for the 'times' body", elem)
     }
 }
 
@@ -171,7 +187,7 @@ fn construct_map(
             parameter, body,
         )))
     } else {
-        error_expected("chain for the map body", elem)
+        error_expected("chain for the 'map' body", elem)
     }
 }
 

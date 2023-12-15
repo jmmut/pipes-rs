@@ -1,5 +1,4 @@
 use crate::common::context;
-use crate::frontend::expression::keywords;
 use crate::AnyError;
 use std::iter::Peekable;
 use std::str::Bytes;
@@ -49,8 +48,25 @@ pub enum Comparison {
 pub enum Keyword {
     Function,
     Loop,
+    Times,
     Map,
     Branch,
+}
+impl Keyword {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Keyword::Function => "function",
+            Keyword::Loop => "loop",
+            Keyword::Times => "times",
+            Keyword::Map => "map",
+            Keyword::Branch => "branch",
+        }
+    }
+}
+
+mod keywords {
+    use super::Keyword::*;
+    pub const KEYWORDS: &[super::Keyword] = &[Function, Loop, Times, Map, Branch];
 }
 pub type Tokens = Vec<Token>;
 
@@ -361,17 +377,12 @@ pub fn consume_identifier(first_letter: u8, iter: &mut Peekable<Bytes>) -> Resul
 }
 
 pub fn keyword_or_identifier(identifier: String) -> Token {
-    return if identifier == keywords::FUNCTION {
-        Token::Keyword(Keyword::Function)
-    } else if identifier == keywords::LOOP {
-        Token::Keyword(Keyword::Loop)
-    } else if identifier == keywords::MAP {
-        Token::Keyword(Keyword::Map)
-    } else if identifier == keywords::BRANCH {
-        Token::Keyword(Keyword::Branch)
-    } else {
-        Token::Identifier(identifier)
-    };
+    for k in keywords::KEYWORDS {
+        if k.name() == identifier {
+            return Token::Keyword(k.clone());
+        }
+    }
+    Token::Identifier(identifier)
 }
 
 #[cfg(test)]

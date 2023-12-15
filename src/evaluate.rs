@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use crate::common::{context, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
-use crate::frontend::expression::Map;
 use crate::frontend::expression::{Chain, Expression, Expressions, Function, Loop, Transformation};
+use crate::frontend::expression::{Map, Times};
 use crate::frontend::lexer::{Comparison, Operator};
 
 pub type ListPointer = i64;
@@ -235,6 +235,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 self.call_function_expression(argument, function, &Closure::new())
             }
             Expression::Loop(loop_) => self.call_loop_expression(argument, loop_),
+            Expression::Times(times) => self.call_times_expression(argument, times),
             Expression::Map(map) => self.call_map_expression(argument, map),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
                 &branch.yes
@@ -299,6 +300,28 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let list = self.get_list(argument)?.clone();
         let mut result = NOTHING;
         for value in list {
+            self.identifiers
+                .entry(iteration_elem.name.clone())
+                .or_insert(Vec::new())
+                .push(value);
+            result = self.evaluate_chain(&body)?;
+            self.unbind_identifier(&iteration_elem.name, 1)?;
+            if result != NOTHING {
+                break;
+            }
+        }
+        Ok(result)
+    }
+    fn call_times_expression(
+        &mut self,
+        argument: i64,
+        Times {
+            iteration_elem,
+            body,
+        }: &Times,
+    ) -> Result<i64, AnyError> {
+        let mut result = NOTHING;
+        for value in 0..argument {
             self.identifiers
                 .entry(iteration_elem.name.clone())
                 .or_insert(Vec::new())
@@ -714,6 +737,17 @@ mod tests {
             interpret_io("[10 11] |loop(n :i64) {n |to_str |print; 5}", &[]);
         assert_eq!(result, 5);
         assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n")
+    }
+
+    #[test]
+    fn test_times() {
+        let result = interpret("[{0}]=n ;4 |times (i) {n |map(x) {x+1};};n#0");
+        assert_eq!(result, 4);
+    }
+    #[test]
+    fn test_times_broken() {
+        let result = interpret("[{0}]=n ;4 |times (i) {n |map(x) {x+1} ;100} + {n#0}");
+        assert_eq!(result, 101);
     }
 
     #[test]
