@@ -2,15 +2,14 @@
 
 ## Roadmap
 
-- [x] basic numbers, arrays and operators (`+`, `-`, `;`, `|`, `#`)
-- [ ] iteration (`||` as foreach)
-- [/] functions
-  - [ ] closures
-- [ ] semantic types (`:t` as "the previous expression is of type t)
-- [/] chars and strings
+- [x] basic numbers, arrays and operators
+- [x] chars and strings
+- [x] branching
+- [x] iteration
+- [x] functions
+- [ ] semantic types (`:t` meaning "the previous expression is of type t")
 - [ ] file imports, in a way that is compatible with LSP
-- [ ] code location
-- [/] branching
+- [ ] code location (for better error messages)
 - [x] assignment to identifiers
 
 
@@ -20,26 +19,27 @@ In this section, unchecked checkboxes are planned but unimplemented features.
 
 You can use these atoms:
 
-- [ ] 64-bit signed integer numbers (e.g. `4`, `-5`, `'a'` (syntax sugar for ASCII code 97))
-- Functions (e.g. `function(x) { x }` (which is the anonymous identity function))
-- Arrays (e.g. `[1 2 3]`, allocated in the heap)
-- Identifiers (e.g. `my_namespaced/parameter2`)
-- Strings (e.g. `"hello world"` (syntax sugar for an array of ASCII ints))
+- [x] 64-bit signed integer numbers (e.g. `4`, `'a'` (syntax sugar for ASCII code 97))
+  - [ ] unary negation (e.g. `-5`)
+- [x] Functions (e.g. `function(x) { x }` (which is the anonymous identity function))
+- [x] Arrays (e.g. `[1 2 3]`, allocated in the heap)
+- [x] Identifiers (e.g. `my_namespaced/variable2`)
+- [x] Strings (e.g. `"hello world"` (syntax sugar for an array of utf-8 ints))
 
 With these operations:
 
-- [ ] Binary operators `+`, `-`, `|*`, `|/`, `>`, (e.g. `2 + 3`)
-- Explicit grouping (e.g. `6 -{3 -2}` evaluates to 5)
-- Statement separator (e.g. `2; 3` (which evaluates to 3))
-- Function call (e.g. `arg |func` (the usual syntax would be `func(arg)` but this is forbidden)
-- [ ] Looped function call (e.g. `[1 2 3] ||function(x) { x + 1 }` modifies the array by 
+- [x] Binary operators `+`, `-`, `|*`, `|/`, `%`, `=?` (is_equal),`<`,`<=`,`>`,`>=`, `#` (array access) (e.g. `2 + 3`, `[5 6 7] #0`)
+- [x] Explicit grouping (e.g. `6 -{3 -2}` evaluates to 5)
+- [x] Statement separator (e.g. `2 ;3` (which evaluates to 3))
+- [x] Function call (e.g. `arg |func` (the usual syntax would be `func(arg)` but this is forbidden)
+- [x] Looped function call (e.g. `[1 2 3] |map(x) { x + 1 }` modifies the array by 
   incrementing all elements)
-- Ifs/Branching (e.g. `condition |branch {5} {6}` (where 5 will be returned if `condition` is not 0,
+- [x] Ifs/Branching (e.g. `condition |branch {5} {6}` (where 5 will be returned if `condition` is not 0,
   6 will be returned if `condition` is 0))
-- Type annotation (e.g. `2 :int64`)
+- [ ] Type annotation (e.g. `2 :int64`)
 - [ ] Struct field access (e.g. given `a :struct(x :int64)`, you can do `a.x` or `a .x`. The space is 
   significant, those are different things, see below)
-- Comments, ignoring the rest of the line (e.g. `42 // the answer`)
+- [x] Comments, ignoring the rest of the line (e.g. `42 // the answer`)
 
 ### Simplified Grammar
 Worth a special mention are Chains and TypedChildren.
