@@ -52,13 +52,13 @@ jobs:
         run: |
           cargo install wasm-pack
           ./recompile_web.sh
-          zip -FS -r wasm.zip built_html/*
-          sha512sum wasm.zip
+          zip -FS -r ${PROJECT_NAME}-wasm.zip built_html/*
+          sha512sum ${PROJECT_NAME}-wasm.zip
 
       - name: Deploy WebAssembly to itch.io
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-        run: ./butler push wasm.zip jmmut/pipes:html5
+        run: ./butler push ${PROJECT_NAME}-wasm.zip jmmut/pipes:html5
 
 ###### For some reason the windows build fails:
   #  rustup target add x86_64-pc-windows-gnu
