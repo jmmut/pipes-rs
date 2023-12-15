@@ -363,12 +363,18 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Intrinsic::ReadLines => {
                 let mut all_lines = "".to_string();
                 self.read_input.read_to_string(&mut all_lines)?;
-                let list_of_lists = all_lines
+                let mut list_of_lists: Vec<GenericValue> = all_lines
                     .split("\n")
                     .map(|str_line| {
                         self.allocate_list(str_line.bytes().map(|x| x as i64).collect())
                     })
                     .collect();
+
+                if let Some(last) = list_of_lists.last() {
+                    if self.get_list(*last).unwrap().len() == 0 {
+                        list_of_lists.pop();
+                    }
+                }
                 let list_ptr = self.allocate_list(list_of_lists);
                 Ok(list_ptr)
             }
@@ -646,7 +652,7 @@ mod tests {
     fn test_read_lines() {
         let (result, print_output) = interpret_io(
             "{} |read_lines |function(lines) {lines #1 |print |size |to_str |print;lines |size}",
-            &"asdf\nqwer\nzxcv".bytes().collect::<Vec<_>>(),
+            &"asdf\nqwer\nzxcv\n".bytes().collect::<Vec<_>>(),
         );
         assert_eq!(result, 3);
         assert_eq!(String::from_utf8(print_output).unwrap(), "qwer\n4\n");
