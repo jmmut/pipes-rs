@@ -7,7 +7,8 @@
 
 <body>
     <div id="loading_status_div">WebAssembly not loaded</div>
-    <div id="results_div"></div>
+    <div id="output_div"></div>
+    <div id="result_div"></div>
     <button id="main_button" disabled>click me</button>
     <script type="module">
         "use strict";
@@ -26,8 +27,9 @@
             document.getElementById("main_button").removeAttribute("disabled");
 
             function update_div() {
-                const result = interpret_in_web("34 + 4");
-                document.getElementById("results_div").innerText = "Result from rust: " + result;
+                const result_obj = interpret_in_web("\"hello\" |print; 5");
+                document.getElementById("output_div").innerText = result_obj[1]
+                document.getElementById("result_div").innerText = "Result: " + result_obj[0];
             }
         }
 

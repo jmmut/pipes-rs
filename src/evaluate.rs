@@ -6,7 +6,7 @@ use crate::common::{AnyError, context};
 use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::Map;
 use crate::frontend::expression::{
-    Chain, Expression, Expressions, Function, Loop, Transformation, Transformations,
+    Chain, Expression, Expressions, Function, Loop, Transformation,
 };
 use crate::frontend::lexer::{Comparison, Operator};
 
