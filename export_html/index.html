@@ -7,9 +7,33 @@
 
 <body>
     <div id="loading_status_div">WebAssembly not loaded</div>
-    <div id="output_div"></div>
-    <div id="result_div"></div>
-    <button id="main_button" disabled>click me</button>
+    <div>Input pipes code:</div>
+    <textarea id="input_pipes" cols="80" rows="24" disabled>"Hello, World!" |print
+;3 +5 |to_str |print
+;[60 70 80] #1 |to_str |print
+
+;function(array) {
+    ["[ "]
+    =message
+    ;array
+    |loop(elem) {
+        message |map(m) {m ++ {elem |to_str} ++ " "}
+        ;
+    }
+    ;message #0
+    ++ "]"
+}
+=int_array_to_str
+
+;[10 20 30] |map(x) {
+    x +6
+}
+|int_array_to_str |print
+
+;42</textarea>
+    <div><button id="main_button" disabled>Run</button></div>
+    <div><textarea id="output_pipes" cols="80" rows="5" disabled></textarea></div>
+    <div><output id="result_pipes"></output></div>
     <script type="module">
         "use strict";
         document.getElementById("loading_status_div").innerText = "Attempting to import the WebAssembly package";
@@ -20,16 +44,19 @@
             function addListener(dom_id, event_type, callback) {
                 document.getElementById(dom_id).addEventListener(event_type, callback);
             }
-            addListener("main_button", "click", update_div);
+            addListener("main_button", "click", updated_input);
             document.getElementById("loading_status_div").innerText = "Attempting to initialize the WebAssembly package";
             await init();
             document.getElementById("loading_status_div").innerText = "WebAssembly loaded";
+            document.getElementById("input_pipes").removeAttribute("disabled");
             document.getElementById("main_button").removeAttribute("disabled");
 
-            function update_div() {
-                const result_obj = interpret_in_web("\"hello\" |print; 5");
-                document.getElementById("output_div").innerText = result_obj[1]
-                document.getElementById("result_div").innerText = "Result: " + result_obj[0];
+            function updated_input() {
+                let code = document.getElementById("input_pipes").value;
+                const result_obj = interpret_in_web(code);
+                document.getElementById("output_pipes").value = result_obj[1];
+                let result_str = result_obj[0] != -9223372036854775808.0? "Result: " + result_obj[0] :"";
+                document.getElementById("result_pipes").value = result_str;
             }
         }
 
