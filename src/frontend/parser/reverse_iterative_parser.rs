@@ -128,6 +128,7 @@ fn construct_keyword(
         Keyword::LoopOr => construct_loop_or(accumulated),
         Keyword::Times => construct_times(accumulated),
         Keyword::Replace => construct_replace(accumulated),
+        Keyword::Map => construct_map(accumulated),
         Keyword::Branch => construct_branch(accumulated),
     }
 }
@@ -209,6 +210,21 @@ fn construct_replace(
         )))
     } else {
         error_expected("chain for the 'replace' body", elem)
+    }
+}
+
+fn construct_map(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    let elem = accumulated.pop_front();
+    let (parameter, elem) = extract_single_child_type(accumulated, elem);
+
+    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
+        Ok(PartialExpression::Expression(Expression::map(
+            parameter, body,
+        )))
+    } else {
+        error_expected("chain for the 'map' body", elem)
     }
 }
 

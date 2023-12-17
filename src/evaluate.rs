@@ -5,7 +5,7 @@ use std::rc::Rc;
 use crate::common::{context, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::{
-    Chain, Expression, Expressions, Function, Loop, LoopOr, Transformation, TypedIdentifier,
+    Chain, Expression, Expressions, Function, Loop, LoopOr, Map, Transformation, TypedIdentifier,
 };
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::lexer::{Comparison, Operator};
@@ -247,6 +247,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::LoopOr(loop_or) => self.call_loop_or_expression(argument, loop_or),
             Expression::Times(times) => self.call_times_expression(argument, times),
             Expression::Replace(replace) => self.call_replace_expression(argument, replace),
+            Expression::Map(map) => self.call_map_expression(argument, map),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
                 &branch.yes
             } else {
@@ -380,6 +381,27 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
         self.lists.insert(argument, list);
         Ok(argument)
+    }
+
+    fn call_map_expression(
+        &mut self,
+        argument: i64,
+        Map {
+            iteration_elem,
+            body,
+        }: &Map,
+    ) -> Result<i64, AnyError> {
+        let mut list = self.get_list(argument)?.clone();
+        let mut new_list = Vec::new();
+        for value in &mut list {
+            self.identifiers
+                .entry(iteration_elem.name.clone())
+                .or_insert(Vec::new())
+                .push(*value);
+            new_list.push(self.evaluate_chain(&body)?);
+            self.unbind_identifier(&iteration_elem.name, 1)?;
+        }
+        Ok(self.allocate_list(new_list))
     }
 
     fn call_intrinsic(
@@ -817,6 +839,14 @@ mod tests {
     #[test]
     fn test_replace() {
         assert_eq!(interpret("[10 11] |replace(e :i64) {e +100} #1"), 111);
+    }
+    #[test]
+    fn test_map() {
+        assert_eq!(interpret("[10 11] =initial |map(e) {e +100} #1"), 111);
+        assert_eq!(
+            interpret("[10 11] =initial |map(e) {e +100} ;initial #1"),
+            11
+        );
     }
     #[test]
     fn test_comparison() {
