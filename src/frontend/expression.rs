@@ -19,7 +19,7 @@ pub enum Expression {
     Loop(Loop),
     LoopOr(LoopOr),
     Times(Times),
-    Map(Map),
+    Replace(Replace),
     Branch(Branch),
 }
 
@@ -61,8 +61,8 @@ impl Expression {
         })
     }
     #[allow(unused)]
-    pub fn map(elem: TypedIdentifier, body: Chain) -> Self {
-        Self::Map(Map {
+    pub fn replace(elem: TypedIdentifier, body: Chain) -> Self {
+        Self::Replace(Replace {
             iteration_elem: elem,
             body,
         })
@@ -222,7 +222,7 @@ pub struct Times {
     pub body: Chain,
 }
 #[derive(PartialEq, Debug, Clone)]
-pub struct Map {
+pub struct Replace {
     pub iteration_elem: TypedIdentifier,
     pub body: Chain,
 }

@@ -7,7 +7,7 @@ use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::{
     Chain, Expression, Expressions, Function, Loop, LoopOr, Transformation, TypedIdentifier,
 };
-use crate::frontend::expression::{Map, Times};
+use crate::frontend::expression::{Replace, Times};
 use crate::frontend::lexer::{Comparison, Operator};
 
 pub type ListPointer = i64;
@@ -246,7 +246,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }) => self.call_loop_expression(argument, iteration_elem, body),
             Expression::LoopOr(loop_or) => self.call_loop_or_expression(argument, loop_or),
             Expression::Times(times) => self.call_times_expression(argument, times),
-            Expression::Map(map) => self.call_map_expression(argument, map),
+            Expression::Replace(replace) => self.call_replace_expression(argument, replace),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
                 &branch.yes
             } else {
@@ -361,13 +361,13 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
         Ok(result)
     }
-    fn call_map_expression(
+    fn call_replace_expression(
         &mut self,
         argument: i64,
-        Map {
+        Replace {
             iteration_elem,
             body,
-        }: &Map,
+        }: &Replace,
     ) -> Result<i64, AnyError> {
         let mut list = self.get_list(argument)?.clone();
         for value in &mut list {
@@ -805,18 +805,18 @@ mod tests {
 
     #[test]
     fn test_times() {
-        let result = interpret("[{0}]=n ;4 |times (i) {n |map(x) {x+1};};n#0");
+        let result = interpret("[{0}]=n ;4 |times (i) {n |replace(x) {x+1};};n#0");
         assert_eq!(result, 4);
     }
     #[test]
     fn test_times_broken() {
-        let result = interpret("[{0}]=n ;4 |times (i) {n |map(x) {x+1} ;100} + {n#0}");
+        let result = interpret("[{0}]=n ;4 |times (i) {n |replace(x) {x+1} ;100} + {n#0}");
         assert_eq!(result, 101);
     }
 
     #[test]
-    fn test_map() {
-        assert_eq!(interpret("[10 11] |map(e :i64) {e +100} #1"), 111);
+    fn test_replace() {
+        assert_eq!(interpret("[10 11] |replace(e :i64) {e +100} #1"), 111);
     }
     #[test]
     fn test_comparison() {

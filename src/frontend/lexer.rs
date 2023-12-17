@@ -51,7 +51,7 @@ pub enum Keyword {
     Loop,
     LoopOr,
     Times,
-    Map,
+    Replace,
     Branch,
 }
 impl Keyword {
@@ -61,14 +61,14 @@ impl Keyword {
             Keyword::Loop => "loop",
             Keyword::LoopOr => "loop_or",
             Keyword::Times => "times",
-            Keyword::Map => "map",
+            Keyword::Replace => "replace",
             Keyword::Branch => "branch",
         }
     }
 }
 mod keywords {
     use super::Keyword::*;
-    pub const KEYWORDS: &[super::Keyword] = &[Function, Loop, LoopOr, Times, Map, Branch];
+    pub const KEYWORDS: &[super::Keyword] = &[Function, Loop, LoopOr, Times, Replace, Branch];
 }
 pub type Tokens = Vec<Token>;
 
