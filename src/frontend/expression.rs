@@ -17,6 +17,7 @@ pub enum Expression {
     StaticList { elements: Expressions },
     Function(Function),
     Loop(Loop),
+    LoopOr(LoopOr),
     Times(Times),
     Map(Map),
     Branch(Branch),
@@ -42,6 +43,14 @@ impl Expression {
         Self::Loop(Loop {
             iteration_elem: elem,
             body,
+        })
+    }
+    #[allow(unused)]
+    pub fn loop_or(elem: TypedIdentifier, body: Chain, otherwise: Chain) -> Self {
+        Self::LoopOr(LoopOr {
+            iteration_elem: elem,
+            body,
+            otherwise,
         })
     }
     #[allow(unused)]
@@ -200,6 +209,12 @@ impl TypedIdentifier {
 pub struct Loop {
     pub iteration_elem: TypedIdentifier,
     pub body: Chain,
+}
+#[derive(PartialEq, Debug, Clone)]
+pub struct LoopOr {
+    pub iteration_elem: TypedIdentifier,
+    pub body: Chain,
+    pub otherwise: Chain,
 }
 #[derive(PartialEq, Debug, Clone)]
 pub struct Times {

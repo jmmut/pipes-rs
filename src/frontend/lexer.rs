@@ -48,6 +48,7 @@ pub enum Comparison {
 pub enum Keyword {
     Function,
     Loop,
+    LoopOr,
     Times,
     Map,
     Branch,
@@ -57,16 +58,16 @@ impl Keyword {
         match self {
             Keyword::Function => "function",
             Keyword::Loop => "loop",
+            Keyword::LoopOr => "loop_or",
             Keyword::Times => "times",
             Keyword::Map => "map",
             Keyword::Branch => "branch",
         }
     }
 }
-
 mod keywords {
     use super::Keyword::*;
-    pub const KEYWORDS: &[super::Keyword] = &[Function, Loop, Times, Map, Branch];
+    pub const KEYWORDS: &[super::Keyword] = &[Function, Loop, LoopOr, Times, Map, Branch];
 }
 pub type Tokens = Vec<Token>;
 

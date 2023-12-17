@@ -4,7 +4,9 @@ use std::rc::Rc;
 
 use crate::common::{context, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
-use crate::frontend::expression::{Chain, Expression, Expressions, Function, Loop, Transformation};
+use crate::frontend::expression::{
+    Chain, Expression, Expressions, Function, Loop, LoopOr, Transformation, TypedIdentifier,
+};
 use crate::frontend::expression::{Map, Times};
 use crate::frontend::lexer::{Comparison, Operator};
 
@@ -234,7 +236,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Function(function) => {
                 self.call_function_expression(argument, function, &Closure::new())
             }
-            Expression::Loop(loop_) => self.call_loop_expression(argument, loop_),
+            Expression::Loop(Loop {
+                iteration_elem,
+                body,
+            }) => self.call_loop_expression(argument, iteration_elem, body),
+            Expression::LoopOr(loop_or) => self.call_loop_or_expression(argument, loop_or),
             Expression::Times(times) => self.call_times_expression(argument, times),
             Expression::Map(map) => self.call_map_expression(argument, map),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
@@ -246,7 +252,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 let function_pointer = self.evaluate_chain(chain)?;
                 self.call_function_pointer(argument, function_pointer)
             }
-            _ => Err(format!(
+            Expression::Nothing
+            | Expression::Value(_)
+            | Expression::Type(_)
+            | Expression::StaticList { .. } => Err(format!(
                 "Can not use expression as a function: {:?}",
                 function
             ))?,
@@ -292,10 +301,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn call_loop_expression(
         &mut self,
         argument: i64,
-        Loop {
-            iteration_elem,
-            body,
-        }: &Loop,
+        iteration_elem: &TypedIdentifier,
+        body: &Chain,
     ) -> Result<i64, AnyError> {
         let list = self.get_list(argument)?.clone();
         let mut result = NOTHING;
@@ -311,6 +318,22 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
         }
         Ok(result)
+    }
+    fn call_loop_or_expression(
+        &mut self,
+        argument: i64,
+        LoopOr {
+            iteration_elem,
+            body,
+            otherwise,
+        }: &LoopOr,
+    ) -> Result<i64, AnyError> {
+        let result = self.call_loop_expression(argument, iteration_elem, body)?;
+        if result == NOTHING {
+            self.evaluate_chain(otherwise)
+        } else {
+            Ok(result)
+        }
     }
     fn call_times_expression(
         &mut self,
@@ -737,6 +760,18 @@ mod tests {
             interpret_io("[10 11] |loop(n :i64) {n |to_str |print; 5}", &[]);
         assert_eq!(result, 5);
         assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n")
+    }
+
+    #[test]
+    fn test_loop_or() {
+        let result = interpret("[10 11] |loop_or(n :i64) {n;} {5}");
+        assert_eq!(result, 5);
+    }
+
+    #[test]
+    fn test_loop_or_broken() {
+        let result = interpret("[10 11] |loop_or(n :i64) {n} {5}");
+        assert_eq!(result, 10);
     }
 
     #[test]

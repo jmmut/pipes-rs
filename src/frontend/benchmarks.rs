@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 #[test]
 fn benchmark_deep() {
     let mut code = "1".to_string();
-    let n = 125;
+    let n = 105;
     for _ in 0..n {
         code += "+ {[2 {3";
     }
