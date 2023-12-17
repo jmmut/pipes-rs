@@ -31,6 +31,7 @@ pub enum Operator {
     Get,
     Type,
     Assignment,
+    Overwrite,
     Concatenate,
     Comparison(Comparison),
 }
@@ -175,7 +176,11 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Optio
         }
         b'=' => {
             iter.next();
-            if_next_or(b'?', OpComp(Equals), Operator::Assignment, iter)
+            if_nexts_or(
+                &[(b'?', OpComp(Equals)), (b'>', Operator::Overwrite)],
+                Operator::Assignment,
+                iter,
+            )
         }
         b'<' => {
             iter.next();
@@ -187,15 +192,30 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Optio
         }
         b'|' => {
             iter.next();
-            let op = if_next_or(b'*', Operator::Multiply, Operator::Call, iter);
-            if let Some(Token::Operator(Operator::Call)) = op.as_ref().unwrap().first() {
-                if_next_or(b'/', Operator::Divide, Operator::Call, iter)
-            } else {
-                op
-            }
+            if_nexts_or(
+                &[(b'*', Operator::Multiply), (b'/', Operator::Divide)],
+                Operator::Call,
+                iter,
+            )
         }
         _ => None,
     }
+}
+
+fn if_nexts_or(
+    nexts: &[(u8, Operator)],
+    or: Operator,
+    iter: &mut Peekable<Bytes>,
+) -> Option<Tokens> {
+    for (next, then) in nexts {
+        if let Some(next_letter) = iter.peek() {
+            if *next_letter == *next {
+                iter.next();
+                return Some(vec![Token::Operator(*then)]);
+            }
+        }
+    }
+    Some(vec![Token::Operator(or)])
 }
 
 fn if_next_or(

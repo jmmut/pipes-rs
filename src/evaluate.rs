@@ -184,6 +184,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Assignment => {
                     self.evaluate_assignment(accumulated, operand, &mut identifiers)?
                 }
+                Operator::Overwrite => self.evaluate_overwrite(accumulated, operand)?,
                 Operator::Concatenate => {
                     accumulated = self.evaluate_concatenate(accumulated, operand)?
                 }
@@ -193,6 +194,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
         }
         for (identifier, times_redefined_in_this_chain) in identifiers {
+            if times_redefined_in_this_chain > 1 {
+                return Err(format!("Identifier {} was defined multiple times. Maybe you want to use the overwrite operator '=>'.",identifier).into());
+            }
             self.unbind_identifier(&identifier, times_redefined_in_this_chain)?;
         }
         Ok(accumulated)
@@ -482,6 +486,23 @@ impl<R: Read, W: Write> Runtime<R, W> {
             _ => Err(format!("Can only assign to identifiers, not to a {:?}", operand).into()),
         }
     }
+    fn evaluate_overwrite(
+        &mut self,
+        accumulated: GenericValue,
+        operand: &Expression,
+    ) -> Result<(), AnyError> {
+        match operand {
+            Expression::Identifier(name) => {
+                if let Some(value) = self.identifiers.get_mut(name) {
+                    *value.last_mut().unwrap() = accumulated;
+                    Ok(())
+                } else {
+                    Err(format!("Can not overwrite identifier {} because it has not been defined. Use '=' to define it.", name).into())
+                }
+            }
+            _ => Err(format!("Can only overwrite identifiers, not a {:?}", operand).into()),
+        }
+    }
     fn evaluate_compare(
         &mut self,
         accumulated: GenericValue,
@@ -658,6 +679,14 @@ mod tests {
     #[test]
     fn test_name_function() {
         assert_eq!(interpret("function(x) {x +1} =increment ;6 |increment"), 7);
+    }
+    #[test]
+    fn test_overwrite() {
+        assert_eq!(interpret("4 =i +1 =>i"), 5);
+    }
+    #[test]
+    fn test_duplicate_definition() {
+        let _ = interpret_fallible("4 =i +1 =i").expect_err("should fail: duplicate definition");
     }
     #[test]
     fn test_deshadow_identifier() {
