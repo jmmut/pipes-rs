@@ -1,0 +1,14 @@
+function(x) {
+    x +1
+}
+=pub increment
+
+;function(x) {
+    x -1
+}
+=pub decrement
+
+;function(x) {
+    x *2
+}
+=double

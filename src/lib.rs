@@ -4,9 +4,9 @@ pub mod frontend;
 
 use crate::common::AnyError;
 use crate::evaluate::Runtime;
+use crate::frontend::lex_and_parse;
 use wasm_bindgen::prelude::*;
 
-use crate::frontend::lex_and_parse_source;
 use crate::frontend::location::SourceCode;
 
 #[wasm_bindgen]
@@ -19,7 +19,7 @@ pub fn interpret_in_web(code: &str) -> Box<[JsValue]> {
 
 fn interpret_in_web_fallible(code: &str) -> Result<Box<[JsValue]>, AnyError> {
     let source = SourceCode::new_fileless(code.to_string());
-    let expression = lex_and_parse_source(&source)?;
+    let expression = lex_and_parse(source)?;
 
     let mut print_output = Vec::<u8>::new();
     let read_input: &[u8] = &[];

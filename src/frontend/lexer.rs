@@ -1,4 +1,5 @@
 use crate::common::context;
+use crate::frontend::location::SourceCode;
 use crate::AnyError;
 use std::iter::Peekable;
 use std::str::Bytes;
@@ -74,12 +75,12 @@ mod keywords {
 }
 pub type Tokens = Vec<Token>;
 
-pub fn lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
-    context("Lexer", try_lex(code_text))
+pub fn lex<S: Into<SourceCode>>(code: S) -> Result<Tokens, AnyError> {
+    context("Lexer", try_lex(code.into()))
 }
-fn try_lex<S: AsRef<str>>(code_text: S) -> Result<Tokens, AnyError> {
+fn try_lex(code: SourceCode) -> Result<Tokens, AnyError> {
     let mut tokens = Tokens::new();
-    let mut bytes = code_text.as_ref().bytes().peekable();
+    let mut bytes = code.text.bytes().peekable();
     while let Some(letter) = bytes.peek() {
         let letter = *letter;
         if let Some(digit) = parse_digit(letter) {

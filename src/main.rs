@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use pipes_rs::evaluate::{Runtime, NOTHING};
 use pipes_rs::frontend::ast::ast_deserialize_source;
-use pipes_rs::frontend::lex_and_parse_source;
+use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::location::SourceCode;
 
 #[derive(Parser, Debug)]
@@ -53,7 +53,7 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
     let expression = if ast {
         ast_deserialize_source(&code_string)?
     } else {
-        lex_and_parse_source(&code_string)?
+        lex_and_parse(code_string)?
     };
 
     // two ifs so that --debug-ast and --prettify only prints once, prettified

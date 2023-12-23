@@ -18,12 +18,8 @@ mod tests;
 #[cfg(test)]
 mod benchmarks;
 
-pub fn lex_and_parse<S: AsRef<str>>(code_text: S) -> Result<Program, AnyError> {
+pub fn lex_and_parse<S: Into<SourceCode>>(code_text: S) -> Result<Program, AnyError> {
     let tokens = lex(code_text);
     let expression = parse_tokens(tokens?);
     expression
-}
-
-pub fn lex_and_parse_source(code_text: &SourceCode) -> Result<Program, AnyError> {
-    lex_and_parse(&code_text.text)
 }

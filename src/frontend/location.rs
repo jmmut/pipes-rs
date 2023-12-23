@@ -71,3 +71,9 @@ impl SourceCode {
         }
     }
 }
+
+impl<S: AsRef<str>> From<S> for SourceCode {
+    fn from(text: S) -> Self {
+        SourceCode::new_fileless(text.as_ref().to_string())
+    }
+}

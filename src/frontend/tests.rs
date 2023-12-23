@@ -1,6 +1,7 @@
 use super::*;
 use crate::frontend::ast::ast_deserialize;
 use crate::frontend::expression::Expression;
+use std::path::PathBuf;
 
 #[test]
 fn test_nothing() {
@@ -161,4 +162,12 @@ fn assert_eq_ast(code: &str, ast: &str) {
     let parsed = lex_and_parse(code);
     let expected = ast_deserialize(ast).unwrap();
     assert_eq!(parsed.unwrap(), expected);
+}
+
+#[test]
+fn test_import() {
+    let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
+    let code = SourceCode::new(main_path).unwrap();
+    let parsed = lex_and_parse(code).unwrap();
+    assert_eq!(parsed.identifiers.contains_key("increment"), true);
 }
