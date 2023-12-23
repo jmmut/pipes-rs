@@ -3,7 +3,7 @@ use crate::frontend::expression::{
     Branch, Chain, Expression, Function, Loop, Transformation, Type, TypedIdentifier,
     TypedIdentifiers,
 };
-use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
+use crate::frontend::lexer::{lex, Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::location::SourceCode;
 use crate::frontend::program::Program;
 use std::collections::{HashMap, VecDeque};
@@ -32,9 +32,9 @@ pub fn ast_deserialize(s: &str) -> Result<Program, AnyError> {
 pub fn ast_deserialize_source(s: &SourceCode) -> Result<Program, AnyError> {
     ast_deserialize(&s.text)
 }
-pub fn deserialize_tokens(tokens: Tokens) -> Result<Program, AnyError> {
+pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     let mut accumulated = Vec::new();
-    for token in tokens {
+    for token in tokens.tokens {
         match token {
             Token::OpenBracket => accumulated.push(PartialExpression::OpenBracket),
             Token::CloseBracket => construct_list(&mut accumulated)?,

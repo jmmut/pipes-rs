@@ -3,18 +3,18 @@ use std::collections::VecDeque;
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, error_expected, PartialExpression};
 use crate::frontend::expression::{Chain, Expression, Transformation, Type};
-use crate::frontend::lexer::{Operator, Token, Tokens};
+use crate::frontend::lexer::{lex, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::reverse_iterative_parser::construct_string;
 use crate::frontend::program::Program;
 
 #[cfg(test)]
 pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Program, AnyError> {
-    let tokens = crate::frontend::lexer::lex(code_text)?;
+    let tokens = lex(code_text)?;
     parse_tokens(tokens)
 }
 
-pub fn parse_tokens(tokens: Tokens) -> Result<Program, AnyError> {
-    let expression = context("Parser", Parser::parse_tokens(tokens))?;
+pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
+    let expression = context("Parser", Parser::parse_tokens(tokens.tokens))?;
     Ok(Program::new(expression))
 }
 pub struct Parser {

@@ -1,6 +1,6 @@
 use crate::common::AnyError;
 use crate::frontend::expression::Expression;
-use crate::frontend::lexer::{lex, Tokens};
+use crate::frontend::lexer::{lex, TokenizedSource, Tokens};
 use crate::frontend::program::Program;
 use crate::frontend::{
     ast,
@@ -57,8 +57,8 @@ fn benchmark_rec_iter_rev_ast(code: String, code_ast: String) {
     let tokens_4 = lex(code_ast).unwrap();
 
     fn parse(
-        tokens: Tokens,
-        parse_func: fn(Tokens) -> Result<Program, AnyError>,
+        tokens: TokenizedSource,
+        parse_func: fn(TokenizedSource) -> Result<Program, AnyError>,
     ) -> (Result<Program, AnyError>, Duration) {
         let start = Instant::now();
         let parsed = parse_func(tokens);

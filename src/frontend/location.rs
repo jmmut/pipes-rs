@@ -30,6 +30,7 @@ pub struct Location {
 //     }
 // }
 
+#[derive(Debug, Clone)]
 pub struct SourceCode {
     pub text: String,
     pub lines_read: i32,

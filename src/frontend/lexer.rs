@@ -73,13 +73,18 @@ mod keywords {
     use super::Keyword::*;
     pub const KEYWORDS: &[super::Keyword] = &[Function, Loop, LoopOr, Times, Replace, Map, Branch];
 }
+#[derive(Debug, Clone)]
+pub struct TokenizedSource {
+    pub tokens: Vec<Token>,
+    pub source_code: SourceCode,
+}
 pub type Tokens = Vec<Token>;
 
-pub fn lex<S: Into<SourceCode>>(code: S) -> Result<Tokens, AnyError> {
+pub fn lex<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
     context("Lexer", try_lex(code.into()))
 }
-fn try_lex(code: SourceCode) -> Result<Tokens, AnyError> {
-    let mut tokens = Tokens::new();
+fn try_lex(code: SourceCode) -> Result<TokenizedSource, AnyError> {
+    let mut tokens = Vec::<Token>::new();
     let mut bytes = code.text.bytes().peekable();
     while let Some(letter) = bytes.peek() {
         let letter = *letter;
@@ -113,7 +118,10 @@ fn try_lex(code: SourceCode) -> Result<Tokens, AnyError> {
         }
     }
 
-    Ok(tokens)
+    Ok(TokenizedSource {
+        tokens,
+        source_code: code,
+    })
 }
 
 pub fn parse_digit(letter: u8) -> Option<i64> {
@@ -415,6 +423,9 @@ mod tests {
     use crate::frontend::lexer::Operator::{Add, Divide, Modulo, Multiply, Substract};
     use Token::{CloseBracket, Identifier, Number, OpenBracket, Operator};
 
+    fn get_tokens(text: &str) -> Tokens {
+        lex(text).unwrap().tokens
+    }
     #[test]
     fn test_unkown_char() {
         lex("@").expect_err("should have failed");
@@ -426,17 +437,17 @@ mod tests {
 
     #[test]
     fn test_several_digits() {
-        assert_eq!(lex("57").unwrap(), vec![Number(57)])
+        assert_eq!(get_tokens("57"), vec![Number(57)])
     }
     #[test]
     fn test_operator() {
-        assert_eq!(lex("+").unwrap(), vec![Operator(Add)])
+        assert_eq!(get_tokens("+"), vec![Operator(Add)])
     }
 
     #[test]
     fn test_adding_numbers() {
         assert_eq!(
-            lex("5+7+12+34").unwrap(),
+            get_tokens("5+7+12+34"),
             vec![
                 Number(5),
                 Operator(Add),
@@ -451,7 +462,7 @@ mod tests {
     #[test]
     fn test_arithmetic() {
         assert_eq!(
-            lex("5 +7 |*12 |/ident -4 %2").unwrap(),
+            get_tokens("5 +7 |*12 |/ident -4 %2"),
             vec![
                 Number(5),
                 Operator(Add),
@@ -471,7 +482,7 @@ mod tests {
     #[test]
     fn test_identifier() {
         assert_eq!(
-            lex("5as/df12+34").unwrap(),
+            get_tokens("5as/df12+34"),
             vec![
                 Number(5),
                 Identifier("as/df12".to_string()),
@@ -484,14 +495,14 @@ mod tests {
     #[test]
     fn test_list() {
         assert_eq!(
-            lex("[5 6 7]").unwrap(),
+            get_tokens("[5 6 7]"),
             vec![OpenBracket, Number(5), Number(6), Number(7), CloseBracket,]
         );
     }
 
     #[test]
     fn test_comments() {
-        assert_eq!(lex("5 // comment \n6").unwrap(), vec![Number(5), Number(6)]);
+        assert_eq!(get_tokens("5 // comment \n6"), vec![Number(5), Number(6)]);
         lex("/").expect_err("should have failed");
         lex("6/3").expect_err("should have failed");
     }
@@ -499,14 +510,14 @@ mod tests {
     #[test]
     fn test_strings() {
         assert_eq!(
-            lex("\"abc\"").unwrap(),
+            get_tokens("\"abc\""),
             vec![Token::String(vec![b'a', b'b', b'c'])]
         );
     }
     #[test]
     fn test_escaped_strings() {
         assert_eq!(
-            lex(r#""\"\\\n\0""#).unwrap(),
+            get_tokens(r#""\"\\\n\0""#),
             vec![Token::String(vec![b'"', b'\\', b'\n', 0])]
         );
         lex(r#""\"#).expect_err("unclosed string with escaped quote should fail");
@@ -518,9 +529,9 @@ mod tests {
     }
     #[test]
     fn test_char() {
-        assert_eq!(lex("'b'").unwrap(), vec![Token::Number('b' as i64)]);
+        assert_eq!(get_tokens("'b'"), vec![Token::Number('b' as i64)]);
         assert_eq!(
-            lex(r#"'"' '\'' '\\' '\n' '\0'"#).unwrap(),
+            get_tokens(r#"'"' '\'' '\\' '\n' '\0'"#),
             vec![
                 Token::Number('"' as i64),
                 Token::Number('\'' as i64),

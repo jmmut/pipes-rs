@@ -1,11 +1,11 @@
 use crate::common::context;
 use crate::frontend::expression::{Expression, Expressions, Transformation};
-use crate::frontend::lexer::{Operator, Token, Tokens};
+use crate::frontend::lexer::{Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::program::Program;
 use crate::AnyError;
 
-pub fn parse(tokens: Tokens) -> Result<Program, AnyError> {
-    let mut parser = Parser::new(tokens.into_iter());
+pub fn parse(tokens: TokenizedSource) -> Result<Program, AnyError> {
+    let mut parser = Parser::new(tokens.tokens.into_iter());
     let expression = context("Recursive parser", parser.parse_chain())?;
     Ok(Program::new(expression))
 }
@@ -135,11 +135,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 mod tests {
     use super::*;
     use crate::frontend::ast::ast_deserialize;
-    use crate::frontend::lexer::lex;
+    use crate::frontend::lexer::{lex, TokenizedSource};
+    use crate::frontend::location::SourceCode;
 
+    fn parse_tokens(tokens: Tokens) -> Result<Program, AnyError> {
+        super::parse(TokenizedSource {
+            tokens,
+            source_code: SourceCode::new_fileless("".to_string()),
+        })
+    }
     #[test]
     fn add_numbers() {
-        let expression = parse(vec![
+        let expression = parse_tokens(vec![
             Token::Number(5),
             Token::Operator(Operator::Add),
             Token::Number(7),

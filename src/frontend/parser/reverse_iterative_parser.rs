@@ -5,10 +5,10 @@ use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
     Branch, Expression, Transformation, Transformations, Type, TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::lexer::{Keyword, Operator, Token, Tokens};
+use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource};
 use crate::frontend::program::Program;
 
-pub fn parse_tokens(tokens: Tokens) -> Result<Program, AnyError> {
+pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
 }
 pub struct Parser {
@@ -16,11 +16,11 @@ pub struct Parser {
 }
 
 impl Parser {
-    fn parse_tokens(tokens: Tokens) -> Result<Program, AnyError> {
+    fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
         let mut ast = Parser {
             accumulated: VecDeque::new(),
         };
-        for token in tokens.into_iter().rev() {
+        for token in tokens.tokens.into_iter().rev() {
             match token {
                 Token::Number(n) => ast.push(Expression::Value(n)),
                 Token::Operator(operator) => {
