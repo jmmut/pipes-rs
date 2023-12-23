@@ -77,7 +77,7 @@ fn unimplemented<T>() -> Result<T, AnyError> {
     Err("unimplemented".into())
 }
 
-mod intrinsics {
+pub mod intrinsics {
     #[derive(Copy, Clone)]
     pub enum Intrinsic {
         PrintChar,

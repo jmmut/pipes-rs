@@ -16,6 +16,7 @@ pub struct Parser {
     pub accumulated: VecDeque<PartialExpression>,
     pub identifiers: HashMap<String, IdentifierValue>,
     pub unresolved_identifiers: HashSet<String>,
+    pub parameter_stack: Vec<String>,
 }
 
 /// present if it's a public identifier, None if private
@@ -27,6 +28,7 @@ impl Parser {
             accumulated: VecDeque::new(),
             identifiers: HashMap::new(),
             unresolved_identifiers: HashSet::new(),
+            parameter_stack: Vec::new(),
         };
         for token in tokens.tokens.into_iter().rev() {
             match token {
@@ -54,7 +56,6 @@ impl Parser {
                 Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
             };
         }
-        let ast = import(ast)?;
         finish_construction(ast)
     }
 
@@ -141,7 +142,7 @@ fn get_type_maybe_pop_children(
 fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExpression, AnyError> {
     let accumulated = &mut parser.accumulated;
     match keyword {
-        Keyword::Function => construct_function(accumulated),
+        Keyword::Function => construct_function(parser),
         Keyword::Loop => construct_loop(accumulated),
         Keyword::LoopOr => construct_loop_or(accumulated),
         Keyword::Times => construct_times(accumulated),
@@ -152,9 +153,8 @@ fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExp
     }
 }
 
-fn construct_function(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<PartialExpression, AnyError> {
+fn construct_function(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
+    let accumulated = &mut parser.accumulated;
     let elem = accumulated.pop_front();
     let (parameter, elem) = extract_single_child_type(accumulated, elem);
 
@@ -415,12 +415,7 @@ fn finish_construction(mut parser: Parser) -> Result<Program, AnyError> {
             e
         }
     };
-    Ok(Program {
-        main,
-        identifiers: parser
-            .identifiers
-            .into_iter()
-            .filter_map(|(name, opt_expr)| opt_expr.map(|expr| (name, expr)))
-            .collect(),
-    })
+
+    let program = import(main, parser)?;
+    Ok(program)
 }
