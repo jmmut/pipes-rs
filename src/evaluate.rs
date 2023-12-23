@@ -30,6 +30,7 @@ enum FunctionOrIntrinsic {
     Intrinsic(Intrinsic),
 }
 
+#[derive(Clone)]
 struct Closure {
     captured_identifiers: HashMap<String, GenericValue>,
 }
@@ -58,6 +59,15 @@ impl Closure {
                 .or_insert(Vec::new())
                 .push(*captured_value);
         }
+    }
+    pub fn to_identifiers(self) -> HashMap<String, BindingsStack> {
+        let mut identifiers = HashMap::new();
+        for (name, value) in self.captured_identifiers {
+            let mut stack = BindingsStack::new();
+            stack.push(value);
+            identifiers.insert(name, stack);
+        }
+        identifiers
     }
 }
 
@@ -178,7 +188,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Divide => accumulated /= self.evaluate_recursive(operand)?,
                 Operator::Modulo => accumulated %= self.evaluate_recursive(operand)?,
                 Operator::Ignore => accumulated = self.evaluate_recursive(operand)?,
-                Operator::Call => accumulated = self.call_function(accumulated, operand)?,
+                Operator::Call => accumulated = self.call_callable(accumulated, operand)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
                 Operator::Type => {}
                 Operator::Assignment => {
@@ -224,8 +234,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
     }
 
-    fn call_function(&mut self, argument: i64, function: &Expression) -> Result<i64, AnyError> {
-        match function {
+    fn call_callable(&mut self, argument: i64, callable: &Expression) -> Result<i64, AnyError> {
+        match callable {
             Expression::Identifier(function_name) => {
                 let function_ptr = self.get_identifier(function_name)?;
                 self.call_function_pointer(argument, function_ptr)
@@ -237,9 +247,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
                         .into()
                     })
             }
-            Expression::Function(function) => {
-                self.call_function_expression(argument, function, &Closure::new())
-            }
+            Expression::Function(function) => self.call_function_expression(
+                argument,
+                function,
+                &Closure::new_from_current_scope(&self.identifiers),
+            ),
             Expression::Loop(Loop {
                 iteration_elem,
                 body,
@@ -262,7 +274,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             | Expression::Type(_)
             | Expression::StaticList { .. } => Err(format!(
                 "Can not use expression as a function: {:?}",
-                function
+                callable
             ))?,
         }
     }
@@ -291,8 +303,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
         Function { parameter, body }: &Function,
         closure: &Closure,
     ) -> Result<i64, AnyError> {
-        let identifiers_outside = self.identifiers.clone();
-        closure.add_to(&mut self.identifiers);
+        let mut identifiers_inside = closure.clone().to_identifiers();
+        std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
         self.identifiers
             .entry(parameter.name.clone())
             .or_insert(Vec::new())
@@ -300,7 +312,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
         let result = self.evaluate_chain(body)?;
 
-        self.identifiers = identifiers_outside;
+        std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
         Ok(result)
     }
     fn call_loop_expression(
@@ -678,6 +690,15 @@ mod tests {
             ),
             2
         );
+    }
+    #[test]
+    fn test_function_callsite_closure() {
+        let _ = interpret_fallible("
+            function (x) { asdf }
+            =test_grab_context
+            ;5=asdf
+            ;0|test_grab_context")
+            .expect_err("should fail because identifiers in the call site should not be accessible to the function body");
     }
     #[test]
     fn test_pass_function() {
