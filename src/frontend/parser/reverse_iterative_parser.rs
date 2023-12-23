@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
@@ -6,30 +6,41 @@ use crate::frontend::expression::{
     Branch, Expression, Transformation, Transformations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource};
+use crate::frontend::parser::import::import;
 use crate::frontend::program::Program;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
 }
 pub struct Parser {
-    accumulated: VecDeque<PartialExpression>,
-    identifiers: HashMap<String, Expression>,
+    pub accumulated: VecDeque<PartialExpression>,
+    pub identifiers: HashMap<String, IdentifierValue>,
+    pub unresolved_identifiers: HashSet<String>,
 }
+
+/// present if it's a public identifier, None if private
+type IdentifierValue = Option<Expression>;
 
 impl Parser {
     fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
         let mut ast = Parser {
             accumulated: VecDeque::new(),
             identifiers: HashMap::new(),
+            unresolved_identifiers: HashSet::new(),
         };
         for token in tokens.tokens.into_iter().rev() {
             match token {
                 Token::Number(n) => ast.push(Expression::Value(n)),
                 Token::Operator(operator) => {
-                    let pe = construct_transformation(&mut ast.accumulated, operator)?;
+                    let pe = construct_transformation(&mut ast, operator)?;
                     ast.accumulated.push_front(pe);
                 }
-                Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
+                Token::Identifier(ident) => {
+                    if !ast.identifiers.contains_key(&ident) {
+                        ast.unresolved_identifiers.insert(ident.clone());
+                    }
+                    ast.push(Expression::Identifier(ident))
+                }
                 Token::Keyword(keyword) => {
                     let pe = construct_keyword(&mut ast, keyword)?;
                     ast.accumulated.push_front(pe);
@@ -43,6 +54,7 @@ impl Parser {
                 Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
             };
         }
+        let ast = import(ast)?;
         finish_construction(ast)
     }
 
@@ -74,9 +86,10 @@ impl Parser {
 }
 
 fn construct_transformation(
-    accumulated: &mut VecDeque<PartialExpression>,
+    parser: &mut Parser,
     operator: Operator,
 ) -> Result<PartialExpression, AnyError> {
+    let accumulated = &mut parser.accumulated;
     let elem_operand = accumulated.pop_front();
     let transformation = if let Operator::Type = operator {
         if let Some(PartialExpression::Expression(Expression::Identifier(typename))) = elem_operand
@@ -88,6 +101,10 @@ fn construct_transformation(
         }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
+            if let (Expression::Identifier(name), Operator::Assignment) = (&operand, operator) {
+                parser.unresolved_identifiers.remove(name);
+                parser.identifiers.insert(name.to_string(), None);
+            }
             Transformation { operator, operand }
         } else if operator == Operator::Ignore {
             let operand = if let None = elem_operand {
@@ -276,7 +293,7 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
             operand: Expression::Identifier(name),
         })) = elem
         {
-            parser.identifiers.insert(name.clone(), expr.clone());
+            parser.identifiers.insert(name.clone(), Some(expr.clone()));
             Ok(PartialExpression::Expression(expr))
         } else {
             error_expected("assignment and identifer after 'public <expression>'", elem)
@@ -400,6 +417,10 @@ fn finish_construction(mut parser: Parser) -> Result<Program, AnyError> {
     };
     Ok(Program {
         main,
-        identifiers: parser.identifiers,
+        identifiers: parser
+            .identifiers
+            .into_iter()
+            .filter_map(|(name, opt_expr)| opt_expr.map(|expr| (name, expr)))
+            .collect(),
     })
 }
