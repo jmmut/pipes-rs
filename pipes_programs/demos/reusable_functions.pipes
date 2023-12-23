@@ -1,12 +1,12 @@
-function(x) {
+public function(x) {
     x +1
 }
-=pub increment
+=increment
 
-;function(x) {
+;public function(x) {
     x -1
 }
-=pub decrement
+=decrement
 
 ;function(x) {
     x *2

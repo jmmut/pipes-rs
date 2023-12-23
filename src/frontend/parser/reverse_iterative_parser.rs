@@ -13,12 +13,14 @@ pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
 }
 pub struct Parser {
     accumulated: VecDeque<PartialExpression>,
+    identifiers: HashMap<String, Expression>,
 }
 
 impl Parser {
     fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
         let mut ast = Parser {
             accumulated: VecDeque::new(),
+            identifiers: HashMap::new(),
         };
         for token in tokens.tokens.into_iter().rev() {
             match token {
@@ -29,7 +31,7 @@ impl Parser {
                 }
                 Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
                 Token::Keyword(keyword) => {
-                    let pe = construct_keyword(&mut ast.accumulated, keyword)?;
+                    let pe = construct_keyword(&mut ast, keyword)?;
                     ast.accumulated.push_front(pe);
                 }
                 Token::OpenBrace => ast.push_f(construct_chain)?,
@@ -41,7 +43,7 @@ impl Parser {
                 Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
             };
         }
-        finish_construction(&mut ast.accumulated)
+        finish_construction(ast)
     }
 
     fn push_f(
@@ -119,10 +121,8 @@ fn get_type_maybe_pop_children(
     Expression::Type(Type::simple(typename))
 }
 
-fn construct_keyword(
-    accumulated: &mut VecDeque<PartialExpression>,
-    keyword: Keyword,
-) -> Result<PartialExpression, AnyError> {
+fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExpression, AnyError> {
+    let accumulated = &mut parser.accumulated;
     match keyword {
         Keyword::Function => construct_function(accumulated),
         Keyword::Loop => construct_loop(accumulated),
@@ -131,6 +131,7 @@ fn construct_keyword(
         Keyword::Replace => construct_replace(accumulated),
         Keyword::Map => construct_map(accumulated),
         Keyword::Branch => construct_branch(accumulated),
+        Keyword::Public => construct_public(parser),
     }
 }
 
@@ -266,6 +267,24 @@ fn construct_branch(
     }
 }
 
+fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
+    let elem = parser.accumulated.pop_front();
+    if let Some(PartialExpression::Expression(expr)) = elem {
+        let elem = parser.accumulated.get(0);
+        if let Some(PartialExpression::Transformation(Transformation {
+            operator: Operator::Assignment,
+            operand: Expression::Identifier(name),
+        })) = elem
+        {
+            parser.identifiers.insert(name.clone(), expr.clone());
+            Ok(PartialExpression::Expression(expr))
+        } else {
+            error_expected("assignment and identifer after 'public <expression>'", elem)
+        }
+    } else {
+        error_expected("expression after 'public'", elem)
+    }
+}
 fn construct_chain(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {
     let elem_expression = accumulated.pop_front();
     match elem_expression {
@@ -358,7 +377,8 @@ pub fn construct_string(string: Vec<u8>) -> PartialExpression {
     PartialExpression::Expression(Expression::StaticList { elements })
 }
 
-fn finish_construction(accumulated: &mut VecDeque<PartialExpression>) -> Result<Program, AnyError> {
+fn finish_construction(mut parser: Parser) -> Result<Program, AnyError> {
+    let accumulated = &mut parser.accumulated;
     let main = if accumulated.len() <= 1 {
         match accumulated.pop_front() {
             Some(PartialExpression::Expression(e)) => e,
@@ -380,6 +400,6 @@ fn finish_construction(accumulated: &mut VecDeque<PartialExpression>) -> Result<
     };
     Ok(Program {
         main,
-        identifiers: HashMap::new(),
+        identifiers: parser.identifiers,
     })
 }

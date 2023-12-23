@@ -55,6 +55,7 @@ pub enum Keyword {
     Replace,
     Map,
     Branch,
+    Public,
 }
 impl Keyword {
     pub fn name(&self) -> &'static str {
@@ -66,12 +67,14 @@ impl Keyword {
             Keyword::Replace => "replace",
             Keyword::Map => "map",
             Keyword::Branch => "branch",
+            Keyword::Public => "public",
         }
     }
 }
 mod keywords {
     use super::Keyword::*;
-    pub const KEYWORDS: &[super::Keyword] = &[Function, Loop, LoopOr, Times, Replace, Map, Branch];
+    pub const KEYWORDS: &[super::Keyword] =
+        &[Function, Loop, LoopOr, Times, Replace, Map, Branch, Public];
 }
 #[derive(Debug, Clone)]
 pub struct TokenizedSource {
