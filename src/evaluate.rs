@@ -9,6 +9,7 @@ use crate::frontend::expression::{
 };
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::lexer::{Comparison, Operator};
+use crate::frontend::program::Program;
 
 pub type ListPointer = i64;
 pub type FunctionPointer = i64;
@@ -107,12 +108,20 @@ mod intrinsics {
 
 impl<R: Read, W: Write> Runtime<R, W> {
     pub fn evaluate(
-        expression: Expression,
+        program: Program,
         read_input: R,
         print_output: W,
     ) -> Result<GenericValue, AnyError> {
         let mut runtime = Self::new(read_input, print_output);
-        context("Runtime", runtime.evaluate_recursive(&expression))
+        for (name, expression) in program.identifiers {
+            let value = context("Runtime setup", runtime.evaluate_recursive(&expression))?;
+            runtime
+                .identifiers
+                .entry(name)
+                .or_insert(Vec::new())
+                .push(value);
+        }
+        context("Runtime", runtime.evaluate_recursive(&program.main))
     }
 
     fn new(read_input: R, print_output: W) -> Runtime<R, W> {
@@ -622,7 +631,7 @@ mod tests {
         let print_output = Vec::<u8>::new();
         let expression = lex_and_parse(code_text).unwrap();
         let mut runtime = Runtime::new(read_input, print_output);
-        let result = runtime.evaluate_recursive(&expression);
+        let result = runtime.evaluate_recursive(&expression.main);
         (result.unwrap(), runtime.print_output)
     }
 

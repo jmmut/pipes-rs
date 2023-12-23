@@ -5,7 +5,8 @@ use crate::frontend::expression::{
 };
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, Tokens};
 use crate::frontend::location::SourceCode;
-use std::collections::VecDeque;
+use crate::frontend::program::Program;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 
 #[derive(Debug)]
@@ -24,14 +25,14 @@ pub enum PartialExpression {
     TypedIdentifier(TypedIdentifier),
     Transformation(Transformation),
 }
-pub fn ast_deserialize(s: &str) -> Result<Expression, AnyError> {
+pub fn ast_deserialize(s: &str) -> Result<Program, AnyError> {
     let tokens = lex(s).unwrap();
     context("AST parser", deserialize_tokens(tokens))
 }
-pub fn ast_deserialize_source(s: &SourceCode) -> Result<Expression, AnyError> {
+pub fn ast_deserialize_source(s: &SourceCode) -> Result<Program, AnyError> {
     ast_deserialize(&s.text)
 }
-pub fn deserialize_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
+pub fn deserialize_tokens(tokens: Tokens) -> Result<Program, AnyError> {
     let mut accumulated = Vec::new();
     for token in tokens {
         match token {
@@ -358,7 +359,13 @@ fn construct_name_untyped(accumulated: &mut Vec<PartialExpression>) -> Result<()
     }
 }
 
-fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expression, AnyError> {
+fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Program, AnyError> {
+    let main = finish_construction_expression(accumulated)?;
+    Ok(Program::new(main))
+}
+fn finish_construction_expression(
+    accumulated: &mut Vec<PartialExpression>,
+) -> Result<Expression, AnyError> {
     if accumulated.len() <= 1 {
         match accumulated.pop() {
             Some(PartialExpression::Expression(e)) => {
@@ -387,9 +394,9 @@ mod tests {
     #[test]
     fn test_nothing() {
         let ast = ast_deserialize("{}").unwrap();
-        assert_eq!(ast, Expression::empty_chain());
+        assert_eq!(ast, Program::new(Expression::empty_chain()));
         let ast = ast_deserialize("").unwrap();
-        assert_eq!(ast, Expression::Nothing);
+        assert_eq!(ast, Program::new(Expression::Nothing));
     }
     #[test]
     fn test_braced_value() {

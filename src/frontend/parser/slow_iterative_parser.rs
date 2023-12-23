@@ -5,15 +5,17 @@ use crate::frontend::ast::{construct_function_from_chain, error_expected, Partia
 use crate::frontend::expression::{Chain, Expression, Transformation, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 use crate::frontend::parser::reverse_iterative_parser::construct_string;
+use crate::frontend::program::Program;
 
 #[cfg(test)]
-pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Expression, AnyError> {
+pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Program, AnyError> {
     let tokens = crate::frontend::lexer::lex(code_text)?;
     parse_tokens(tokens)
 }
 
-pub fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
-    context("Parser", Parser::parse_tokens(tokens))
+pub fn parse_tokens(tokens: Tokens) -> Result<Program, AnyError> {
+    let expression = context("Parser", Parser::parse_tokens(tokens))?;
+    Ok(Program::new(expression))
 }
 pub struct Parser {
     accumulated: Vec<PartialExpression>,
@@ -200,13 +202,13 @@ mod tests {
     #[test]
     fn test_nothing() {
         let ast = "{}";
-        let expected = Expression::empty_chain();
+        let expected = Program::new(Expression::empty_chain());
         assert_eq!(parse(ast).unwrap(), expected);
     }
     #[test]
     fn test_value() {
         let ast = "5";
-        let expected = Value(5);
+        let expected = Program::new(Value(5));
         assert_eq!(parse(ast).unwrap(), expected);
     }
     #[test]

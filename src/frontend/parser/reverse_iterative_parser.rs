@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
@@ -6,8 +6,9 @@ use crate::frontend::expression::{
     Branch, Expression, Transformation, Transformations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, Tokens};
+use crate::frontend::program::Program;
 
-pub fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
+pub fn parse_tokens(tokens: Tokens) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
 }
 pub struct Parser {
@@ -15,7 +16,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    fn parse_tokens(tokens: Tokens) -> Result<Expression, AnyError> {
+    fn parse_tokens(tokens: Tokens) -> Result<Program, AnyError> {
         let mut ast = Parser {
             accumulated: VecDeque::new(),
         };
@@ -357,18 +358,14 @@ pub fn construct_string(string: Vec<u8>) -> PartialExpression {
     PartialExpression::Expression(Expression::StaticList { elements })
 }
 
-fn finish_construction(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<Expression, AnyError> {
-    if accumulated.len() <= 1 {
+fn finish_construction(accumulated: &mut VecDeque<PartialExpression>) -> Result<Program, AnyError> {
+    let main = if accumulated.len() <= 1 {
         match accumulated.pop_front() {
-            Some(PartialExpression::Expression(e)) => {
-                return Ok(e);
-            }
-            None => Ok(Expression::Nothing),
+            Some(PartialExpression::Expression(e)) => e,
+            None => Expression::Nothing,
             Some(v) => {
                 accumulated.push_front(v);
-                Err(format!("unfinished code: {:?}", accumulated).into())
+                return Err(format!("unfinished code: {:?}", accumulated).into());
             }
         }
     } else {
@@ -376,9 +373,13 @@ fn finish_construction(
         accumulated.push_back(PartialExpression::CloseBrace);
         let e = construct_chain(accumulated)?;
         if !accumulated.is_empty() {
-            Err(error_message.into())
+            return Err(error_message.into());
         } else {
-            Ok(e)
+            e
         }
-    }
+    };
+    Ok(Program {
+        main,
+        identifiers: HashMap::new(),
+    })
 }

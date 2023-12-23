@@ -1,11 +1,13 @@
 use crate::common::context;
 use crate::frontend::expression::{Expression, Expressions, Transformation};
 use crate::frontend::lexer::{Operator, Token, Tokens};
+use crate::frontend::program::Program;
 use crate::AnyError;
 
-pub fn parse(tokens: Tokens) -> Result<Expression, AnyError> {
+pub fn parse(tokens: Tokens) -> Result<Program, AnyError> {
     let mut parser = Parser::new(tokens.into_iter());
-    context("Recursive parser", parser.parse_chain())
+    let expression = context("Recursive parser", parser.parse_chain())?;
+    Ok(Program::new(expression))
 }
 struct Parser<I: Iterator<Item = Token>> {
     iter: I,

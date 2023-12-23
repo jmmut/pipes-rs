@@ -1,6 +1,7 @@
 use crate::common::AnyError;
 use crate::frontend::expression::Expression;
 use crate::frontend::lexer::{lex, Tokens};
+use crate::frontend::program::Program;
 use crate::frontend::{
     ast,
     parser::{recursive_parser, reverse_iterative_parser, slow_iterative_parser},
@@ -57,8 +58,8 @@ fn benchmark_rec_iter_rev_ast(code: String, code_ast: String) {
 
     fn parse(
         tokens: Tokens,
-        parse_func: fn(Tokens) -> Result<Expression, AnyError>,
-    ) -> (Result<Expression, AnyError>, Duration) {
+        parse_func: fn(Tokens) -> Result<Program, AnyError>,
+    ) -> (Result<Program, AnyError>, Duration) {
         let start = Instant::now();
         let parsed = parse_func(tokens);
         let duration_recursive = Instant::now().duration_since(start);
