@@ -1,7 +1,7 @@
 pub type AnyError = Box<dyn std::error::Error>;
 
-pub fn context<T>(module: &str, result: Result<T, AnyError>) -> Result<T, AnyError> {
-    result.map_err(|error| format!("{module}: {error}").into())
+pub fn context<T, S: AsRef<str>>(module: S, result: Result<T, AnyError>) -> Result<T, AnyError> {
+    result.map_err(|error| format!("{}: {error}", module.as_ref()).into())
 }
 
 #[cfg(test)]

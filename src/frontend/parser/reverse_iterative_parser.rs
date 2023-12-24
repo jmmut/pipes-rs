@@ -1,62 +1,74 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::PathBuf;
 
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
     Branch, Expression, Transformation, Transformations, Type, TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource};
+use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
 use crate::frontend::program::Program;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
 }
+pub fn parse_tokens_cached(tokens: Tokens, mut ast: Parser) -> Result<Program, AnyError> {
+    for token in tokens.into_iter().rev() {
+        match token {
+            Token::Number(n) => ast.push(Expression::Value(n)),
+            Token::Operator(operator) => {
+                let pe = construct_transformation(&mut ast, operator)?;
+                ast.accumulated.push_front(pe);
+            }
+            Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
+            Token::Keyword(keyword) => {
+                let pe = construct_keyword(&mut ast, keyword)?;
+                ast.accumulated.push_front(pe);
+            }
+            Token::OpenBrace => ast.push_f(construct_chain)?,
+            Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace),
+            Token::OpenBracket => ast.push_f(construct_array)?,
+            Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket),
+            Token::OpenParenthesis => ast.push_f_pe(construct_children_types)?,
+            Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis),
+            Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
+        };
+    }
+    finish_construction(ast)
+}
+
 pub struct Parser {
     pub accumulated: VecDeque<PartialExpression>,
-    pub identifiers: HashMap<String, IdentifierValue>,
-    pub unresolved_identifiers: HashSet<String>,
-    pub parameter_stack: Vec<String>,
+    identifiers: HashMap<String, IdentifierValue>,
+    pub exported: HashMap<String, IdentifierValue>,
+    pub file: Option<PathBuf>,
+    pub root: Option<PathBuf>,
 }
 
 /// present if it's a public identifier, None if private
-type IdentifierValue = Option<Expression>;
+pub type IdentifierValue = Expression;
 
 impl Parser {
-    fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
-        let mut ast = Parser {
+    pub fn new(file: Option<PathBuf>) -> Self {
+        Self::new_with_exports(file, HashMap::new(), None)
+    }
+    pub fn new_with_exports(
+        file: Option<PathBuf>,
+        exported: HashMap<String, IdentifierValue>,
+        root: Option<PathBuf>,
+    ) -> Self {
+        Self {
             accumulated: VecDeque::new(),
             identifiers: HashMap::new(),
-            unresolved_identifiers: HashSet::new(),
-            parameter_stack: Vec::new(),
-        };
-        for token in tokens.tokens.into_iter().rev() {
-            match token {
-                Token::Number(n) => ast.push(Expression::Value(n)),
-                Token::Operator(operator) => {
-                    let pe = construct_transformation(&mut ast, operator)?;
-                    ast.accumulated.push_front(pe);
-                }
-                Token::Identifier(ident) => {
-                    if !ast.identifiers.contains_key(&ident) {
-                        ast.unresolved_identifiers.insert(ident.clone());
-                    }
-                    ast.push(Expression::Identifier(ident))
-                }
-                Token::Keyword(keyword) => {
-                    let pe = construct_keyword(&mut ast, keyword)?;
-                    ast.accumulated.push_front(pe);
-                }
-                Token::OpenBrace => ast.push_f(construct_chain)?,
-                Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace),
-                Token::OpenBracket => ast.push_f(construct_array)?,
-                Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket),
-                Token::OpenParenthesis => ast.push_f_pe(construct_children_types)?,
-                Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis),
-                Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
-            };
+            exported,
+            file,
+            root,
         }
-        finish_construction(ast)
+    }
+    fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
+        let parser = Parser::new(tokens.source_code.file);
+        parse_tokens_cached(tokens.tokens, parser)
     }
 
     fn push_f(
@@ -102,10 +114,6 @@ fn construct_transformation(
         }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
-            if let (Expression::Identifier(name), Operator::Assignment) = (&operand, operator) {
-                parser.unresolved_identifiers.remove(name);
-                parser.identifiers.insert(name.to_string(), None);
-            }
             Transformation { operator, operand }
         } else if operator == Operator::Ignore {
             let operand = if let None = elem_operand {
@@ -293,10 +301,22 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
             operand: Expression::Identifier(name),
         })) = elem
         {
-            parser.identifiers.insert(name.clone(), Some(expr.clone()));
+            parser.identifiers.insert(name.clone(), expr.clone());
+            if let (Some(root), Some(file)) = (parser.root.as_ref(), parser.file.as_ref()) {
+                let mut file_copy = file.clone();
+                file_copy.set_extension("");
+                let namespace = file_copy.strip_prefix(root)?;
+                let namespace_str = namespace.to_string_lossy();
+                parser
+                    .exported
+                    .insert(format!("{}/{}", namespace_str, name), expr.clone());
+            }
             Ok(PartialExpression::Expression(expr))
         } else {
-            error_expected("assignment and identifer after 'public <expression>'", elem)
+            error_expected(
+                "assignment and identifier after 'public <expression>'",
+                elem,
+            )
         }
     } else {
         error_expected("expression after 'public'", elem)
@@ -416,6 +436,10 @@ fn finish_construction(mut parser: Parser) -> Result<Program, AnyError> {
         }
     };
 
-    let program = import(main, parser)?;
-    Ok(program)
+    import(&main, &mut parser)?;
+
+    Ok(Program {
+        main,
+        identifiers: parser.exported,
+    })
 }

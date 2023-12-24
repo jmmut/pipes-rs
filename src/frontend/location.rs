@@ -1,4 +1,4 @@
-use crate::common::AnyError;
+use crate::common::{context, AnyError};
 use std::path::PathBuf;
 
 pub struct Location {
@@ -54,8 +54,11 @@ impl SourceCode {
         }
     }
 
-    pub fn new(file: PathBuf) -> Result<Self, std::io::Error> {
-        let text = std::fs::read_to_string(&file)?;
+    pub fn new(file: PathBuf) -> Result<Self, AnyError> {
+        let text = context(
+            format!("Reading file '{}'", file.to_string_lossy()),
+            std::fs::read_to_string(&file).map_err(|e| e.into()),
+        )?;
         Ok(Self {
             text,
             lines_read: 0,

@@ -169,5 +169,12 @@ fn test_import() {
     let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
     let code = SourceCode::new(main_path).unwrap();
     let parsed = lex_and_parse(code).unwrap();
-    assert_eq!(parsed.identifiers.contains_key("increment"), true);
+    assert_eq!(
+        parsed
+            .identifiers
+            .contains_key("reusable_functions/increment"),
+        true,
+        "actual: {:?}",
+        parsed.identifiers.keys()
+    );
 }

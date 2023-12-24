@@ -9,6 +9,6 @@ public function(x) {
 =decrement
 
 ;function(x) {
-    x *2
+    x |*2
 }
 =double
