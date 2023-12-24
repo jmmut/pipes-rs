@@ -174,7 +174,7 @@ fn test_import() {
     assert_eq!(
         parsed
             .identifiers
-            .contains_key("reusable_functions/increment"),
+            .contains_key("some_namespace/reusable_functions/increment"),
         true,
         "actual: {:?}",
         parsed.identifiers.keys()

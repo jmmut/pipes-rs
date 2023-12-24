@@ -165,6 +165,7 @@ fn get_project_root(import_state: &mut ImportState) -> Result<PathBuf, AnyError>
     if let Some(root) = &import_state.project_root {
         Ok(root.clone())
     } else if let Some(mut current_file) = import_state.file.clone() {
+        current_file = current_file.canonicalize()?;
         let mut root_opt = None;
         while current_file.pop() {
             current_file.push(PIPES_ROOT_FILENAME);
