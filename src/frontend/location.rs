@@ -1,5 +1,6 @@
-use crate::common::{context, AnyError};
 use std::path::PathBuf;
+
+use crate::common::{context, err, AnyError};
 
 pub struct Location {
     pub file: Option<PathBuf>,
@@ -44,13 +45,13 @@ impl SourceCode {
         input_file: Option<PathBuf>,
     ) -> Result<SourceCode, AnyError> {
         if code_string.is_some() && input_file.is_some() {
-            Err("Only the code string or the input file should be provided")?
+            err("Only the code string or the input file should be provided")?
         } else if let Some(code) = code_string {
             Ok(SourceCode::new_fileless(code))
         } else if let Some(file) = input_file {
             Ok(SourceCode::new(file)?)
         } else {
-            Err("Either the code string or the input file should be provided")?
+            err("Either the code string or the input file should be provided")?
         }
     }
 

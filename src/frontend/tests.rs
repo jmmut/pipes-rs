@@ -1,7 +1,9 @@
-use super::*;
+use std::path::PathBuf;
+
 use crate::frontend::ast::ast_deserialize;
 use crate::frontend::expression::Expression;
-use std::path::PathBuf;
+
+use super::*;
 
 #[test]
 fn test_nothing() {
@@ -83,8 +85,8 @@ fn test_chain() {
 
 #[test]
 fn test_complex() {
-    let parsed = lex_and_parse("[ {5 +7 |parse_char}  8 ]");
-    let expected = ast_deserialize("[ 5 +7 Op |parse_char Op Chain 8 ]").unwrap();
+    let parsed = lex_and_parse("[ {5 +7 |print_char}  8 ]");
+    let expected = ast_deserialize("[ 5 +7 Op |print_char Op Chain 8 ]").unwrap();
     assert_eq!(parsed.unwrap(), expected);
 }
 

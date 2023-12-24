@@ -1,19 +1,15 @@
-use crate::common::{context, AnyError};
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics;
 use crate::frontend::expression::{
     Branch, Chain, Expression, Function, Loop, LoopOr, Map, Replace, Times, Transformation, Type,
     TypedIdentifier,
 };
-use crate::frontend::lex_and_parse;
 use crate::frontend::lexer::{lex, Operator};
 use crate::frontend::location::SourceCode;
-use crate::frontend::parser::parse_tokens;
-use crate::frontend::parser::reverse_iterative_parser::{
-    parse_tokens_cached, IdentifierValue, Parser,
-};
-use crate::frontend::program::Program;
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
 
 /// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(main: &Expression, parser: &mut Parser) -> Result<(), AnyError> {
@@ -116,7 +112,8 @@ fn track_identifiers_recursive_type(
     type_: &Type,
     import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
-    todo!()
+    //todo!()
+    Ok(())
 }
 
 fn check_identifier(identifier: &String, import_state: &mut ImportState) -> Result<(), AnyError> {
@@ -127,12 +124,11 @@ fn check_identifier(identifier: &String, import_state: &mut ImportState) -> Resu
     {
         import_identifier(identifier, import_state)?;
         if !import_state.imported.contains_key(identifier) {
-            Err(format!(
+            err(format!(
                 "identifier '{}' not found. Available: {:?}",
                 identifier,
                 import_state.imported.keys()
-            )
-            .into())
+            ))
         } else {
             Ok(())
         }
@@ -146,7 +142,7 @@ fn import_identifier(identifier: &String, import_state: &mut ImportState) -> Res
     let root = get_project_root(import_state)?;
     let mut paths = identifier.split('/').collect::<Vec<_>>();
     if paths.len() < 2 {
-        Err(format!("undefined identifier '{}'", identifier).into())
+        err(format!("undefined identifier '{}'", identifier))
     } else {
         let function_name = paths.pop().unwrap();
         let mut imported_path = PathBuf::from_iter(paths.into_iter());
@@ -183,12 +179,11 @@ fn get_project_root(import_state: &mut ImportState) -> Result<PathBuf, AnyError>
         if let Some(root) = root_opt {
             Ok(root)
         } else {
-            Err(format!(
+            err(format!(
                 "File '{}' not found in a parent folder from '{}'. Needed to import identifiers",
                 PIPES_ROOT_FILENAME,
                 import_state.file.as_ref().unwrap().to_string_lossy()
-            )
-            .into())
+            ))
         }
     } else {
         Ok(PathBuf::from("."))

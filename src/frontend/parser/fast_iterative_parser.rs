@@ -1,7 +1,6 @@
-use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use crate::common::{context, AnyError};
+use crate::common::{AnyError, context};
 use crate::frontend::expression::{Expression, Expressions, Transformation, Transformations, Type};
 use crate::frontend::lexer::{Operator, Token, Tokens};
 
@@ -241,7 +240,7 @@ impl Parser {
 }
 
 pub fn error_expected_actual<T: Debug, R>(expected: &str, actual: T) -> Result<R, AnyError> {
-    Err(format!("expected {} but was {:?}", expected, actual).into())
+    err(format!("expected {} but was {:?}", expected, actual))
 }
 
 #[cfg(test)]

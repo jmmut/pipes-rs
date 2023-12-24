@@ -1,8 +1,9 @@
-use crate::common::context;
-use crate::frontend::location::SourceCode;
-use crate::AnyError;
 use std::iter::Peekable;
 use std::str::Bytes;
+
+use crate::common::{context, err};
+use crate::frontend::location::SourceCode;
+use crate::AnyError;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {
@@ -73,6 +74,7 @@ impl Keyword {
 }
 mod keywords {
     use super::Keyword::*;
+
     pub const KEYWORDS: &[super::Keyword] =
         &[Function, Loop, LoopOr, Times, Replace, Map, Branch, Public];
 }
@@ -114,7 +116,7 @@ fn try_lex(code: SourceCode) -> Result<TokenizedSource, AnyError> {
         } else if is_space(letter) {
             bytes.next();
         } else {
-            return Err(format!(
+            return err(format!(
                 "unsupported expression starting with byte {} ('{}')",
                 letter, letter as char
             ))?;
@@ -276,13 +278,12 @@ pub fn consume_escaped_until_not_including(
                         Some(b'n') => consumed.push(b'\n'),
                         Some(b'0') => consumed.push(b'\0'),
                         Some(b'\\') => consumed.push(b'\\'),
-                        None => return Err("Incomplete escaped character")?,
+                        None => return err("Incomplete escaped character")?,
                         Some(other) => {
-                            return Err(format!(
+                            return err(format!(
                                 "Unknown escaped character with code {} ({})",
                                 *other, *other as char
-                            )
-                            .into())
+                            ))
                         }
                     }
                     iter.next();
@@ -303,7 +304,7 @@ pub fn consume_string(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<Ve
         if let Some(b'"') = iter.peek() {
             Ok(Some(inner_string))
         } else {
-            Err("Unclosed double quote".into())
+            err("Unclosed double quote")
         }
     } else {
         Ok(None)
@@ -322,24 +323,23 @@ pub fn consume_char(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<u8>,
                     Some(b'n') => Some(b'\n'),
                     Some(b'0') => Some(b'\0'),
                     Some(b'\\') => Some(b'\\'),
-                    None => return Err("Incomplete escaped character")?,
+                    None => return err("Incomplete escaped character")?,
                     Some(other) => {
-                        return Err(format!(
+                        return err(format!(
                             "Unknown escaped character with code {} ({})",
                             *other, *other as char
-                        )
-                        .into());
+                        ));
                     }
                 }
             }
             Some(regular_letter) => Some(*regular_letter),
-            None => return Err("Unclosed single quote".into()),
+            None => return err("Unclosed single quote"),
         };
         iter.next();
         if let Some(b'\'') = iter.peek() {
             Ok(character)
         } else {
-            Err("Unclosed single quote".into())
+            err("Unclosed single quote")
         }
     } else {
         Ok(None)
@@ -386,11 +386,11 @@ pub fn consume_number(first_digit: i64, iter: &mut Peekable<Bytes>) -> Result<i6
 fn maybe_add_digit(mut accumulated: i64, new_digit: i64) -> Result<i64, AnyError> {
     const OVERFLOW_MESSAGE: &'static str = "Cant' fit number in 64 bits";
     return if i64::MAX / 10 < accumulated.abs() {
-        Err(OVERFLOW_MESSAGE)?
+        err(OVERFLOW_MESSAGE)?
     } else {
         accumulated *= 10;
         if i64::MAX - new_digit < accumulated {
-            Err(OVERFLOW_MESSAGE)?
+            err(OVERFLOW_MESSAGE)?
         } else {
             Ok(accumulated + new_digit)
         }
@@ -422,9 +422,11 @@ pub fn keyword_or_identifier(identifier: String) -> Token {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::frontend::lexer::Operator::{Add, Divide, Modulo, Multiply, Substract};
     use Token::{CloseBracket, Identifier, Number, OpenBracket, Operator};
+
+    use crate::frontend::lexer::Operator::{Add, Divide, Modulo, Multiply, Substract};
+
+    use super::*;
 
     fn get_tokens(text: &str) -> Tokens {
         lex(text).unwrap().tokens

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::rc::Rc;
 
-use crate::common::{context, AnyError};
+use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::{
     Chain, Expression, Expressions, Function, Loop, LoopOr, Map, Transformation, TypedIdentifier,
@@ -74,10 +74,12 @@ impl Closure {
 
 #[allow(unused)]
 fn unimplemented<T>() -> Result<T, AnyError> {
-    Err("unimplemented".into())
+    err("unimplemented")
 }
 
 pub mod intrinsics {
+    use Intrinsic::*;
+
     #[derive(Copy, Clone)]
     pub enum Intrinsic {
         PrintChar,
@@ -101,7 +103,7 @@ pub mod intrinsics {
             }
         }
     }
-    use Intrinsic::*;
+
     pub const INTRINSICS: &[Intrinsic] =
         &[PrintChar, ReadChar, Print, ReadLines, ToStr, NewArray, Size];
 }
@@ -161,7 +163,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 function.clone(),
                 Closure::new_from_current_scope(&self.identifiers),
             ),
-            _ => Err(format!("Can't evaluate expression {:?}", expression))?,
+            _ => err(format!("Can't evaluate expression {:?}", expression))?,
         }
     }
 
@@ -214,7 +216,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
         for (identifier, times_redefined_in_this_chain) in identifiers {
             if times_redefined_in_this_chain > 1 {
-                return Err(format!("Identifier {} was defined multiple times. Maybe you want to use the overwrite operator '=>'.",identifier).into());
+                return err(format!("Identifier {} was defined multiple times. Maybe you want to use the overwrite operator '=>'.",identifier));
             }
             self.unbind_identifier(&identifier, times_redefined_in_this_chain)?;
         }
@@ -230,13 +232,12 @@ impl<R: Read, W: Write> Runtime<R, W> {
             )
         })?;
         if times > stack.len() {
-            return Err(format!(
+            return err(format!(
                 "Bug: tried to unbind identifier {} {} times, but it's shadowed only {} times",
                 identifier,
                 times,
                 stack.len()
-            )
-            .into());
+            ));
         } else {
             stack.truncate(stack.len() - times);
             Ok(())
@@ -281,7 +282,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Nothing
             | Expression::Value(_)
             | Expression::Type(_)
-            | Expression::StaticList { .. } => Err(format!(
+            | Expression::StaticList { .. } => err(format!(
                 "Can not use expression as a function: {:?}",
                 callable
             ))?,
@@ -303,7 +304,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 }
             }
         } else {
-            Err(format!("invalid function pointer {}", function_ptr).into())
+            err(format!("invalid function pointer {}", function_ptr))
         }
     }
     fn call_function_expression(
@@ -446,7 +447,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                         let s = String::from_utf8(list.iter().map(|b| *b as u8).collect())?;
                         writeln!(self.print_output, "{}", s)?;
                     }
-                    None => Err(format!(
+                    None => err(format!(
                         "\"print\" was called with an invalid array {}",
                         argument
                     ))?,
@@ -526,7 +527,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 *identifiers.entry(name.clone()).or_insert(0) += 1;
                 Ok(())
             }
-            _ => Err(format!("Can only assign to identifiers, not to a {:?}", operand).into()),
+            _ => err(format!(
+                "Can only assign to identifiers, not to a {:?}",
+                operand
+            )),
         }
     }
     fn evaluate_overwrite(
@@ -540,10 +544,13 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     *value.last_mut().unwrap() = accumulated;
                     Ok(())
                 } else {
-                    Err(format!("Can not overwrite identifier {} because it has not been defined. Use '=' to define it.", name).into())
+                    err(format!("Can not overwrite identifier {} because it has not been defined. Use '=' to define it.", name))
                 }
             }
-            _ => Err(format!("Can only overwrite identifiers, not a {:?}", operand).into()),
+            _ => err(format!(
+                "Can only overwrite identifiers, not a {:?}",
+                operand
+            )),
         }
     }
     fn evaluate_compare(
@@ -572,11 +579,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::StaticList { elements } => self.evaluate_list(&elements),
             Expression::Identifier(name) => self.get_identifier(name),
             Expression::Chain(chain) => self.evaluate_chain(chain),
-            _ => Err(format!(
+            _ => err(format!(
                 "Expected to concatenate two lists, second operand is {:?}",
                 operand
-            )
-            .into()),
+            )),
         }?;
         let first_elems = self.get_list(accumulated)?;
         let second_elems = self.get_list(second_pointer)?;

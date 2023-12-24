@@ -1,4 +1,4 @@
-use crate::common::context;
+use crate::common::{context, err};
 use crate::frontend::expression::{Expression, Expressions, Transformation};
 use crate::frontend::lexer::{Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::program::Program;
@@ -54,7 +54,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     self.balance_chain_braces(&token)?;
                     Ok(None)
                 }
-                _ => Err(format!("unexpected token {:?}, expected operator", token))?,
+                _ => err(format!("unexpected token {:?}, expected operator", token))?,
             }
         } else {
             Ok(None)
@@ -69,7 +69,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             let transformation = Transformation { operator, operand };
             Ok(Some(transformation))
         } else {
-            Err(format!(
+            err(format!(
                 "unfinished operation after operator {:?}",
                 operator
             ))?
@@ -81,7 +81,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             self.brace_nesting -= 1;
             Ok(())
         } else {
-            Err(format!("unmatched {:?}", token).into())
+            err(format!("unmatched {:?}", token))
         }
     }
 
@@ -103,7 +103,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 self.balance_chain_braces(&token)?;
                 Expression::Nothing
             }
-            _ => return Err(format!("unexpected token {:?}, expected expression", token))?,
+            _ => return err(format!("unexpected token {:?}, expected expression", token))?,
         };
         Ok(expression)
     }
@@ -116,7 +116,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 _ => elements.push(self.parse_expression_from_token(token)?),
             }
         }
-        Err("Unclosed square bracket")?
+        err("Unclosed square bracket")?
     }
 
     fn parse_braced_chain(&mut self) -> Result<Expression, AnyError> {
@@ -124,7 +124,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         self.brace_nesting += 1;
         let chain = self.parse_chain()?;
         if self.brace_nesting != initial_nesting {
-            Err("unmatched braces")?
+            err("unmatched braces")?
         } else {
             Ok(chain)
         }
@@ -133,10 +133,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::frontend::ast::ast_deserialize;
     use crate::frontend::lexer::{lex, TokenizedSource};
     use crate::frontend::location::SourceCode;
+
+    use super::*;
 
     fn parse_tokens(tokens: Tokens) -> Result<Program, AnyError> {
         super::parse(TokenizedSource {

@@ -1,5 +1,6 @@
-use crate::frontend::expression::Expression;
 use std::collections::HashMap;
+
+use crate::frontend::expression::Expression;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Program {

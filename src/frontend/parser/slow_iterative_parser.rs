@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::common::{context, AnyError};
+use crate::common::{context, err, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, error_expected, PartialExpression};
 use crate::frontend::expression::{Chain, Expression, Transformation, Type};
 use crate::frontend::lexer::{lex, Operator, Token, TokenizedSource, Tokens};
@@ -87,7 +87,7 @@ impl Parser {
                         );
                     }
                     None => {
-                        return Err("unbalanced brace".into());
+                        return err("unbalanced brace");
                     }
                     _ => {
                         return error_expected("operator or chain start", elem_operator)?;
@@ -176,7 +176,7 @@ impl Parser {
                 None => Ok(Expression::Nothing),
                 Some(v) => {
                     accumulated.push(v);
-                    Err(format!("unfinished code: {:?}", accumulated).into())
+                    err(format!("unfinished code: {:?}", accumulated))
                 }
             }
         } else {
@@ -184,7 +184,7 @@ impl Parser {
             accumulated.insert(0, PartialExpression::OpenBrace);
             let e = Self::construct_flat_chain(accumulated)?;
             if !accumulated.is_empty() {
-                Err(error_message.into())
+                err(error_message)
             } else {
                 Ok(e)
             }

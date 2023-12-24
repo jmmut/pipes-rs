@@ -1,7 +1,7 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 
-use crate::common::{context, AnyError};
+use crate::common::{context, err, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
     Branch, Expression, Transformation, Transformations, Type, TypedIdentifier, TypedIdentifiers,
@@ -422,7 +422,7 @@ fn finish_construction(mut parser: Parser) -> Result<Program, AnyError> {
             None => Expression::Nothing,
             Some(v) => {
                 accumulated.push_front(v);
-                return Err(format!("unfinished code: {:?}", accumulated).into());
+                return err(format!("unfinished code: {:?}", accumulated));
             }
         }
     } else {
@@ -430,7 +430,7 @@ fn finish_construction(mut parser: Parser) -> Result<Program, AnyError> {
         accumulated.push_back(PartialExpression::CloseBrace);
         let e = construct_chain(accumulated)?;
         if !accumulated.is_empty() {
-            return Err(error_message.into());
+            return err(error_message);
         } else {
             e
         }

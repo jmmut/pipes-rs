@@ -1,13 +1,14 @@
-use crate::common::{context, AnyError};
+use std::collections::VecDeque;
+use std::fmt::Debug;
+
+use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Branch, Chain, Expression, Function, Loop, Transformation, Type, TypedIdentifier,
     TypedIdentifiers,
 };
-use crate::frontend::lexer::{lex, Keyword, Operator, Token, TokenizedSource, Tokens};
+use crate::frontend::lexer::{lex, Keyword, Operator, Token, TokenizedSource};
 use crate::frontend::location::SourceCode;
 use crate::frontend::program::Program;
-use std::collections::{HashMap, VecDeque};
-use std::fmt::Debug;
 
 #[derive(Debug)]
 pub enum PartialExpression {
@@ -377,7 +378,7 @@ fn finish_construction_expression(
             }
         }
     }
-    Err(format!("unfinished code: {:?}", accumulated).into())
+    err(format!("unfinished code: {:?}", accumulated))
 }
 
 pub fn error_expected<T: Debug, R>(expected: &str, actual: T) -> Result<R, AnyError> {
@@ -388,8 +389,9 @@ pub fn anyerror_expected<T: Debug>(expected: &str, actual: &T) -> AnyError {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::frontend::lex_and_parse;
+
+    use super::*;
 
     #[test]
     fn test_nothing() {
@@ -411,8 +413,8 @@ mod tests {
     }
     #[test]
     fn test_complex() {
-        let ast = ast_deserialize("[5 +7 Op |parse_char Op Chain 8]").unwrap();
-        let code = lex_and_parse("[ {5 +7 |parse_char}  8 ]").unwrap();
+        let ast = ast_deserialize("[5 +7 Op |print_char Op Chain 8]").unwrap();
+        let code = lex_and_parse("[ {5 +7 |print_char}  8 ]").unwrap();
         assert_eq!(ast, code);
     }
 
