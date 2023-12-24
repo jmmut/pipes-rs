@@ -37,6 +37,7 @@ struct Closure {
 }
 
 impl Closure {
+    #[allow(unused)]
     pub fn new() -> Closure {
         Self {
             captured_identifiers: HashMap::new(),
@@ -53,6 +54,7 @@ impl Closure {
             captured_identifiers,
         }
     }
+    #[allow(unused)]
     pub fn add_to(&self, all_identifiers: &mut HashMap<String, BindingsStack>) {
         for (captured_name, captured_value) in &self.captured_identifiers {
             all_identifiers

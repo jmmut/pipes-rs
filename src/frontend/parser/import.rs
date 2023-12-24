@@ -109,8 +109,8 @@ fn track_identifiers_recursive(
 }
 
 fn track_identifiers_recursive_type(
-    type_: &Type,
-    import_state: &mut ImportState,
+    _type_: &Type,
+    _import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
     //todo!()
     Ok(())
@@ -144,9 +144,8 @@ fn import_identifier(identifier: &String, import_state: &mut ImportState) -> Res
     if paths.len() < 2 {
         err(format!("undefined identifier '{}'", identifier))
     } else {
-        let function_name = paths.pop().unwrap();
-        let mut imported_path = PathBuf::from_iter(paths.into_iter());
-        let namespace_str = imported_path.to_string_lossy();
+        let _function_name = paths.pop().unwrap();
+        let imported_path = PathBuf::from_iter(paths.into_iter());
         let mut path_to_import = root.join(imported_path);
         path_to_import.set_extension("pipes");
         let source_code = SourceCode::new(path_to_import)?;
