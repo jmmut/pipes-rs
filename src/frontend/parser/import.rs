@@ -57,6 +57,9 @@ impl ImportState {
             file,
         }
     }
+    fn get_project_root(&mut self) -> Result<PathBuf, AnyError> {
+        get_project_root(&self.project_root, &self.file)
+    }
 }
 fn track_identifiers_recursive(
     expression: &Expression,
@@ -161,18 +164,21 @@ fn import_identifier(identifier: &String, import_state: &mut ImportState) -> Res
 
 const PIPES_ROOT_FILENAME: &'static str = "pipes_root.toml";
 
-fn get_project_root(import_state: &mut ImportState) -> Result<PathBuf, AnyError> {
-    if let Some(root) = &import_state.project_root {
+pub fn get_project_root(
+    root: &Option<PathBuf>,
+    current_file: &Option<PathBuf>,
+) -> Result<PathBuf, AnyError> {
+    if let Some(root) = root {
         Ok(root.clone())
-    } else if let Some(mut current_file) = import_state.file.clone() {
-        current_file = current_file.canonicalize()?;
+    } else if let Some(mut current_file_abs) = current_file.clone() {
+        current_file_abs = current_file_abs.canonicalize()?;
         let mut root_opt = None;
-        while current_file.pop() {
-            current_file.push(PIPES_ROOT_FILENAME);
-            let exists = current_file.exists();
-            current_file.pop();
+        while current_file_abs.pop() {
+            current_file_abs.push(PIPES_ROOT_FILENAME);
+            let exists = current_file_abs.exists();
+            current_file_abs.pop();
             if exists {
-                root_opt = Some(current_file);
+                root_opt = Some(current_file_abs);
                 break;
             }
         }
@@ -182,7 +188,7 @@ fn get_project_root(import_state: &mut ImportState) -> Result<PathBuf, AnyError>
             err(format!(
                 "File '{}' not found in a parent folder from '{}'. Needed to import identifiers",
                 PIPES_ROOT_FILENAME,
-                import_state.file.as_ref().unwrap().to_string_lossy()
+                current_file.as_ref().unwrap().to_string_lossy()
             ))
         }
     } else {

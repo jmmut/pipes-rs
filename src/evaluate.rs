@@ -622,10 +622,12 @@ impl<R: Read, W: Write> Runtime<R, W> {
 mod tests {
     use crate::common::assert_mentions;
     use crate::frontend::lex_and_parse;
+    use crate::frontend::location::SourceCode;
+    use std::path::PathBuf;
 
     use super::*;
 
-    fn interpret(code_text: &str) -> GenericValue {
+    fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
         let expression = lex_and_parse(code_text).unwrap();
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result.unwrap()
@@ -912,5 +914,12 @@ mod tests {
     #[test]
     fn test_complex_comparisons() {
         assert_eq!(interpret("5 =?{5}"), 1);
+    }
+
+    #[test]
+    fn test_evaluate_import() {
+        let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
+        let code = SourceCode::new(main_path).unwrap();
+        assert_eq!(interpret(code), 6);
     }
 }

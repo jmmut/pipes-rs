@@ -1,5 +1,11 @@
-public function(x) {
+{}
+;public function(x) {
     x +1
+}
+=add_1 // note this is reused without the namespace
+
+;public function(x) {
+    x |add_1
 }
 =increment
 
