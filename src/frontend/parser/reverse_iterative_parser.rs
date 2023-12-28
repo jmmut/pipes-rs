@@ -8,6 +8,7 @@ use crate::frontend::expression::{
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
+use crate::frontend::parser::root::get_project_root;
 use crate::frontend::program::Program;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
@@ -50,8 +51,9 @@ pub struct Parser {
 pub type IdentifierValue = Expression;
 
 impl Parser {
-    pub fn new(file: Option<PathBuf>) -> Self {
-        Self::new_with_exports(file, HashMap::new(), None)
+    pub fn new(file_opt: Option<PathBuf>) -> Self {
+        let root = get_project_root(&None, &file_opt);
+        Self::new_with_exports(file_opt, HashMap::new(), root.ok()) // TODO: .ok() loses error message
     }
     pub fn new_with_exports(
         file: Option<PathBuf>,

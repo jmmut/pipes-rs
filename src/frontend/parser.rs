@@ -9,3 +9,4 @@ pub mod slow_iterative_parser;
 mod import;
 #[cfg(test)]
 pub mod recursive_parser;
+mod root;

@@ -13,7 +13,7 @@ use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Par
 
 /// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(main: &Expression, parser: &mut Parser) -> Result<(), AnyError> {
-    let mut import_state = ImportState::new(parser.file.clone());
+    let mut import_state = ImportState::new(parser.file.clone(), parser.root.clone());
     std::mem::swap(&mut import_state.imported, &mut parser.exported);
     let context_str = if let Some(path) = parser.file.as_ref() {
         format!("Import dependencies for {}", path.to_string_lossy())
@@ -38,11 +38,12 @@ struct ImportState {
 }
 
 impl ImportState {
-    pub fn new(file: Option<PathBuf>) -> Self {
-        Self::new_with_identifiers(file, HashMap::new())
+    pub fn new(file: Option<PathBuf>, root: Option<PathBuf>) -> Self {
+        Self::new_with_identifiers(file, root, HashMap::new())
     }
     pub fn new_with_identifiers(
         file: Option<PathBuf>,
+        project_root: Option<PathBuf>,
         imported: HashMap<String, Expression>,
     ) -> Self {
         Self {
@@ -53,12 +54,9 @@ impl ImportState {
                 .collect(),
             assignments: Vec::new(),
             imported,
-            project_root: None,
+            project_root,
             file,
         }
-    }
-    fn get_project_root(&mut self) -> Result<PathBuf, AnyError> {
-        get_project_root(&self.project_root, &self.file)
     }
 }
 fn track_identifiers_recursive(
@@ -142,57 +140,27 @@ fn check_identifier(identifier: &String, import_state: &mut ImportState) -> Resu
 
 /// Adds imported identifiers into import_state.imported
 fn import_identifier(identifier: &String, import_state: &mut ImportState) -> Result<(), AnyError> {
-    let root = get_project_root(import_state)?;
+    // let root = import_state.project_root?;
     let mut paths = identifier.split('/').collect::<Vec<_>>();
     if paths.len() < 2 {
         err(format!("undefined identifier '{}'", identifier))
     } else {
         let _function_name = paths.pop().unwrap();
         let imported_path = PathBuf::from_iter(paths.into_iter());
-        let mut path_to_import = root.join(imported_path);
+        // let mut path_to_import = root.join(imported_path);
+        let mut path_to_import = imported_path.clone();
         path_to_import.set_extension("pipes");
         let source_code = SourceCode::new(path_to_import)?;
         let file = source_code.file.clone();
         let tokens = lex(source_code)?;
-        let parser =
-            Parser::new_with_exports(file, std::mem::take(&mut import_state.imported), Some(root));
+        let parser = Parser::new_with_exports(
+            file,
+            std::mem::take(&mut import_state.imported),
+            import_state.project_root.clone(),
+        );
         let mut program = parse_tokens_cached(tokens.tokens, parser)?;
         import_state.imported = std::mem::take(&mut program.identifiers);
         Ok(())
-    }
-}
-
-const PIPES_ROOT_FILENAME: &'static str = "pipes_root.toml";
-
-pub fn get_project_root(
-    root: &Option<PathBuf>,
-    current_file: &Option<PathBuf>,
-) -> Result<PathBuf, AnyError> {
-    if let Some(root) = root {
-        Ok(root.clone())
-    } else if let Some(mut current_file_abs) = current_file.clone() {
-        current_file_abs = current_file_abs.canonicalize()?;
-        let mut root_opt = None;
-        while current_file_abs.pop() {
-            current_file_abs.push(PIPES_ROOT_FILENAME);
-            let exists = current_file_abs.exists();
-            current_file_abs.pop();
-            if exists {
-                root_opt = Some(current_file_abs);
-                break;
-            }
-        }
-        if let Some(root) = root_opt {
-            Ok(root)
-        } else {
-            err(format!(
-                "File '{}' not found in a parent folder from '{}'. Needed to import identifiers",
-                PIPES_ROOT_FILENAME,
-                current_file.as_ref().unwrap().to_string_lossy()
-            ))
-        }
-    } else {
-        Ok(PathBuf::from("."))
     }
 }
 
