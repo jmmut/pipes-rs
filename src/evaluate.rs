@@ -310,19 +310,19 @@ impl<R: Read, W: Write> Runtime<R, W> {
         body: &Chain,
     ) -> Result<i64, AnyError> {
         let list = self.get_list(argument)?.clone();
-        let mut result = NOTHING;
+        let default_result = NOTHING;
         for value in list {
             self.identifiers
                 .entry(iteration_elem.name.clone())
                 .or_insert(Vec::new())
                 .push(value);
-            result = self.evaluate_chain(&body)?;
+            let result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
-                break;
+                return Ok(result)
             }
         }
-        Ok(result)
+        Ok(default_result)
     }
     fn call_loop_or_expression(
         &mut self,
@@ -348,19 +348,19 @@ impl<R: Read, W: Write> Runtime<R, W> {
             body,
         }: &Times,
     ) -> Result<i64, AnyError> {
-        let mut result = NOTHING;
+        let default_result = NOTHING;
         for value in 0..argument {
             self.identifiers
                 .entry(iteration_elem.name.clone())
                 .or_insert(Vec::new())
                 .push(value);
-            result = self.evaluate_chain(&body)?;
+            let result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
-                break;
+                return Ok(result)
             }
         }
-        Ok(result)
+        Ok(default_result)
     }
     fn call_replace_expression(
         &mut self,
@@ -827,13 +827,13 @@ mod tests {
 
     #[test]
     fn test_times() {
-        let result = interpret("[{0}]=n ;4 |times (i) {n |replace(x) {x+1};};n#0");
-        assert_eq!(result, 4);
+        let result = interpret("0=n ;4 |times (i) {n +10 => n;};n");
+        assert_eq!(result, 40);
     }
     #[test]
     fn test_times_broken() {
-        let result = interpret("[{0}]=n ;4 |times (i) {n |replace(x) {x+1} ;100} + {n#0}");
-        assert_eq!(result, 101);
+        let result = interpret("0=n ;4 |times (i) {n +10 =>n;100} + n");
+        assert_eq!(result, 110);
     }
 
     #[test]
