@@ -35,12 +35,30 @@ pub fn get_project_root(
     }
 }
 
+
+/// Both PathBuf parameters must be pre-canonicalized, or have enough parent folders to cover the
+/// project root.
 pub fn add_namespace(
     bare_name: &str,
-    containing_file: &Option<String>,
-    root: &Option<String>,
-) -> String {
-    bare_name.to_string()
+    containing_file: &Option<PathBuf>,
+    root_folder: &Option<PathBuf>,
+) -> Result<String, AnyError> {
+    Ok(match (containing_file, root_folder) {
+        (Some(file), Some(root)) => {
+            let mut file_copy = file.clone();
+            file_copy.set_extension("");
+            let namespace = file_copy.strip_prefix(root)?;
+            let namespace_str = namespace.to_string_lossy();
+            format!("{}/{}", namespace_str, bare_name)
+        }
+        (Some(file), None) => {
+            let namespace = file.file_stem().unwrap();
+            format!("{}/{}", namespace.to_string_lossy(), bare_name)
+        }
+        (None, Some(_)) | (None, None) => {
+            bare_name.to_string()
+        }
+    })
 }
 
 #[cfg(test)]
@@ -53,24 +71,35 @@ mod tests {
         let containing_file = None;
         let root = None;
         let namespaced_name = add_namespace(bare_name, &containing_file, &root);
-        assert_eq!(namespaced_name, bare_name);
+        assert_eq!(namespaced_name.unwrap(), bare_name);
     }
 
     #[test]
     fn test_add_namespace_with_file_no_root() {
         let bare_name = "func";
-        let containing_file = Some("some_folder/some_file.pipes".to_string());
+        let containing_file = Some(PathBuf::from("some_folder/some_file.pipes"));
         let root = None;
         let namespaced_name = add_namespace(bare_name, &containing_file, &root);
-        assert_eq!(namespaced_name, bare_name);
+        assert_eq!(namespaced_name.unwrap(), format!("{}/{}", "some_file", bare_name));
     }
-    //
-    // #[test]
-    // fn test_add_namespace_with_file_no_root() {
-    //     let bare_name = "func";
-    //     let containing_file = Some("some_folder/some_file.pipes".to_string());
-    //     let root = None;
-    //     let namespaced_name = add_namespace(bare_name, &containing_file, &root);
-    //     assert_eq!(namespaced_name, format!("{}/{}", "some_folder/some_file", bare_name));
-    // }
+
+    #[test]
+    fn test_add_namespace_no_file_with_root() {
+        let bare_name = "func";
+        let containing_file = None;
+        let root = Some(PathBuf::from("some_folder/project/"));
+        let namespaced_name = add_namespace(bare_name, &containing_file, &root);
+        assert_eq!(namespaced_name.unwrap(), bare_name);
+    }
+
+    #[test]
+    fn test_add_namespace_with_file_with_root() {
+        let bare_name = "func";
+        let containing_file = Some(PathBuf::from("parent/project/subfolder/some_file.pipes"));
+        let root = Some(PathBuf::from("parent/project/"));
+        let namespaced_name = add_namespace(bare_name, &containing_file, &root);
+        assert_eq!(namespaced_name.unwrap(), format!("{}/{}", "subfolder/some_file", bare_name));
+    }
+
+    // TODO: test don't change already namespaced name
 }
