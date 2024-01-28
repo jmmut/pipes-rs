@@ -839,6 +839,7 @@ mod tests {
     #[test]
     fn test_replace() {
         assert_eq!(interpret("[10 11] |replace(e :i64) {e +100} #1"), 111);
+        assert_eq!(interpret("[10 11] =initial |replace(e :i64) {e +100}; initial #1"), 111);
     }
     #[test]
     fn test_map() {
