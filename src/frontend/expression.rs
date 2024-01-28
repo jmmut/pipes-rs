@@ -19,6 +19,7 @@ pub enum Expression {
     Loop(Loop),
     LoopOr(LoopOr),
     Times(Times),
+    TimesOr(TimesOr),
     Replace(Replace),
     Map(Map),
     Branch(Branch),
@@ -59,6 +60,14 @@ impl Expression {
         Self::Times(Times {
             iteration_elem: elem,
             body,
+        })
+    }
+    #[allow(unused)]
+    pub fn times_or(elem: TypedIdentifier, body: Chain, otherwise: Chain) -> Self {
+        Self::TimesOr(TimesOr {
+            iteration_elem: elem,
+            body,
+            otherwise,
         })
     }
     #[allow(unused)]
@@ -228,6 +237,12 @@ pub struct LoopOr {
 pub struct Times {
     pub iteration_elem: TypedIdentifier,
     pub body: Chain,
+}
+#[derive(PartialEq, Debug, Clone)]
+pub struct TimesOr {
+    pub iteration_elem: TypedIdentifier,
+    pub body: Chain,
+    pub otherwise: Chain,
 }
 #[derive(PartialEq, Debug, Clone)]
 pub struct Replace {

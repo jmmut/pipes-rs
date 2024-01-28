@@ -2,6 +2,8 @@ use crate::common::context;
 use crate::AnyError;
 use std::iter::Peekable;
 use std::str::Bytes;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {
@@ -45,12 +47,13 @@ pub enum Comparison {
     GreaterThanEquals,
 }
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, EnumIter)]
 pub enum Keyword {
     Function,
     Loop,
     LoopOr,
     Times,
+    TimesOr,
     Replace,
     Map,
     Branch,
@@ -62,15 +65,12 @@ impl Keyword {
             Keyword::Loop => "loop",
             Keyword::LoopOr => "loop_or",
             Keyword::Times => "times",
+            Keyword::TimesOr => "times_or",
             Keyword::Replace => "replace",
             Keyword::Map => "map",
             Keyword::Branch => "branch",
         }
     }
-}
-mod keywords {
-    use super::Keyword::*;
-    pub const KEYWORDS: &[super::Keyword] = &[Function, Loop, LoopOr, Times, Replace, Map, Branch];
 }
 pub type Tokens = Vec<Token>;
 
@@ -400,7 +400,7 @@ pub fn consume_identifier(first_letter: u8, iter: &mut Peekable<Bytes>) -> Resul
 }
 
 pub fn keyword_or_identifier(identifier: String) -> Token {
-    for k in keywords::KEYWORDS {
+    for k in Keyword::iter() {
         if k.name() == identifier {
             return Token::Keyword(k.clone());
         }

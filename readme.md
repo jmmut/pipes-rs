@@ -32,13 +32,21 @@ With these operations:
 - [x] Explicit grouping (e.g. `6 -{3 -2}` evaluates to 5)
 - [x] Statement separator (e.g. `2 ;3` (which evaluates to 3))
 - [x] Function call (e.g. `arg |func` (the usual syntax would be `func(arg)` but this is forbidden)
-- [x] Looped function call (e.g. `[1 2 3] |map(x) { x + 1 }` modifies the array by 
-  incrementing all elements)
+- [x] Loops
+  - `loop_or`: iterates list, maybe breaks, returns some value. E.g.:
+    - `[1 2 3] |loop_or(x) {x +42} {1000}` returns 43
+    - `[1 2 3] |loop_or(x) {x +42;} {1000}` returns 1000
+  - `times`: loops indexes, returns count (e.g. `3 |times(i) {i |to_str |print}` prints `0\n1\n2\n` and returns 3)
+  - `times_or`: loops indexes, maybe breaks, returns some value. E.g.:
+    - `3 |times_or(i) {x +42} {1000}` returns 42
+    - `3 |times_or(i) {x +42;} {1000}` returns 1000
+  - `map`: creates a new list from operating the input list (e.g. `[10 11] |map(e) {e +100}` returns a new list `[110 110]`)
+  - `replace`: iterates a list, replaces each element (e.g. `[10 11] |replace(e) {e +100}` returns the modified list `[110 110]`)
 - [x] Ifs/Branching (e.g. `condition |branch {5} {6}` (where 5 will be returned if `condition` is not 0,
   6 will be returned if `condition` is 0))
 - [ ] Type annotation (e.g. `2 :int64`)
 - [ ] Struct field access (e.g. given `a :struct(x :int64)`, you can do `a.x` or `a .x`. The space is 
-  significant, those are different things, see below)
+  significant, those are different things, TODO: explain below)
 - [x] Comments, ignoring the rest of the line (e.g. `42 // the answer`)
 
 ### Simplified Grammar
@@ -58,6 +66,7 @@ Operation = Operator Expression
 Type = Identifier [TypedChildren]
 TypedChildren = '(' TypedIdentifier+ ')'
 TypedIdentifier = Identifier ':' Type | Identifier | ':' Type
+
 Branch = 'branch' Chain Chain
 Function = 'function' TypedChildren Chain
 ```
