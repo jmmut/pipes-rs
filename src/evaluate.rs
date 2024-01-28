@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::rc::Rc;
+use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::{
-    Chain, Expression, Expressions, Function, Loop, LoopOr, Map, Transformation, TypedIdentifier,
+    Chain, Expression, Expressions, Function, Loop, LoopOr, Map, TimesOr, Transformation,
+    TypedIdentifier,
 };
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::lexer::{Comparison, Operator};
@@ -79,10 +81,10 @@ fn unimplemented<T>() -> Result<T, AnyError> {
     err("unimplemented")
 }
 
-pub mod intrinsics {
-    use Intrinsic::*;
+mod intrinsics {
+    use strum_macros::EnumIter;
 
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, EnumIter)]
     pub enum Intrinsic {
         PrintChar,
         ReadChar,
@@ -105,9 +107,6 @@ pub mod intrinsics {
             }
         }
     }
-
-    pub const INTRINSICS: &[Intrinsic] =
-        &[PrintChar, ReadChar, Print, ReadLines, ToStr, NewArray, Size];
 }
 
 impl<R: Read, W: Write> Runtime<R, W> {
@@ -146,8 +145,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut identifiers = HashMap::new();
         let mut functions = Vec::new();
         let mut i = 0;
-        for intrinsic in intrinsics::INTRINSICS {
-            functions.push(Rc::new(FunctionOrIntrinsic::Intrinsic(*intrinsic)));
+        for intrinsic in intrinsics::Intrinsic::iter() {
+            functions.push(Rc::new(FunctionOrIntrinsic::Intrinsic(intrinsic)));
             identifiers.insert(intrinsic.name().to_string(), vec![i]);
             i += 1;
         }
@@ -270,6 +269,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }) => self.call_loop_expression(argument, iteration_elem, body),
             Expression::LoopOr(loop_or) => self.call_loop_or_expression(argument, loop_or),
             Expression::Times(times) => self.call_times_expression(argument, times),
+            Expression::TimesOr(times_or) => self.call_times_or_expression(argument, times_or),
             Expression::Replace(replace) => self.call_replace_expression(argument, replace),
             Expression::Map(map) => self.call_map_expression(argument, map),
             Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
@@ -334,19 +334,19 @@ impl<R: Read, W: Write> Runtime<R, W> {
         body: &Chain,
     ) -> Result<i64, AnyError> {
         let list = self.get_list(argument)?.clone();
-        let mut result = NOTHING;
+        let default_result = NOTHING;
         for value in list {
             self.identifiers
                 .entry(iteration_elem.name.clone())
                 .or_insert(Vec::new())
                 .push(value);
-            result = self.evaluate_chain(&body)?;
+            let result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
-                break;
+                return Ok(result);
             }
         }
-        Ok(result)
+        Ok(default_result)
     }
     fn call_loop_or_expression(
         &mut self,
@@ -372,20 +372,40 @@ impl<R: Read, W: Write> Runtime<R, W> {
             body,
         }: &Times,
     ) -> Result<i64, AnyError> {
-        let mut result = NOTHING;
         for value in 0..argument {
             self.identifiers
                 .entry(iteration_elem.name.clone())
                 .or_insert(Vec::new())
                 .push(value);
-            result = self.evaluate_chain(&body)?;
+            let _unused_result = self.evaluate_chain(&body)?;
+            self.unbind_identifier(&iteration_elem.name, 1)?;
+        }
+        Ok(argument)
+    }
+
+    fn call_times_or_expression(
+        &mut self,
+        argument: i64,
+        TimesOr {
+            iteration_elem,
+            body,
+            otherwise,
+        }: &TimesOr,
+    ) -> Result<i64, AnyError> {
+        for value in 0..argument {
+            self.identifiers
+                .entry(iteration_elem.name.clone())
+                .or_insert(Vec::new())
+                .push(value);
+            let result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
-                break;
+                return Ok(result);
             }
         }
-        Ok(result)
+        self.evaluate_chain(otherwise)
     }
+
     fn call_replace_expression(
         &mut self,
         argument: i64,
@@ -867,18 +887,27 @@ mod tests {
 
     #[test]
     fn test_times() {
-        let result = interpret("[{0}]=n ;4 |times (i) {n |replace(x) {x+1};};n#0");
+        let result = interpret("0=n ;4 |times (i) {n +10 => n}");
         assert_eq!(result, 4);
     }
     #[test]
-    fn test_times_broken() {
-        let result = interpret("[{0}]=n ;4 |times (i) {n |replace(x) {x+1} ;100} + {n#0}");
-        assert_eq!(result, 101);
+    fn test_times_or() {
+        let result = interpret("0=n ;4 |times_or(i) {n +10 =>n;} {5} +n");
+        assert_eq!(result, 45);
+    }
+    #[test]
+    fn test_times_or_broken() {
+        let result = interpret("0=n ;4 |times_or(i) {n +10 =>n ;100} {5} +n");
+        assert_eq!(result, 110);
     }
 
     #[test]
     fn test_replace() {
         assert_eq!(interpret("[10 11] |replace(e :i64) {e +100} #1"), 111);
+        assert_eq!(
+            interpret("[10 11] =initial |replace(e :i64) {e +100}; initial #1"),
+            111
+        );
     }
     #[test]
     fn test_map() {
