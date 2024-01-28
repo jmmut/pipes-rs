@@ -81,7 +81,7 @@ fn unimplemented<T>() -> Result<T, AnyError> {
     err("unimplemented")
 }
 
-mod intrinsics {
+pub mod intrinsics {
     use strum_macros::EnumIter;
 
     #[derive(Copy, Clone, EnumIter)]

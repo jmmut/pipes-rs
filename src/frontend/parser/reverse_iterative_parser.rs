@@ -165,7 +165,9 @@ fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExp
     }
 }
 
-fn construct_function(accumulated: &mut VecDeque<PartialExpression>) -> Result<PartialExpression, AnyError> {
+fn construct_function(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
     construct_type_chain(accumulated, Expression::function, "function")
 }
 

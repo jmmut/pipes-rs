@@ -35,7 +35,6 @@ pub fn get_project_root(
     }
 }
 
-
 /// Both PathBuf parameters must be pre-canonicalized, or have enough parent folders to cover the
 /// project root.
 pub fn add_namespace(
@@ -55,9 +54,7 @@ pub fn add_namespace(
             let namespace = file.file_stem().unwrap();
             format!("{}/{}", namespace.to_string_lossy(), bare_name)
         }
-        (None, Some(_)) | (None, None) => {
-            bare_name.to_string()
-        }
+        (None, Some(_)) | (None, None) => bare_name.to_string(),
     })
 }
 
@@ -80,7 +77,10 @@ mod tests {
         let containing_file = Some(PathBuf::from("some_folder/some_file.pipes"));
         let root = None;
         let namespaced_name = add_namespace(bare_name, &containing_file, &root);
-        assert_eq!(namespaced_name.unwrap(), format!("{}/{}", "some_file", bare_name));
+        assert_eq!(
+            namespaced_name.unwrap(),
+            format!("{}/{}", "some_file", bare_name)
+        );
     }
 
     #[test]
@@ -98,7 +98,10 @@ mod tests {
         let containing_file = Some(PathBuf::from("parent/project/subfolder/some_file.pipes"));
         let root = Some(PathBuf::from("parent/project/"));
         let namespaced_name = add_namespace(bare_name, &containing_file, &root);
-        assert_eq!(namespaced_name.unwrap(), format!("{}/{}", "subfolder/some_file", bare_name));
+        assert_eq!(
+            namespaced_name.unwrap(),
+            format!("{}/{}", "subfolder/some_file", bare_name)
+        );
     }
 
     // TODO: test don't change already namespaced name

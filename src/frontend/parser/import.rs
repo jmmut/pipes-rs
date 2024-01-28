@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics;
 use crate::frontend::expression::{
-    Branch, Chain, Expression, Function, Loop, LoopOr, Map, Replace, Times, Transformation, Type,
-    TypedIdentifier,
+    Branch, Chain, Expression, Function, Loop, LoopOr, Map, Replace, Times, TimesOr,
+    Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::{lex, Operator};
 use crate::frontend::location::SourceCode;
@@ -48,8 +49,7 @@ impl ImportState {
     ) -> Self {
         Self {
             parameter_stack: Vec::new(),
-            intrinsic_names: intrinsics::INTRINSICS
-                .iter()
+            intrinsic_names: intrinsics::Intrinsic::iter()
                 .map(|i| i.name().to_string())
                 .collect(),
             assignments: Vec::new(),
@@ -94,6 +94,14 @@ fn track_identifiers_recursive(
             iteration_elem,
             body,
         }) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        Expression::TimesOr(TimesOr {
+            iteration_elem,
+            body,
+            otherwise,
+        }) => {
+            track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
+            track_identifiers_recursive_scope(import_state, iteration_elem, otherwise)
+        }
         Expression::Replace(Replace {
             iteration_elem,
             body,
