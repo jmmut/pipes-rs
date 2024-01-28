@@ -5,7 +5,10 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
-use crate::frontend::expression::{Chain, Expression, Expressions, Function, Loop, LoopOr, Map, TimesOr, Transformation, TypedIdentifier};
+use crate::frontend::expression::{
+    Chain, Expression, Expressions, Function, Loop, LoopOr, Map, TimesOr, Transformation,
+    TypedIdentifier,
+};
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::lexer::{Comparison, Operator};
 
@@ -318,7 +321,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             let result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
-                return Ok(result)
+                return Ok(result);
             }
         }
         Ok(default_result)
@@ -364,7 +367,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         TimesOr {
             iteration_elem,
             body,
-            otherwise
+            otherwise,
         }: &TimesOr,
     ) -> Result<i64, AnyError> {
         for value in 0..argument {
@@ -863,7 +866,10 @@ mod tests {
     #[test]
     fn test_replace() {
         assert_eq!(interpret("[10 11] |replace(e :i64) {e +100} #1"), 111);
-        assert_eq!(interpret("[10 11] =initial |replace(e :i64) {e +100}; initial #1"), 111);
+        assert_eq!(
+            interpret("[10 11] =initial |replace(e :i64) {e +100}; initial #1"),
+            111
+        );
     }
     #[test]
     fn test_map() {

@@ -373,11 +373,11 @@ fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Expre
     Err(format!("unfinished code: {:?}", accumulated).into())
 }
 
-pub fn error_expected<T: Debug, R>(expected: &str, actual: T) -> Result<R, AnyError> {
+pub fn error_expected<T: Debug, R, S: AsRef<str>>(expected: S, actual: T) -> Result<R, AnyError> {
     Err(anyerror_expected(expected, &actual))
 }
-pub fn anyerror_expected<T: Debug>(expected: &str, actual: &T) -> AnyError {
-    format!("expected {} but was {:?}", expected, actual).into()
+pub fn anyerror_expected<T: Debug, S: AsRef<str>>(expected: S, actual: &T) -> AnyError {
+    format!("expected {} but was {:?}", expected.as_ref(), actual).into()
 }
 #[cfg(test)]
 mod tests {

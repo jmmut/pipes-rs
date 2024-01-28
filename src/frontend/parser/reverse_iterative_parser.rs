@@ -3,7 +3,8 @@ use std::collections::VecDeque;
 use crate::common::{context, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
-    Branch, Expression, Transformation, Transformations, Type, TypedIdentifier, TypedIdentifiers,
+    Branch, Chain, Expression, Transformation, Transformations, Type, TypedIdentifier,
+    TypedIdentifiers,
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, Tokens};
 
@@ -137,70 +138,49 @@ fn construct_keyword(
 fn construct_function(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    let elem = accumulated.pop_front();
-    let (parameter, elem) = extract_single_child_type(accumulated, elem);
-
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(Expression::function(
-            parameter, body,
-        )))
-    } else {
-        error_expected("chain for the function body", elem)
-    }
+    construct_type_chain(accumulated, Expression::function, "function")
 }
 
 fn construct_loop(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    let elem = accumulated.pop_front();
-    let (parameter, elem) = extract_single_child_type(accumulated, elem);
-
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(Expression::loop_(
-            parameter, body,
-        )))
-    } else {
-        error_expected("chain for the 'loop' body", elem)
-    }
+    construct_type_chain(accumulated, Expression::loop_, "loop")
 }
 
 fn construct_loop_or(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    let elem = accumulated.pop_front();
-    let (parameter, elem) = extract_single_child_type(accumulated, elem);
-
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        let elem = accumulated.pop_front();
-        if let Some(PartialExpression::Expression(Expression::Chain(otherwise))) = elem {
-            return Ok(PartialExpression::Expression(Expression::loop_or(
-                parameter, body, otherwise,
-            )));
-        } else {
-            error_expected("chain for the 'loop_or' 'otherwise' body", elem)
-        }
-    } else {
-        error_expected("chain for the 'loop_or' body", elem)
-    }
+    construct_type_chain_chain(accumulated, Expression::loop_or, "loop_or")
 }
 
 fn construct_times(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    let elem = accumulated.pop_front();
-    let (parameter, elem) = extract_single_child_type(accumulated, elem);
-
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(Expression::times(
-            parameter, body,
-        )))
-    } else {
-        error_expected("chain for the 'times' body", elem)
-    }
+    construct_type_chain(accumulated, Expression::times, "times")
 }
 
 fn construct_times_or(
     accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    construct_type_chain_chain(accumulated, Expression::times_or, "times_or")
+}
+
+fn construct_replace(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    construct_type_chain(accumulated, Expression::replace, "replace")
+}
+
+fn construct_map(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    construct_type_chain(accumulated, Expression::map, "map")
+}
+
+fn construct_type_chain_chain(
+    accumulated: &mut VecDeque<PartialExpression>,
+    factory: fn(TypedIdentifier, Chain, Chain) -> Expression,
+    construct_name: &str,
 ) -> Result<PartialExpression, AnyError> {
     let elem = accumulated.pop_front();
     let (parameter, elem) = extract_single_child_type(accumulated, elem);
@@ -208,44 +188,32 @@ fn construct_times_or(
     if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
         let elem = accumulated.pop_front();
         if let Some(PartialExpression::Expression(Expression::Chain(otherwise))) = elem {
-            return Ok(PartialExpression::Expression(Expression::times_or(
+            Ok(PartialExpression::Expression(factory(
                 parameter, body, otherwise,
-            )));
+            )))
         } else {
-            error_expected("chain for the 'times_or' 'otherwise' body", elem)
+            error_expected(
+                format!("chain for the '{}' 'otherwise' body", construct_name),
+                elem,
+            )
         }
     } else {
-        error_expected("chain for the 'times_or' body", elem)
+        error_expected(format!("chain for the '{}' body", construct_name), elem)
     }
 }
 
-fn construct_replace(
+fn construct_type_chain(
     accumulated: &mut VecDeque<PartialExpression>,
+    factory: fn(TypedIdentifier, Chain) -> Expression,
+    construct_name: &str,
 ) -> Result<PartialExpression, AnyError> {
     let elem = accumulated.pop_front();
     let (parameter, elem) = extract_single_child_type(accumulated, elem);
 
     if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(Expression::replace(
-            parameter, body,
-        )))
+        Ok(PartialExpression::Expression(factory(parameter, body)))
     } else {
-        error_expected("chain for the 'replace' body", elem)
-    }
-}
-
-fn construct_map(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<PartialExpression, AnyError> {
-    let elem = accumulated.pop_front();
-    let (parameter, elem) = extract_single_child_type(accumulated, elem);
-
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(Expression::map(
-            parameter, body,
-        )))
-    } else {
-        error_expected("chain for the 'map' body", elem)
+        error_expected(format!("chain for the {} body", construct_name), elem)
     }
 }
 
