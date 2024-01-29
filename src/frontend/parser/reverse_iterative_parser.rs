@@ -42,7 +42,7 @@ pub fn parse_tokens_cached(tokens: Tokens, mut ast: Parser) -> Result<Program, A
 
 pub struct Parser {
     pub accumulated: VecDeque<PartialExpression>,
-    identifiers: HashMap<String, IdentifierValue>,
+    pub identifiers: HashMap<String, IdentifierValue>,
     pub exported: HashMap<String, IdentifierValue>,
     pub file: Option<PathBuf>,
     pub root: Option<PathBuf>,
@@ -295,13 +295,10 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
         {
             parser.identifiers.insert(name.clone(), expr.clone());
             if let (Some(root), Some(file)) = (parser.root.as_ref(), parser.file.as_ref()) {
-                let mut file_copy = file.clone();
-                file_copy.set_extension("");
-                let namespace = file_copy.strip_prefix(root)?;
-                let namespace_str = namespace.to_string_lossy();
+                let qualified = qualify(name, root, file)?;
                 parser
                     .exported
-                    .insert(format!("{}/{}", namespace_str, name), expr.clone());
+                    .insert(qualified, expr.clone());
             }
             Ok(PartialExpression::Expression(expr))
         } else {
@@ -314,6 +311,16 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
         error_expected("expression after 'public'", elem)
     }
 }
+
+pub fn qualify(identifier: &str, root: &PathBuf, file: &PathBuf) -> Result<String, AnyError> {
+    let mut file_copy = file.clone();
+    let mut namespace = file_copy.strip_prefix(root)?;
+    namespace.with_extension("");
+    let namespace_str = namespace.to_string_lossy();
+    let qualified = format!("{}/{}", namespace_str, identifier);
+    Ok(qualified)
+}
+
 fn construct_chain(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {
     let elem_expression = accumulated.pop_front();
     match elem_expression {

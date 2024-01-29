@@ -10,12 +10,13 @@ use crate::frontend::expression::{
 };
 use crate::frontend::lexer::{lex, Operator};
 use crate::frontend::location::SourceCode;
-use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
+use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser, qualify};
 
 /// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(main: &Expression, parser: &mut Parser) -> Result<(), AnyError> {
     let mut import_state = ImportState::new(parser.file.clone(), parser.root.clone());
     std::mem::swap(&mut import_state.imported, &mut parser.exported);
+    // std::mem::swap(&mut import_state.public_identifiers, &mut parser.publi);
     let context_str = if let Some(path) = parser.file.as_ref() {
         format!("Import dependencies for {}", path.to_string_lossy())
     } else {
@@ -128,16 +129,34 @@ fn track_identifiers_recursive_type(
 fn check_identifier(identifier: &String, import_state: &mut ImportState) -> Result<(), AnyError> {
     if !import_state.parameter_stack.contains(identifier)
         && !import_state.intrinsic_names.contains(identifier)
-        && !import_state.assignments.contains(identifier)
-        && !import_state.imported.contains_key(identifier)
     {
-        import_identifier(identifier, import_state)?;
-        if !import_state.imported.contains_key(identifier) {
-            err(format!(
-                "identifier '{}' not found. Available: {:?}",
-                identifier,
-                import_state.imported.keys()
-            ))
+        let assignment_nested_count = import_state.assignments.iter().filter(|e| *e == identifier).count();
+        if assignment_nested_count == 0 &&  !import_state.imported.contains_key(identifier) {
+            // && !import_state.assignments.contains(identifier)
+            // &&
+            // {
+            import_identifier(identifier, import_state)?;
+            if !import_state.imported.contains_key(identifier) {
+                err(format!(
+                    "identifier '{}' not found. Available: {:?}",
+                    identifier,
+                    import_state.imported.keys()
+                ))
+            } else {
+                Ok(())
+            }
+        } else if assignment_nested_count == 1{
+            if let (Some(root), Some(file)) = (import_state.project_root.as_ref(), import_state.file.as_ref()) {
+            let qualified = qualify(identifier, root, file)?;
+            if import_state.imported.contains_key(&qualified) {
+                identifier = qualified;
+                Ok(())
+            } else {
+                Ok(())
+            }
+            } else {
+                Ok(())
+            }
         } else {
             Ok(())
         }
@@ -158,6 +177,10 @@ fn import_identifier(identifier: &String, import_state: &mut ImportState) -> Res
         // let mut path_to_import = root.join(imported_path);
         let mut path_to_import = imported_path.clone();
         path_to_import.set_extension("pipes");
+        if let Some(mut root) = import_state.project_root.clone() {
+            root.push(path_to_import);
+            path_to_import = root;
+        }
         let source_code = SourceCode::new(path_to_import)?;
         let file = source_code.file.clone();
         let tokens = lex(source_code)?;
@@ -196,6 +219,8 @@ fn track_identifiers_recursive_chain(
         }
         track_identifiers_recursive(operand, import_state)?;
     }
+
+    // unregister assignments done by this chain
     for assignment in identifiers_defined_in_this_chain.into_iter().rev() {
         let mut index = import_state.assignments.len() - 1;
         for imported_assignment in import_state.assignments.iter().rev() {
