@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use strum::IntoEnumIterator;
 
@@ -10,24 +10,36 @@ use crate::frontend::expression::{
 };
 use crate::frontend::lexer::{lex, Operator};
 use crate::frontend::location::SourceCode;
-use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser, qualify};
+use crate::frontend::parser::reverse_iterative_parser::{
+    parse_tokens_cached, parse_tokens_cached_inner, qualify, Parser,
+};
 
 /// Adds imported identifiers to the parser.identifiers parameter
-pub fn import(main: &Expression, parser: &mut Parser) -> Result<(), AnyError> {
-    let mut import_state = ImportState::new(parser.file.clone(), parser.root.clone());
-    std::mem::swap(&mut import_state.imported, &mut parser.exported);
-    // std::mem::swap(&mut import_state.public_identifiers, &mut parser.publi);
+pub fn import(
+    main: &mut Expression,
+    parser: &mut Parser,
+) -> Result<HashMap<String, Expression>, AnyError> {
     let context_str = if let Some(path) = parser.file.as_ref() {
         format!("Import dependencies for {}", path.to_string_lossy())
     } else {
         "Import".to_string()
     };
+    let mut import_state = ImportState::new(parser.file.clone(), parser.root.clone());
+    import_state.available = parser.exported.keys().cloned().collect();
+    import_state
+        .available
+        .extend(parser.available.iter().cloned());
+    for (_name, public_exported) in &mut parser.exported {
+        let _ = context(
+            context_str.clone(),
+            track_identifiers_recursive(public_exported, &mut import_state),
+        )?;
+    }
     let _ = context(
-        context_str,
-        track_identifiers_recursive(&main, &mut import_state),
+        context_str.clone(),
+        track_identifiers_recursive(main, &mut import_state),
     )?;
-    std::mem::swap(&mut parser.exported, &mut import_state.imported);
-    Ok(())
+    Ok(import_state.imported)
 }
 
 struct ImportState {
@@ -35,6 +47,7 @@ struct ImportState {
     intrinsic_names: Vec<String>,
     assignments: Vec<String>,
     imported: HashMap<String, Expression>,
+    available: HashSet<String>,
     project_root: Option<PathBuf>,
     file: Option<PathBuf>,
 }
@@ -43,7 +56,7 @@ impl ImportState {
     pub fn new(file: Option<PathBuf>, root: Option<PathBuf>) -> Self {
         Self::new_with_identifiers(file, root, HashMap::new())
     }
-    pub fn new_with_identifiers(
+    fn new_with_identifiers(
         file: Option<PathBuf>,
         project_root: Option<PathBuf>,
         imported: HashMap<String, Expression>,
@@ -55,13 +68,14 @@ impl ImportState {
                 .collect(),
             assignments: Vec::new(),
             imported,
+            available: HashSet::new(),
             project_root,
             file,
         }
     }
 }
 fn track_identifiers_recursive(
-    expression: &Expression,
+    expression: &mut Expression,
     import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
     match expression {
@@ -126,37 +140,49 @@ fn track_identifiers_recursive_type(
     Ok(())
 }
 
-fn check_identifier(identifier: &String, import_state: &mut ImportState) -> Result<(), AnyError> {
+fn check_identifier(
+    identifier: &mut String,
+    import_state: &mut ImportState,
+) -> Result<(), AnyError> {
     if !import_state.parameter_stack.contains(identifier)
         && !import_state.intrinsic_names.contains(identifier)
     {
-        let assignment_nested_count = import_state.assignments.iter().filter(|e| *e == identifier).count();
-        if assignment_nested_count == 0 &&  !import_state.imported.contains_key(identifier) {
-            // && !import_state.assignments.contains(identifier)
-            // &&
-            // {
+        let assignment_nested_count = import_state
+            .assignments
+            .iter()
+            .filter(|e| *e == identifier)
+            .count();
+        if assignment_nested_count == 0
+            && !import_state.imported.contains_key(identifier)
+            && !import_state.available.contains(identifier)
+        {
             import_identifier(identifier, import_state)?;
             if !import_state.imported.contains_key(identifier) {
                 err(format!(
-                    "identifier '{}' not found. Available: {:?}",
+                    "identifier '{}' not found in scope for file {:?}. Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
+                        Assignments: {:?}\n  Exported from this file: {:?}\n  Imported from other files: {:?}",
                     identifier,
+                    import_state.file,
+                    import_state.parameter_stack,
+                    import_state.intrinsic_names,
+                    import_state.assignments,
+                    import_state.available,
                     import_state.imported.keys()
                 ))
             } else {
                 Ok(())
             }
-        } else if assignment_nested_count == 1{
-            if let (Some(root), Some(file)) = (import_state.project_root.as_ref(), import_state.file.as_ref()) {
-            let qualified = qualify(identifier, root, file)?;
-            if import_state.imported.contains_key(&qualified) {
-                identifier = qualified;
-                Ok(())
-            } else {
-                Ok(())
+        } else if assignment_nested_count == 1 {
+            if let (Some(root), Some(file)) = (
+                import_state.project_root.as_ref(),
+                import_state.file.as_ref(),
+            ) {
+                let qualified = qualify(identifier, root, file)?;
+                if import_state.imported.contains_key(&qualified) {
+                    *identifier = qualified;
+                }
             }
-            } else {
-                Ok(())
-            }
+            Ok(())
         } else {
             Ok(())
         }
@@ -184,13 +210,13 @@ fn import_identifier(identifier: &String, import_state: &mut ImportState) -> Res
         let source_code = SourceCode::new(path_to_import)?;
         let file = source_code.file.clone();
         let tokens = lex(source_code)?;
-        let parser = Parser::new_with_exports(
-            file,
-            std::mem::take(&mut import_state.imported),
-            import_state.project_root.clone(),
-        );
-        let mut program = parse_tokens_cached(tokens.tokens, parser)?;
-        import_state.imported = std::mem::take(&mut program.identifiers);
+        let mut available: HashSet<String> = import_state.imported.keys().cloned().collect();
+        available.extend(import_state.available.clone());
+        let parser = Parser::new_with_available(file, available, import_state.project_root.clone());
+        let mut program = parse_tokens_cached_inner(tokens.tokens, parser)?;
+        import_state
+            .imported
+            .extend(std::mem::take(&mut program.exported));
         Ok(())
     }
 }
@@ -198,7 +224,7 @@ fn import_identifier(identifier: &String, import_state: &mut ImportState) -> Res
 fn track_identifiers_recursive_scope(
     import_state: &mut ImportState,
     parameter: &TypedIdentifier,
-    body: &Chain,
+    body: &mut Chain,
 ) -> Result<(), AnyError> {
     import_state.parameter_stack.push(parameter.name.clone());
     let res = track_identifiers_recursive_chain(body, import_state);
@@ -207,15 +233,15 @@ fn track_identifiers_recursive_scope(
 }
 
 fn track_identifiers_recursive_chain(
-    chain: &Chain,
+    chain: &mut Chain,
     import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
-    track_identifiers_recursive(chain.initial.as_ref(), import_state)?;
+    track_identifiers_recursive(chain.initial.as_mut(), import_state)?;
     let mut identifiers_defined_in_this_chain = Vec::new();
-    for Transformation { operator, operand } in &chain.transformations {
-        if let (Operator::Assignment, Expression::Identifier(name)) = (operator, operand) {
+    for Transformation { operator, operand } in &mut chain.transformations {
+        if let (Operator::Assignment, Expression::Identifier(name)) = (operator, operand.clone()) {
             identifiers_defined_in_this_chain.push(name.clone());
-            import_state.assignments.push(name.clone())
+            import_state.assignments.push(name)
         }
         track_identifiers_recursive(operand, import_state)?;
     }

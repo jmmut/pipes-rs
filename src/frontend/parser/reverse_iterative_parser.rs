@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 
 use crate::common::{context, err, AnyError};
@@ -10,12 +10,19 @@ use crate::frontend::expression::{
 use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::get_project_root;
-use crate::frontend::program::Program;
+use crate::frontend::program::{IncompleteProgram, Program};
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
 }
-pub fn parse_tokens_cached(tokens: Tokens, mut ast: Parser) -> Result<Program, AnyError> {
+pub fn parse_tokens_cached(tokens: Tokens, ast: Parser) -> Result<Program, AnyError> {
+    Ok(parse_tokens_cached_inner(tokens, ast)?.into())
+}
+
+pub fn parse_tokens_cached_inner(
+    tokens: Tokens,
+    mut ast: Parser,
+) -> Result<IncompleteProgram, AnyError> {
     for token in tokens.into_iter().rev() {
         match token {
             Token::Number(n) => ast.push(Expression::Value(n)),
@@ -42,8 +49,8 @@ pub fn parse_tokens_cached(tokens: Tokens, mut ast: Parser) -> Result<Program, A
 
 pub struct Parser {
     pub accumulated: VecDeque<PartialExpression>,
-    pub identifiers: HashMap<String, IdentifierValue>,
     pub exported: HashMap<String, IdentifierValue>,
+    pub available: HashSet<String>,
     pub file: Option<PathBuf>,
     pub root: Option<PathBuf>,
 }
@@ -54,17 +61,17 @@ pub type IdentifierValue = Expression;
 impl Parser {
     pub fn new(file_opt: Option<PathBuf>) -> Self {
         let root = get_project_root(&None, &file_opt);
-        Self::new_with_exports(file_opt, HashMap::new(), root.ok()) // TODO: .ok() loses error message
+        Self::new_with_available(file_opt, HashSet::new(), root.ok()) // TODO: .ok() loses error message
     }
-    pub fn new_with_exports(
+    pub fn new_with_available(
         file: Option<PathBuf>,
-        exported: HashMap<String, IdentifierValue>,
+        available: HashSet<String>,
         root: Option<PathBuf>,
     ) -> Self {
         Self {
             accumulated: VecDeque::new(),
-            identifiers: HashMap::new(),
-            exported,
+            exported: HashMap::new(),
+            available,
             file,
             root,
         }
@@ -287,20 +294,23 @@ fn construct_branch(
 fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
     let elem = parser.accumulated.pop_front();
     if let Some(PartialExpression::Expression(expr)) = elem {
-        let elem = parser.accumulated.get(0);
+        let elem = parser.accumulated.pop_front();
         if let Some(PartialExpression::Transformation(Transformation {
             operator: Operator::Assignment,
             operand: Expression::Identifier(name),
         })) = elem
         {
-            parser.identifiers.insert(name.clone(), expr.clone());
-            if let (Some(root), Some(file)) = (parser.root.as_ref(), parser.file.as_ref()) {
-                let qualified = qualify(name, root, file)?;
-                parser
-                    .exported
-                    .insert(qualified, expr.clone());
-            }
-            Ok(PartialExpression::Expression(expr))
+            // parser.identifiers.insert(name.clone(), expr);
+            let qualified =
+                if let (Some(root), Some(file)) = (parser.root.as_ref(), parser.file.as_ref()) {
+                    qualify(&name, root, file)?
+                } else {
+                    name
+                };
+            parser.exported.insert(qualified.clone(), expr);
+            Ok(PartialExpression::Expression(Expression::Identifier(
+                qualified,
+            )))
         } else {
             error_expected(
                 "assignment and identifier after 'public <expression>'",
@@ -314,8 +324,8 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
 
 pub fn qualify(identifier: &str, root: &PathBuf, file: &PathBuf) -> Result<String, AnyError> {
     let mut file_copy = file.clone();
-    let mut namespace = file_copy.strip_prefix(root)?;
-    namespace.with_extension("");
+    file_copy.set_extension("");
+    let namespace = file_copy.strip_prefix(root)?;
     let namespace_str = namespace.to_string_lossy();
     let qualified = format!("{}/{}", namespace_str, identifier);
     Ok(qualified)
@@ -413,9 +423,9 @@ pub fn construct_string(string: Vec<u8>) -> PartialExpression {
     PartialExpression::Expression(Expression::StaticList { elements })
 }
 
-fn finish_construction(mut parser: Parser) -> Result<Program, AnyError> {
+fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {
     let accumulated = &mut parser.accumulated;
-    let main = if accumulated.len() <= 1 {
+    let mut main = if accumulated.len() <= 1 {
         match accumulated.pop_front() {
             Some(PartialExpression::Expression(e)) => e,
             None => Expression::Nothing,
@@ -435,10 +445,12 @@ fn finish_construction(mut parser: Parser) -> Result<Program, AnyError> {
         }
     };
 
-    import(&main, &mut parser)?;
+    let imported = import(&mut main, &mut parser)?;
+    parser.exported.extend(imported);
 
-    Ok(Program {
+    Ok(IncompleteProgram {
         main,
-        identifiers: parser.exported,
+        exported: parser.exported,
+        available: parser.available,
     })
 }

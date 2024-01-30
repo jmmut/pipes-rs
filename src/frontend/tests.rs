@@ -166,6 +166,8 @@ fn assert_eq_ast(code: &str, ast: &str) {
     assert_eq!(parsed.unwrap(), expected);
 }
 
+
+
 #[test]
 fn test_import() {
     let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
