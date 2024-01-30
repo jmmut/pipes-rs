@@ -10,9 +10,8 @@ use crate::frontend::expression::{
 };
 use crate::frontend::lexer::{lex, Operator};
 use crate::frontend::location::SourceCode;
-use crate::frontend::parser::reverse_iterative_parser::{
-    parse_tokens_cached, parse_tokens_cached_inner, qualify, Parser,
-};
+use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
+use crate::frontend::parser::root::qualify;
 
 /// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(

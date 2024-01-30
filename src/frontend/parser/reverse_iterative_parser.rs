@@ -9,7 +9,7 @@ use crate::frontend::expression::{
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
-use crate::frontend::parser::root::get_project_root;
+use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
@@ -320,15 +320,6 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
     } else {
         error_expected("expression after 'public'", elem)
     }
-}
-
-pub fn qualify(identifier: &str, root: &PathBuf, file: &PathBuf) -> Result<String, AnyError> {
-    let mut file_copy = file.clone();
-    file_copy.set_extension("");
-    let namespace = file_copy.strip_prefix(root)?;
-    let namespace_str = namespace.to_string_lossy();
-    let qualified = format!("{}/{}", namespace_str, identifier);
-    Ok(qualified)
 }
 
 fn construct_chain(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {

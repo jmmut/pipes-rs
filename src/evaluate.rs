@@ -167,19 +167,22 @@ impl<R: Read, W: Write> Runtime<R, W> {
     }
 
     fn get_identifier(&self, name: &String) -> Result<GenericValue, AnyError> {
-        let bindings = if let Some(value) = self.identifiers.get(name) {
-            value
+        let value_opt = self
+            .identifiers
+            .get(name)
+            .and_then(|binding_stack| binding_stack.last());
+        if let Some(value) = value_opt {
+            Ok(*value)
         } else {
             self.static_identifiers.get(name)
                 .ok_or_else(|| {
                     // put here your breakpoints
                     format!("Bug: Undefined identifier '{}'. This should have been detected by earlier stages.", name)
                 })?
-        };
-        bindings
-            .last()
-            .cloned()
-            .ok_or_else(|| format!("Bug: Identifier '{}' is not bound to any value", name).into())
+                .last()
+                .cloned()
+                .ok_or_else(|| format!("Bug: Identifier '{}' is not bound to any value", name).into())
+        }
     }
 
     fn get_list(&self, list_pointer: ListPointer) -> Result<&Vec<GenericValue>, AnyError> {

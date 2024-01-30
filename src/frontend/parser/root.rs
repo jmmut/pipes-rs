@@ -37,25 +37,29 @@ pub fn get_project_root(
 
 /// Both PathBuf parameters must be pre-canonicalized, or have enough parent folders to cover the
 /// project root.
-pub fn add_namespace(
+#[allow(unused)]
+pub fn maybe_qualify(
     bare_name: &str,
     containing_file: &Option<PathBuf>,
     root_folder: &Option<PathBuf>,
 ) -> Result<String, AnyError> {
     Ok(match (containing_file, root_folder) {
-        (Some(file), Some(root)) => {
-            let mut file_copy = file.clone();
-            file_copy.set_extension("");
-            let namespace = file_copy.strip_prefix(root)?;
-            let namespace_str = namespace.to_string_lossy();
-            format!("{}/{}", namespace_str, bare_name)
-        }
+        (Some(file), Some(root)) => qualify(bare_name, root, file)?,
         (Some(file), None) => {
             let namespace = file.file_stem().unwrap();
             format!("{}/{}", namespace.to_string_lossy(), bare_name)
         }
         (None, Some(_)) | (None, None) => bare_name.to_string(),
     })
+}
+
+pub fn qualify(identifier: &str, root: &PathBuf, file: &PathBuf) -> Result<String, AnyError> {
+    let mut file_copy = file.clone();
+    file_copy.set_extension("");
+    let namespace = file_copy.strip_prefix(root)?;
+    let namespace_str = namespace.to_string_lossy();
+    let qualified = format!("{}/{}", namespace_str, identifier);
+    Ok(qualified)
 }
 
 #[cfg(test)]
@@ -67,7 +71,7 @@ mod tests {
         let bare_name = "func";
         let containing_file = None;
         let root = None;
-        let namespaced_name = add_namespace(bare_name, &containing_file, &root);
+        let namespaced_name = maybe_qualify(bare_name, &containing_file, &root);
         assert_eq!(namespaced_name.unwrap(), bare_name);
     }
 
@@ -76,7 +80,7 @@ mod tests {
         let bare_name = "func";
         let containing_file = Some(PathBuf::from("some_folder/some_file.pipes"));
         let root = None;
-        let namespaced_name = add_namespace(bare_name, &containing_file, &root);
+        let namespaced_name = maybe_qualify(bare_name, &containing_file, &root);
         assert_eq!(
             namespaced_name.unwrap(),
             format!("{}/{}", "some_file", bare_name)
@@ -88,7 +92,7 @@ mod tests {
         let bare_name = "func";
         let containing_file = None;
         let root = Some(PathBuf::from("some_folder/project/"));
-        let namespaced_name = add_namespace(bare_name, &containing_file, &root);
+        let namespaced_name = maybe_qualify(bare_name, &containing_file, &root);
         assert_eq!(namespaced_name.unwrap(), bare_name);
     }
 
@@ -97,7 +101,7 @@ mod tests {
         let bare_name = "func";
         let containing_file = Some(PathBuf::from("parent/project/subfolder/some_file.pipes"));
         let root = Some(PathBuf::from("parent/project/"));
-        let namespaced_name = add_namespace(bare_name, &containing_file, &root);
+        let namespaced_name = maybe_qualify(bare_name, &containing_file, &root);
         assert_eq!(
             namespaced_name.unwrap(),
             format!("{}/{}", "subfolder/some_file", bare_name)
