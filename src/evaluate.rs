@@ -118,11 +118,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut runtime = Self::new(read_input, print_output);
         for (name, expression) in program.identifiers {
             let value = context("Runtime setup", runtime.evaluate_recursive(&expression))?;
-            runtime
-                .identifiers
-                .entry(name)
-                .or_insert(Vec::new())
-                .push(value);
+            runtime.bind_identifier(name, value);
         }
         context("Runtime", runtime.evaluate_recursive(&program.main))
     }
@@ -248,6 +244,13 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
     }
 
+    fn bind_identifier(&mut self, identifier: String, value: GenericValue) {
+        self.identifiers
+            .entry(identifier)
+            .or_insert(Vec::new())
+            .push(value);
+    }
+
     fn call_callable(&mut self, argument: i64, callable: &Expression) -> Result<i64, AnyError> {
         match callable {
             Expression::Identifier(function_name) => {
@@ -320,10 +323,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         let mut identifiers_inside = closure.clone().to_identifiers();
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
-        self.identifiers
-            .entry(parameter.name.clone())
-            .or_insert(Vec::new())
-            .push(argument);
+        self.bind_identifier(parameter.name.clone(), argument);
 
         let result = self.evaluate_chain(body)?;
 
@@ -339,10 +339,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let list = self.get_list(argument)?.clone();
         let default_result = NOTHING;
         for value in list {
-            self.identifiers
-                .entry(iteration_elem.name.clone())
-                .or_insert(Vec::new())
-                .push(value);
+            self.bind_identifier(iteration_elem.name.clone(), value);
             let result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
@@ -376,10 +373,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }: &Times,
     ) -> Result<i64, AnyError> {
         for value in 0..argument {
-            self.identifiers
-                .entry(iteration_elem.name.clone())
-                .or_insert(Vec::new())
-                .push(value);
+            self.bind_identifier(iteration_elem.name.clone(), value);
             let _unused_result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
@@ -396,10 +390,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }: &TimesOr,
     ) -> Result<i64, AnyError> {
         for value in 0..argument {
-            self.identifiers
-                .entry(iteration_elem.name.clone())
-                .or_insert(Vec::new())
-                .push(value);
+            self.bind_identifier(iteration_elem.name.clone(), value);
             let result = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
@@ -419,10 +410,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         let mut list = self.get_list(argument)?.clone();
         for value in &mut list {
-            self.identifiers
-                .entry(iteration_elem.name.clone())
-                .or_insert(Vec::new())
-                .push(*value);
+            self.bind_identifier(iteration_elem.name.clone(), *value);
             *value = self.evaluate_chain(&body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
@@ -441,10 +429,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut list = self.get_list(argument)?.clone();
         let mut new_list = Vec::new();
         for value in &mut list {
-            self.identifiers
-                .entry(iteration_elem.name.clone())
-                .or_insert(Vec::new())
-                .push(*value);
+            self.bind_identifier(iteration_elem.name.clone(), *value);
             new_list.push(self.evaluate_chain(&body)?);
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
@@ -545,10 +530,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<(), AnyError> {
         match operand {
             Expression::Identifier(name) => {
-                self.identifiers
-                    .entry(name.clone())
-                    .or_insert(Vec::new())
-                    .push(accumulated);
+                self.bind_identifier(name.clone(), accumulated);
                 *identifiers.entry(name.clone()).or_insert(0) += 1;
                 Ok(())
             }
