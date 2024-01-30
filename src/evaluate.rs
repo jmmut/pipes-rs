@@ -171,7 +171,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn get_identifier(&self, name: &String) -> Result<GenericValue, AnyError> {
         self.identifiers
             .get(name)
-            .ok_or_else(|| format!("Bug: Undefined identifier {}. This should have been detected by earlier stages.", name))?
+            .ok_or_else(||{
+                // put here your breakpoints
+                format!("Bug: Undefined identifier '{}'. This should have been detected by earlier stages.", name)
+            })?
             .last()
             .cloned()
             .ok_or_else(|| format!("Bug: Identifier '{}' is not bound to any value", name).into())

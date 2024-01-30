@@ -39,6 +39,7 @@ pub fn import(
         context_str.clone(),
         track_identifiers_recursive(main, &mut import_state),
     )?;
+    // println!("after importing: {:#?}", import_state.imported);
     Ok(import_state.imported)
 }
 
@@ -157,7 +158,9 @@ fn check_identifier(
             && !import_state.available.contains(identifier)
         {
             import_identifier(identifier, import_state)?;
-            if !import_state.imported.contains_key(identifier) {
+            if !import_state.imported.contains_key(identifier)
+                && !import_state.available.contains(identifier)
+            {
                 err(format!(
                     "identifier '{}' not found in scope for file {:?}. Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
                         Assignments: {:?}\n  Exported from this file: {:?}\n  Imported from other files: {:?}",
@@ -192,11 +195,27 @@ fn check_identifier(
 }
 
 /// Adds imported identifiers into import_state.imported
-fn import_identifier(identifier: &String, import_state: &mut ImportState) -> Result<(), AnyError> {
+fn import_identifier(
+    identifier: &mut String,
+    import_state: &mut ImportState,
+) -> Result<(), AnyError> {
     // let root = import_state.project_root?;
-    let mut paths = identifier.split('/').collect::<Vec<_>>();
+    let mut paths = identifier
+        .split('/')
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
     if paths.len() < 2 {
-        err(format!("undefined identifier '{}'", identifier))
+        if let (Some(root), Some(file)) = (
+            import_state.project_root.as_ref(),
+            import_state.file.as_ref(),
+        ) {
+            // assuming the un-qualified name was defined in the same file as where the identifier was used.
+            // no need to import in that case
+            *identifier = qualify(identifier, root, file)?;
+            Ok(())
+        } else {
+            err(format!("undefined identifier '{}'", identifier))
+        }
     } else {
         let _function_name = paths.pop().unwrap();
         let imported_path = PathBuf::from_iter(paths.into_iter());

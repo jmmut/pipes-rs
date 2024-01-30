@@ -1,10 +1,14 @@
 pub type AnyError = Box<dyn std::error::Error>;
 
 pub fn context<T, S: AsRef<str>>(module: S, result: Result<T, AnyError>) -> Result<T, AnyError> {
-    result.map_err(|error| format!("{}: {error}", module.as_ref()).into())
+    result.map_err(|error| {
+        // place your breakpoints here
+        format!("{}: {error}", module.as_ref()).into()
+    })
 }
 
 pub fn err<T, S: AsRef<str>>(error_message: S) -> Result<T, AnyError> {
+    // place your breakpoints here
     Err(error_message.as_ref().into())
 }
 
