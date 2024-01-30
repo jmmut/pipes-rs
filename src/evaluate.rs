@@ -24,6 +24,7 @@ pub struct Runtime<R: Read, W: Write> {
     lists: HashMap<ListPointer, Vec<GenericValue>>,
     functions: Vec<Rc<FunctionOrIntrinsic>>,
     identifiers: HashMap<String, BindingsStack>,
+    static_identifiers: HashMap<String, BindingsStack>,
     read_input: R,
     print_output: W,
 }
@@ -118,17 +119,18 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut runtime = Self::new(read_input, print_output);
         for (name, expression) in program.identifiers {
             let value = context("Runtime setup", runtime.evaluate_recursive(&expression))?;
-            runtime.bind_identifier(name, value);
+            runtime.bind_static_identifier(name, value);
         }
         context("Runtime", runtime.evaluate_recursive(&program.main))
     }
 
     fn new(read_input: R, print_output: W) -> Runtime<R, W> {
-        let (identifiers, functions) = Self::build_intrinsics();
+        let (static_identifiers, functions) = Self::build_intrinsics();
         Runtime {
             lists: HashMap::new(),
             functions,
-            identifiers,
+            identifiers: HashMap::new(),
+            static_identifiers,
             read_input,
             print_output,
         }
@@ -165,12 +167,16 @@ impl<R: Read, W: Write> Runtime<R, W> {
     }
 
     fn get_identifier(&self, name: &String) -> Result<GenericValue, AnyError> {
-        self.identifiers
-            .get(name)
-            .ok_or_else(||{
-                // put here your breakpoints
-                format!("Bug: Undefined identifier '{}'. This should have been detected by earlier stages.", name)
-            })?
+        let bindings = if let Some(value) = self.identifiers.get(name) {
+            value
+        } else {
+            self.static_identifiers.get(name)
+                .ok_or_else(|| {
+                    // put here your breakpoints
+                    format!("Bug: Undefined identifier '{}'. This should have been detected by earlier stages.", name)
+                })?
+        };
+        bindings
             .last()
             .cloned()
             .ok_or_else(|| format!("Bug: Identifier '{}' is not bound to any value", name).into())
@@ -246,6 +252,12 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
     fn bind_identifier(&mut self, identifier: String, value: GenericValue) {
         self.identifiers
+            .entry(identifier)
+            .or_insert(Vec::new())
+            .push(value);
+    }
+    fn bind_static_identifier(&mut self, identifier: String, value: GenericValue) {
+        self.static_identifiers
             .entry(identifier)
             .or_insert(Vec::new())
             .push(value);
