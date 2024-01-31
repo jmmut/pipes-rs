@@ -25,15 +25,15 @@
 ;[60 70 80] #1 |to_str |print
 
 ;function(array) {
-    ["[ "]
+    "[ "
     =message
     ;array
     |loop(elem) {
-        message |map(m) {m ++ {elem |to_str} ++ " "}
+        message ++{elem |to_str} ++" " =>message
         ;
     }
-    ;message #0
-    ++ "]"
+    ;message
+    ++"]"
 }
 =int_array_to_str
 
