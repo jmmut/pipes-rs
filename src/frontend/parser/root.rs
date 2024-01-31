@@ -54,9 +54,10 @@ pub fn maybe_qualify(
 }
 
 pub fn qualify(identifier: &str, root: &PathBuf, file: &PathBuf) -> Result<String, AnyError> {
-    let mut file_copy = file.clone();
+    let mut file_copy = file.canonicalize()?.clone();
     file_copy.set_extension("");
-    let namespace = file_copy.strip_prefix(root)?;
+    let root_canonical = root.canonicalize()?;
+    let namespace = file_copy.strip_prefix(root_canonical)?;
     let namespace_str = namespace.to_string_lossy();
     let qualified = format!("{}/{}", namespace_str, identifier);
     Ok(qualified)
@@ -99,12 +100,12 @@ mod tests {
     #[test]
     fn test_add_namespace_with_file_with_root() {
         let bare_name = "func";
-        let containing_file = Some(PathBuf::from("parent/project/subfolder/some_file.pipes"));
-        let root = Some(PathBuf::from("parent/project/"));
+        let containing_file = Some(PathBuf::from("pipes_programs/demos/some_namespace/reusable_functions.pipes"));
+        let root = Some(PathBuf::from("pipes_programs/demos"));
         let namespaced_name = maybe_qualify(bare_name, &containing_file, &root);
         assert_eq!(
             namespaced_name.unwrap(),
-            format!("{}/{}", "subfolder/some_file", bare_name)
+            format!("{}/{}", "some_namespace/reusable_functions", bare_name)
         );
     }
 

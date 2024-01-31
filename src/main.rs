@@ -43,6 +43,7 @@ fn main() -> Result<(), AnyError> {
     Ok(())
 }
 fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result<(), AnyError> {
+    reset_sigpipe();
     let Args {
         code_string,
         input_file,
@@ -71,6 +72,19 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         println!("{}", result);
     }
     Ok(())
+}
+
+// https://stackoverflow.com/a/65760807/2375586
+#[cfg(unix)]
+fn reset_sigpipe() {
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn reset_sigpipe() {
+    // no-op
 }
 
 #[cfg(test)]

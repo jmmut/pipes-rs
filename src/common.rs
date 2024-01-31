@@ -12,6 +12,7 @@ pub fn err<T, S: AsRef<str>>(error_message: S) -> Result<T, AnyError> {
     Err(error_message.as_ref().into())
 }
 
+
 #[cfg(test)]
 pub fn assert_mentions(err: AnyError, mentions: &[&str]) {
     let err_message = err.to_string().to_ascii_lowercase();

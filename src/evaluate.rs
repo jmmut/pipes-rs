@@ -94,6 +94,7 @@ pub mod intrinsics {
         ToStr,
         NewArray,
         Size,
+        Breakpoint
     }
     impl Intrinsic {
         pub fn name(&self) -> &'static str {
@@ -105,6 +106,7 @@ pub mod intrinsics {
                 Intrinsic::ToStr => "to_str",
                 Intrinsic::NewArray => "new_array",
                 Intrinsic::Size => "size",
+                Intrinsic::Breakpoint => "breakpoint",
             }
         }
     }
@@ -464,7 +466,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Intrinsic::ReadChar => {
                 let one_byte_buffer: &mut [u8] = &mut [0; 1];
                 self.read_input.read_exact(one_byte_buffer)?;
-                Ok(one_byte_buffer[0] as i64)
+                Ok(one_byte_buffer[0] as GenericValue)
             }
             Intrinsic::Print => {
                 match self.lists.get(&argument) {
@@ -509,7 +511,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
             Intrinsic::Size => {
                 let list = self.get_list(argument)?;
-                Ok(list.len() as i64)
+                Ok(list.len() as GenericValue)
+            }
+            Intrinsic::Breakpoint => {
+                Ok(argument)
             }
         }
     }

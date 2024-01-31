@@ -162,7 +162,7 @@ fn check_identifier(
             {
                 err(format!(
                     "identifier '{}' not found in scope for file {:?}. Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
-                        Assignments: {:?}\n  Exported from this file: {:?}\n  Imported from other files: {:?}",
+                        Assignments: {:?}\n  Available to this file: {:?}\n  Imported by this file: {:?}",
                     identifier,
                     import_state.file,
                     import_state.parameter_stack,
