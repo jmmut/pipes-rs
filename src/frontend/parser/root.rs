@@ -1,4 +1,4 @@
-use crate::common::{err, AnyError};
+use crate::common::AnyError;
 use std::path::PathBuf;
 
 const PIPES_ROOT_FILENAME: &'static str = "pipes_root.toml";
@@ -12,7 +12,7 @@ pub fn get_project_root(
     } else {
         let mut current_file_abs = current_file.clone().unwrap_or(PathBuf::from("."));
         current_file_abs = current_file_abs.canonicalize()?;
-        let current_file_abs_copy = current_file_abs.clone();
+        let mut current_file_abs_copy = current_file_abs.clone();
         let mut root_opt = None;
         while current_file_abs.pop() {
             current_file_abs.push(PIPES_ROOT_FILENAME);
@@ -26,11 +26,8 @@ pub fn get_project_root(
         if let Some(root) = root_opt {
             Ok(root)
         } else {
-            err(format!(
-                "File '{}' not found in a parent folder from '{}'. Needed to import identifiers",
-                PIPES_ROOT_FILENAME,
-                current_file_abs_copy.to_string_lossy()
-            ))
+            current_file_abs_copy.pop();
+            Ok(current_file_abs_copy)
         }
     }
 }
