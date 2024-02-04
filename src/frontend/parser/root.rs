@@ -97,7 +97,9 @@ mod tests {
     #[test]
     fn test_add_namespace_with_file_with_root() {
         let bare_name = "func";
-        let containing_file = Some(PathBuf::from("pipes_programs/demos/some_namespace/reusable_functions.pipes"));
+        let containing_file = Some(PathBuf::from(
+            "pipes_programs/demos/some_namespace/reusable_functions.pipes",
+        ));
         let root = Some(PathBuf::from("pipes_programs/demos"));
         let namespaced_name = maybe_qualify(bare_name, &containing_file, &root);
         assert_eq!(

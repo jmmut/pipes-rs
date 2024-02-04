@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics;
 use crate::frontend::expression::{
-    Branch, Chain, Expression, Function, Loop, LoopOr, Map, Replace, Times, TimesOr,
+    Branch, Chain, Composed, Expression, Function, Loop, LoopOr, Map, Replace, Times, TimesOr,
     Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::{lex, Operator};
@@ -93,39 +93,39 @@ fn track_identifiers_recursive(
         Expression::Function(Function { parameter, body }) => {
             track_identifiers_recursive_scope(import_state, parameter, body)
         }
-        Expression::Loop(Loop {
+        Expression::Composed(Composed::Loop(Loop {
             iteration_elem,
             body,
-        }) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
-        Expression::LoopOr(LoopOr {
-            iteration_elem,
-            body,
-            otherwise,
-        }) => {
-            track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
-            track_identifiers_recursive_scope(import_state, iteration_elem, otherwise)
-        }
-        Expression::Times(Times {
-            iteration_elem,
-            body,
-        }) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
-        Expression::TimesOr(TimesOr {
+        })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        Expression::Composed(Composed::LoopOr(LoopOr {
             iteration_elem,
             body,
             otherwise,
-        }) => {
+        })) => {
             track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
             track_identifiers_recursive_scope(import_state, iteration_elem, otherwise)
         }
-        Expression::Replace(Replace {
+        Expression::Composed(Composed::Times(Times {
             iteration_elem,
             body,
-        }) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
-        Expression::Map(Map {
+        })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        Expression::Composed(Composed::TimesOr(TimesOr {
             iteration_elem,
             body,
-        }) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
-        Expression::Branch(Branch { yes, no }) => {
+            otherwise,
+        })) => {
+            track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
+            track_identifiers_recursive_scope(import_state, iteration_elem, otherwise)
+        }
+        Expression::Composed(Composed::Replace(Replace {
+            iteration_elem,
+            body,
+        })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        Expression::Composed(Composed::Map(Map {
+            iteration_elem,
+            body,
+        })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        Expression::Composed(Composed::Branch(Branch { yes, no })) => {
             track_identifiers_recursive_chain(yes, import_state)?;
             track_identifiers_recursive_chain(no, import_state)
         }

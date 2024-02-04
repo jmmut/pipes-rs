@@ -16,6 +16,11 @@ pub enum Expression {
     Chain(Chain),
     StaticList { elements: Expressions },
     Function(Function),
+    Composed(Composed),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum Composed {
     Loop(Loop),
     LoopOr(LoopOr),
     Times(Times),
@@ -42,47 +47,47 @@ impl Expression {
     }
     #[allow(unused)]
     pub fn loop_(elem: TypedIdentifier, body: Chain) -> Self {
-        Self::Loop(Loop {
+        Self::Composed(Composed::Loop(Loop {
             iteration_elem: elem,
             body,
-        })
+        }))
     }
     #[allow(unused)]
     pub fn loop_or(elem: TypedIdentifier, body: Chain, otherwise: Chain) -> Self {
-        Self::LoopOr(LoopOr {
+        Self::Composed(Composed::LoopOr(LoopOr {
             iteration_elem: elem,
             body,
             otherwise,
-        })
+        }))
     }
     #[allow(unused)]
     pub fn times(elem: TypedIdentifier, body: Chain) -> Self {
-        Self::Times(Times {
+        Self::Composed(Composed::Times(Times {
             iteration_elem: elem,
             body,
-        })
+        }))
     }
     #[allow(unused)]
     pub fn times_or(elem: TypedIdentifier, body: Chain, otherwise: Chain) -> Self {
-        Self::TimesOr(TimesOr {
+        Self::Composed(Composed::TimesOr(TimesOr {
             iteration_elem: elem,
             body,
             otherwise,
-        })
+        }))
     }
     #[allow(unused)]
     pub fn replace(elem: TypedIdentifier, body: Chain) -> Self {
-        Self::Replace(Replace {
+        Self::Composed(Composed::Replace(Replace {
             iteration_elem: elem,
             body,
-        })
+        }))
     }
     #[allow(unused)]
     pub fn map(elem: TypedIdentifier, body: Chain) -> Self {
-        Self::Map(Map {
+        Self::Composed(Composed::Map(Map {
             iteration_elem: elem,
             body,
-        })
+        }))
     }
 }
 
@@ -171,14 +176,11 @@ pub struct Chain {
 }
 
 impl Chain {
-    pub fn new(initial: Box<Expression>, transformations: Transformations) -> Self {
-        Self {
-            initial,
-            transformations,
-        }
-    }
     pub fn empty() -> Self {
-        Self::new(Box::new(Expression::Nothing), Vec::new())
+        Self {
+            initial: Box::new(Expression::Nothing),
+            transformations: Vec::new(),
+        }
     }
 }
 #[derive(PartialEq, Debug, Clone)]

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::common::{context, err, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
-    Branch, Chain, Expression, Transformation, Transformations, Type, TypedIdentifier,
+    Branch, Chain, Composed, Expression, Transformation, Transformations, Type, TypedIdentifier,
     TypedIdentifiers,
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
@@ -279,10 +279,9 @@ fn construct_branch(
     if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
         let elem = accumulated.pop_front();
         if let Some(PartialExpression::Expression(Expression::Chain(no))) = elem {
-            Ok(PartialExpression::Expression(Expression::Branch(Branch {
-                yes,
-                no,
-            })))
+            Ok(PartialExpression::Expression(Expression::Composed(
+                Composed::Branch(Branch { yes, no }),
+            )))
         } else {
             error_expected("chain for the branch negative case", elem)
         }

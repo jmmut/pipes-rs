@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Branch, Chain, Expression, Function, Loop, Transformation, Type, TypedIdentifier,
+    Branch, Chain, Composed, Expression, Function, Loop, Transformation, Type, TypedIdentifier,
     TypedIdentifiers,
 };
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, TokenizedSource};
@@ -225,7 +225,9 @@ fn construct_loop(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
     return if let Some(PartialExpression::Expression(Expression::Chain(chain))) = elem {
         match construct_loop_from_chain(accumulated, chain) {
             Ok(loop_) => {
-                accumulated.push(PartialExpression::Expression(Expression::Loop(loop_)));
+                accumulated.push(PartialExpression::Expression(Expression::Composed(
+                    Composed::Loop(loop_),
+                )));
                 Ok(())
             }
             Err((error, _chain)) => Err(error),
@@ -293,10 +295,9 @@ fn construct_branch(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyE
         if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
             let elem = accumulated.pop();
             if let Some(PartialExpression::Keyword(Keyword::Branch)) = elem {
-                accumulated.push(PartialExpression::Expression(Expression::Branch(Branch {
-                    yes,
-                    no,
-                })));
+                accumulated.push(PartialExpression::Expression(Expression::Composed(
+                    Composed::Branch(Branch { yes, no }),
+                )));
                 Ok(())
             } else {
                 error_expected("'branch' keyword", elem)

@@ -5,6 +5,7 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
+use crate::frontend::expression::Composed;
 use crate::frontend::expression::{
     Chain, Expression, Expressions, Function, Loop, LoopOr, Map, TimesOr, Transformation,
     TypedIdentifier,
@@ -94,7 +95,7 @@ pub mod intrinsics {
         ToStr,
         NewArray,
         Size,
-        Breakpoint
+        Breakpoint,
     }
     impl Intrinsic {
         pub fn name(&self) -> &'static str {
@@ -286,20 +287,30 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 function,
                 &Closure::new_from_current_scope(&self.identifiers),
             ),
-            Expression::Loop(Loop {
+            Expression::Composed(Composed::Loop(Loop {
                 iteration_elem,
                 body,
-            }) => self.call_loop_expression(argument, iteration_elem, body),
-            Expression::LoopOr(loop_or) => self.call_loop_or_expression(argument, loop_or),
-            Expression::Times(times) => self.call_times_expression(argument, times),
-            Expression::TimesOr(times_or) => self.call_times_or_expression(argument, times_or),
-            Expression::Replace(replace) => self.call_replace_expression(argument, replace),
-            Expression::Map(map) => self.call_map_expression(argument, map),
-            Expression::Branch(branch) => self.evaluate_chain(if argument != 0 {
-                &branch.yes
-            } else {
-                &branch.no
-            }),
+            })) => self.call_loop_expression(argument, iteration_elem, body),
+            Expression::Composed(Composed::LoopOr(loop_or)) => {
+                self.call_loop_or_expression(argument, loop_or)
+            }
+            Expression::Composed(Composed::Times(times)) => {
+                self.call_times_expression(argument, times)
+            }
+            Expression::Composed(Composed::TimesOr(times_or)) => {
+                self.call_times_or_expression(argument, times_or)
+            }
+            Expression::Composed(Composed::Replace(replace)) => {
+                self.call_replace_expression(argument, replace)
+            }
+            Expression::Composed(Composed::Map(map)) => self.call_map_expression(argument, map),
+            Expression::Composed(Composed::Branch(branch)) => {
+                self.evaluate_chain(if argument != 0 {
+                    &branch.yes
+                } else {
+                    &branch.no
+                })
+            }
             Expression::Chain(chain) => {
                 let function_pointer = self.evaluate_chain(chain)?;
                 self.call_function_pointer(argument, function_pointer)
@@ -513,9 +524,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 let list = self.get_list(argument)?;
                 Ok(list.len() as GenericValue)
             }
-            Intrinsic::Breakpoint => {
-                Ok(argument)
-            }
+            Intrinsic::Breakpoint => Ok(argument),
         }
     }
 

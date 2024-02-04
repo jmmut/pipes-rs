@@ -80,10 +80,10 @@ impl Parser {
                     Some(PartialExpression::OpenBrace) => {
                         return Self::attempt_construct_function(
                             accumulated,
-                            Chain::new(
-                                Box::new(operand),
-                                transformations.into_iter().collect::<Vec<_>>(),
-                            ),
+                            Chain {
+                                initial: Box::new(operand),
+                                transformations: transformations.into_iter().collect::<Vec<_>>(),
+                            },
                         );
                     }
                     None => {
