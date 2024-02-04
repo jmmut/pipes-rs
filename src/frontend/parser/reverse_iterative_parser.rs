@@ -11,6 +11,7 @@ use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
+use crate::typing::type_names;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
@@ -177,7 +178,22 @@ fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExp
 fn construct_function(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    construct_type_chain(accumulated, Expression::function, "function")
+    let elem = accumulated.pop_front();
+
+    let (parameter, elem) = extract_single_child_type(accumulated, elem);
+
+    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
+        Ok(PartialExpression::Expression(Expression::function(
+            parameter, body,
+        )))
+    } else {
+        if let Some(elem) = elem {
+            accumulated.push_front(elem);
+        }
+        Ok(PartialExpression::Expression(Expression::Identifier(
+            type_names::FUNCTION.to_string(), // TODO: make identifiers not always owning a string
+        )))
+    }
 }
 
 fn construct_loop(

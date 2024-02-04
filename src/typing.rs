@@ -14,6 +14,7 @@ pub mod type_names {
     pub const ARRAY: &'static str = "array";
     #[allow(unused)]
     pub const STRUCT: &'static str = "struct";
+    pub const FUNCTION: &'static str = "function";
     #[allow(unused)]
     pub const TYPE: &'static str = "type";
 }
