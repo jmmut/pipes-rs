@@ -83,7 +83,7 @@ fn track_identifiers_recursive(
         Expression::Value(_) => Ok(()),
         Expression::Identifier(name) => check_identifier(name, import_state),
         Expression::Type(type_) => track_identifiers_recursive_type(type_, import_state),
-        Expression::Chain(chain) => track_identifiers_recursive_chain(chain, import_state),
+        Expression::Chain(chain) => track_identifiers_recursive_chain(import_state, chain),
         Expression::StaticList { elements } => {
             for element in elements {
                 track_identifiers_recursive(element, import_state)?;
@@ -103,7 +103,7 @@ fn track_identifiers_recursive(
             otherwise,
         })) => {
             track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
-            track_identifiers_recursive_chain(otherwise, import_state)
+            track_identifiers_recursive_chain(import_state, otherwise)
         }
         Expression::Composed(Composed::Times(Times {
             iteration_elem,
@@ -115,7 +115,7 @@ fn track_identifiers_recursive(
             otherwise,
         })) => {
             track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
-            track_identifiers_recursive_chain(otherwise, import_state)
+            track_identifiers_recursive_chain(import_state, otherwise)
         }
         Expression::Composed(Composed::Replace(Replace {
             iteration_elem,
@@ -126,8 +126,8 @@ fn track_identifiers_recursive(
             body,
         })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
         Expression::Composed(Composed::Branch(Branch { yes, no })) => {
-            track_identifiers_recursive_chain(yes, import_state)?;
-            track_identifiers_recursive_chain(no, import_state)
+            track_identifiers_recursive_chain(import_state, yes)?;
+            track_identifiers_recursive_chain(import_state, no)
         }
         Expression::Composed(Composed::Something(Something {
             elem,
@@ -135,7 +135,7 @@ fn track_identifiers_recursive(
             nothing,
         })) => {
             track_identifiers_recursive_scope(import_state, elem, something)?;
-            track_identifiers_recursive_chain(nothing, import_state)
+            track_identifiers_recursive_chain(import_state, nothing)
         }
     }
 }
@@ -253,14 +253,14 @@ fn track_identifiers_recursive_scope(
     body: &mut Chain,
 ) -> Result<(), AnyError> {
     import_state.parameter_stack.push(parameter.name.clone());
-    let res = track_identifiers_recursive_chain(body, import_state);
+    let res = track_identifiers_recursive_chain(import_state, body);
     import_state.parameter_stack.pop();
     res
 }
 
 fn track_identifiers_recursive_chain(
-    chain: &mut Chain,
     import_state: &mut ImportState,
+    chain: &mut Chain,
 ) -> Result<(), AnyError> {
     track_identifiers_recursive(chain.initial.as_mut(), import_state)?;
     let mut identifiers_defined_in_this_chain = Vec::new();
