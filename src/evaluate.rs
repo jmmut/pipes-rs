@@ -965,4 +965,9 @@ mod tests {
         let code = SourceCode::new(main_path).unwrap();
         assert_eq!(interpret(code), 6);
     }
+
+    #[test]
+    fn test_something() {
+        assert_eq!(interpret("3 |something(n) {n} {5}"), 3);
+    }
 }
