@@ -103,7 +103,7 @@ fn track_identifiers_recursive(
             otherwise,
         })) => {
             track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
-            track_identifiers_recursive_scope(import_state, iteration_elem, otherwise)
+            track_identifiers_recursive_chain(otherwise, import_state)
         }
         Expression::Composed(Composed::Times(Times {
             iteration_elem,
@@ -115,7 +115,7 @@ fn track_identifiers_recursive(
             otherwise,
         })) => {
             track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
-            track_identifiers_recursive_scope(import_state, iteration_elem, otherwise)
+            track_identifiers_recursive_chain(otherwise, import_state)
         }
         Expression::Composed(Composed::Replace(Replace {
             iteration_elem,

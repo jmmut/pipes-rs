@@ -186,3 +186,10 @@ fn test_import() {
         }
     }
 }
+
+#[test]
+fn test_undefined_in_else() {
+    lex_and_parse("[]|loop_or(e) {} {e}").expect_err("should fail");
+    lex_and_parse("[]|times_or(e) {} {e}").expect_err("should fail");
+    lex_and_parse("0|something(e) {} {e}").expect_err("should fail");
+}
