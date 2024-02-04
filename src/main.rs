@@ -74,7 +74,9 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
     Ok(())
 }
 
-// https://stackoverflow.com/a/65760807/2375586
+/// Don't print an error message if our output could not be written to a (closed) pipe.
+/// This can happen if you do `cargo run | head`. The behaviour should be to die without printing
+/// any error. see https://stackoverflow.com/a/65760807/2375586
 #[cfg(unix)]
 fn reset_sigpipe() {
     unsafe {

@@ -120,10 +120,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         print_output: W,
     ) -> Result<GenericValue, AnyError> {
         let mut runtime = Self::new(read_input, print_output);
-        for (name, expression) in program.identifiers {
-            let value = context("Runtime setup", runtime.evaluate_recursive(&expression))?;
-            runtime.bind_static_identifier(name, value);
-        }
+        runtime.setup_constants(program.identifiers)?;
         context("Runtime", runtime.evaluate_recursive(&program.main))
     }
 
@@ -152,6 +149,37 @@ impl<R: Read, W: Write> Runtime<R, W> {
             i += 1;
         }
         (identifiers, functions)
+    }
+
+    fn setup_constants(
+        &mut self,
+        identifiers: HashMap<String, Expression>,
+    ) -> Result<(), AnyError> {
+        let mut identifiers_vec = identifiers.into_iter().collect::<Vec<_>>();
+        loop {
+            let mut failed = Vec::<(String, Expression)>::new();
+            let identifiers_count_previous = identifiers_vec.len();
+            for (name, expression) in identifiers_vec {
+                match context("Runtime setup", self.evaluate_recursive(&expression)) {
+                    Ok(value) => self.bind_static_identifier(name, value),
+                    Err(_) => {
+                        failed.push((name, expression));
+                    }
+                }
+            }
+            if failed.len() == 0 {
+                return Ok(());
+            }
+            if failed.len() == identifiers_count_previous {
+                let failed_names = failed.iter().map(|(n, _e)| n).collect::<Vec<_>>();
+                return err(format!(
+                    "it seems there are constants with cyclic dependencies. \
+                Program initialization failed for identifiers: {:?}",
+                    failed_names
+                ));
+            }
+            identifiers_vec = failed;
+        }
     }
 
     fn evaluate_recursive(&mut self, expression: &Expression) -> Result<GenericValue, AnyError> {
@@ -986,6 +1014,21 @@ mod tests {
         let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
         let code = SourceCode::new(main_path).unwrap();
         assert_eq!(interpret(code), 6);
+    }
+    #[test]
+    fn test_evaluate_import_fileless() {
+        assert_eq!(
+            interpret("5 |pipes_programs/demos/some_namespace/reusable_functions/add_1"),
+            6
+        );
+    }
+    #[test]
+    fn test_nested_constants() {
+        assert_eq!(interpret("public 4 =A ;public {A +1} =B ;B"), 5);
+        assert_eq!(
+            interpret("public 4 =A ;public {A +1} =B ;public {B +1} =C ;C"),
+            6
+        );
     }
 
     #[test]

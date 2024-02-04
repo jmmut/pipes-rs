@@ -26,7 +26,9 @@ pub fn get_project_root(
         if let Some(root) = root_opt {
             Ok(root)
         } else {
-            current_file_abs_copy.pop();
+            if current_file_abs_copy.is_file() {
+                current_file_abs_copy.pop();
+            }
             Ok(current_file_abs_copy)
         }
     }
