@@ -1,4 +1,5 @@
 use crate::frontend::lexer::Operator;
+use crate::typing::builtin_types;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
@@ -293,26 +294,3 @@ pub struct Inspect {
 
 pub type Expressions = Vec<Expression>;
 pub type Transformations = Vec<Transformation>;
-
-pub mod type_names {
-    #[allow(unused)]
-    pub const I64: &'static str = "i64";
-    #[allow(unused)]
-    pub const TUPLE: &'static str = "tuple";
-    #[allow(unused)]
-    pub const ARRAY: &'static str = "array";
-    #[allow(unused)]
-    pub const STRUCT: &'static str = "struct";
-    #[allow(unused)]
-    pub const TYPE: &'static str = "type";
-}
-
-pub mod builtin_types {
-    use crate::frontend::expression::Type;
-
-    pub const NOTHING: Type = Type::Builtin {
-        type_name: "Nothing",
-    };
-    #[allow(unused)]
-    pub const I64: Type = Type::Builtin { type_name: "i64" };
-}

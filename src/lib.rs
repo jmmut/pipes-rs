@@ -8,6 +8,7 @@ use crate::frontend::location::SourceCode;
 pub mod common;
 pub mod evaluate;
 pub mod frontend;
+pub mod typing;
 
 #[wasm_bindgen]
 pub fn interpret_in_web(code: &str) -> Box<[JsValue]> {
