@@ -8,7 +8,7 @@
 - [x] iteration
 - [x] functions
 - [ ] semantic types (`:t` meaning "the previous expression is of type t")
-- [ ] file imports, in a way that is compatible with LSP
+- [/] file imports, in a way that is compatible with LSP
 - [ ] code location (for better error messages)
 - [x] assignment to identifiers
 
