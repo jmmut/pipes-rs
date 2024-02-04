@@ -5,11 +5,11 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
-use crate::frontend::expression::Composed;
 use crate::frontend::expression::{
     Chain, Expression, Expressions, Function, Loop, LoopOr, Map, TimesOr, Transformation,
     TypedIdentifier,
 };
+use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::lexer::{Comparison, Operator};
 use crate::frontend::program::Program;
@@ -311,6 +311,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     &branch.no
                 })
             }
+            Expression::Composed(Composed::Something(something)) => {
+                self.call_something_expression(argument, something)
+            }
             Expression::Chain(chain) => {
                 let function_pointer = self.evaluate_chain(chain)?;
                 self.call_function_pointer(argument, function_pointer)
@@ -462,6 +465,25 @@ impl<R: Read, W: Write> Runtime<R, W> {
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
         Ok(self.allocate_list(new_list))
+    }
+
+    fn call_something_expression(
+        &mut self,
+        argument: i64,
+        Something {
+            elem,
+            something,
+            nothing,
+        }: &Something,
+    ) -> Result<i64, AnyError> {
+        if argument != NOTHING {
+            self.bind_identifier(elem.name.clone(), argument);
+            let result = self.evaluate_chain(&something)?;
+            self.unbind_identifier(&elem.name, 1)?;
+            Ok(result)
+        } else {
+            Ok(self.evaluate_chain(&nothing)?)
+        }
     }
 
     fn call_intrinsic(

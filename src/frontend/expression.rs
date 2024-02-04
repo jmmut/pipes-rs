@@ -28,6 +28,7 @@ pub enum Composed {
     Replace(Replace),
     Map(Map),
     Branch(Branch),
+    Something(Something),
 }
 
 impl Expression {
@@ -87,6 +88,14 @@ impl Expression {
         Self::Composed(Composed::Map(Map {
             iteration_elem: elem,
             body,
+        }))
+    }
+    #[allow(unused)]
+    pub fn something(elem: TypedIdentifier, something: Chain, nothing: Chain) -> Self {
+        Self::Composed(Composed::Something(Something {
+            elem,
+            something,
+            nothing,
         }))
     }
 }
@@ -262,6 +271,13 @@ pub struct Map {
 pub struct Branch {
     pub yes: Chain,
     pub no: Chain,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Something {
+    pub elem: TypedIdentifier,
+    pub something: Chain,
+    pub nothing: Chain,
 }
 
 pub type Expressions = Vec<Expression>;

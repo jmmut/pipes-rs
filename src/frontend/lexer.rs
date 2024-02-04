@@ -59,6 +59,7 @@ pub enum Keyword {
     Replace,
     Map,
     Branch,
+    Something,
     Public,
 }
 impl Keyword {
@@ -72,6 +73,7 @@ impl Keyword {
             Keyword::Replace => "replace",
             Keyword::Map => "map",
             Keyword::Branch => "branch",
+            Keyword::Something => "something",
             Keyword::Public => "public",
         }
     }

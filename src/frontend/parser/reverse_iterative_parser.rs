@@ -168,6 +168,7 @@ fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExp
         Keyword::Replace => construct_replace(accumulated),
         Keyword::Map => construct_map(accumulated),
         Keyword::Branch => construct_branch(accumulated),
+        Keyword::Something => construct_something(accumulated),
         Keyword::Public => construct_public(parser),
     }
 }
@@ -288,6 +289,12 @@ fn construct_branch(
     } else {
         error_expected("chain for the branch positive case", elem)
     }
+}
+
+fn construct_something(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    construct_type_chain_chain(accumulated, Expression::something, "something")
 }
 
 fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
