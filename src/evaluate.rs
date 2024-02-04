@@ -6,7 +6,7 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::{
-    Chain, Expression, Expressions, Function, Loop, LoopOr, Map, TimesOr, Transformation,
+    Chain, Expression, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr, Transformation,
     TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
@@ -342,6 +342,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Composed(Composed::Something(something)) => {
                 self.call_something_expression(argument, something)
             }
+            Expression::Composed(Composed::Inspect(inspect)) => {
+                self.call_inspect_expression(argument, inspect)
+            }
             Expression::Chain(chain) => {
                 let function_pointer = self.evaluate_chain(chain)?;
                 self.call_function_pointer(argument, function_pointer)
@@ -512,6 +515,17 @@ impl<R: Read, W: Write> Runtime<R, W> {
         } else {
             Ok(self.evaluate_chain(&nothing)?)
         }
+    }
+
+    fn call_inspect_expression(
+        &mut self,
+        argument: i64,
+        Inspect { elem, body }: &Inspect,
+    ) -> Result<i64, AnyError> {
+        self.bind_identifier(elem.name.clone(), argument);
+        self.evaluate_chain(&body)?;
+        self.unbind_identifier(&elem.name, 1)?;
+        Ok(argument)
     }
 
     fn call_intrinsic(
@@ -1034,5 +1048,9 @@ mod tests {
     #[test]
     fn test_something() {
         assert_eq!(interpret("3 |something(n) {n} {5}"), 3);
+    }
+    #[test]
+    fn test_inspect() {
+        assert_eq!(interpret("3 |inspect(n) {n+1}"), 3);
     }
 }

@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::evaluate::intrinsics;
 use crate::frontend::expression::{
-    Branch, Chain, Composed, Expression, Function, Loop, LoopOr, Map, Replace, Something, Times,
-    TimesOr, Transformation, Type, TypedIdentifier,
+    Branch, Chain, Composed, Expression, Function, Inspect, Loop, LoopOr, Map, Replace, Something,
+    Times, TimesOr, Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::{lex, Operator};
 use crate::frontend::location::SourceCode;
@@ -136,6 +136,9 @@ fn track_identifiers_recursive(
         })) => {
             track_identifiers_recursive_scope(import_state, elem, something)?;
             track_identifiers_recursive_chain(import_state, nothing)
+        }
+        Expression::Composed(Composed::Inspect(Inspect { elem, body })) => {
+            track_identifiers_recursive_scope(import_state, elem, body)
         }
     }
 }

@@ -42,12 +42,25 @@ With these operations:
     - `3 |times_or(i) {x +42;} {1000}` returns 1000
   - `map`: creates a new list from operating the input list (e.g. `[10 11] |map(e) {e +100}` returns a new list `[110 110]`)
   - `replace`: iterates a list, replaces each element (e.g. `[10 11] |replace(e) {e +100}` returns the modified list `[110 110]`)
-- [x] Ifs/Branching (e.g. `condition |branch {5} {6}` (where 5 will be returned if `condition` is not 0,
-  6 will be returned if `condition` is 0))
+- [x] Ifs/Branching 
+  - `branch`: takes a value, if non-zero, runs the first chain; if zero, runs the second chain
+    - `1 |branch {5} {6}` returns 5
+    - `0 |branch {5} {6}` returns 6
+  - `something`: if an optional value is present, run the first chain, but if it's nothing, run the second chain
+    - `5 |something(x) {x} {0}` returns 5
+    - `{} |something(x) {x} {0}` returns 0. "nothing" is an empty chain or a chain that ends in `;`
+  - `inspect`: runs a chain, returning the initial value. Useful for debugging with prints
+    - `5 |inspect(x) {"some side effect " ++{x |to_str} |print}` returns 5 and prints "some side effect 5"
 - [ ] Type annotation (e.g. `2 :int64`)
 - [ ] Struct field access (e.g. given `a :struct(x :int64)`, you can do `a.x` or `a .x`. The space is 
   significant, those are different things, TODO: explain below)
 - [x] Comments, ignoring the rest of the line (e.g. `42 // the answer`)
+
+### Nice to haves
+
+- [ ] print source location in errors
+- [ ] be able to print call stacks in pipes code
+- [ ] const
 
 ### Simplified Grammar
 Worth a special mention are Chains and TypedChildren.

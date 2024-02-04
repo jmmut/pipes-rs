@@ -169,6 +169,7 @@ fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExp
         Keyword::Map => construct_map(accumulated),
         Keyword::Branch => construct_branch(accumulated),
         Keyword::Something => construct_something(accumulated),
+        Keyword::Inspect => construct_inspect(accumulated),
         Keyword::Public => construct_public(parser),
     }
 }
@@ -295,6 +296,11 @@ fn construct_something(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
     construct_type_chain_chain(accumulated, Expression::something, "something")
+}
+fn construct_inspect(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    construct_type_chain(accumulated, Expression::inspect, "inspect")
 }
 
 fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> {

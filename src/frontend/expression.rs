@@ -29,6 +29,7 @@ pub enum Composed {
     Map(Map),
     Branch(Branch),
     Something(Something),
+    Inspect(Inspect),
 }
 
 impl Expression {
@@ -97,6 +98,10 @@ impl Expression {
             something,
             nothing,
         }))
+    }
+    #[allow(unused)]
+    pub fn inspect(elem: TypedIdentifier, body: Chain) -> Self {
+        Self::Composed(Composed::Inspect(Inspect { elem, body }))
     }
 }
 
@@ -278,6 +283,12 @@ pub struct Something {
     pub elem: TypedIdentifier,
     pub something: Chain,
     pub nothing: Chain,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Inspect {
+    pub elem: TypedIdentifier,
+    pub body: Chain,
 }
 
 pub type Expressions = Vec<Expression>;

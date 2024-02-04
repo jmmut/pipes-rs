@@ -60,6 +60,7 @@ pub enum Keyword {
     Map,
     Branch,
     Something,
+    Inspect,
     Public,
 }
 impl Keyword {
@@ -74,6 +75,7 @@ impl Keyword {
             Keyword::Map => "map",
             Keyword::Branch => "branch",
             Keyword::Something => "something",
+            Keyword::Inspect => "inspect",
             Keyword::Public => "public",
         }
     }
