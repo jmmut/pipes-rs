@@ -1,5 +1,5 @@
 use crate::frontend::lexer::Operator;
-use crate::typing::builtin_types;
+use crate::typing::{builtin_types, type_names};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
@@ -137,7 +137,11 @@ pub type Types = Vec<Type>;
 #[allow(unused)]
 impl Type {
     pub fn simple(type_name: String) -> Type {
-        Type::Simple { type_name }
+        if type_name == type_names::I64 {
+            builtin_types::I64
+        } else {
+            Type::Simple { type_name }
+        }
     }
     pub fn nameless_child(type_name: String, child: Box<Type>) -> Type {
         Type::NestedSingle {
