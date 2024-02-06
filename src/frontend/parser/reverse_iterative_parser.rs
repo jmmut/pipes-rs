@@ -120,8 +120,11 @@ fn construct_transformation(
         {
             let operand = get_type_maybe_pop_children(accumulated, typename);
             Transformation { operator, operand }
+        } else if let Some(PartialExpression::Expression(Expression::Type(type_))) = elem_operand {
+            let operand = Expression::Type(type_);
+            Transformation { operator, operand }
         } else {
-            error_expected("type name after type operator ':'", elem_operand)?
+            error_expected("type or type name after type operator ':'", elem_operand)?
         }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
@@ -187,11 +190,17 @@ fn construct_function(
             parameter, body,
         )))
     } else {
+        let (returned, elem) = extract_single_child_type(accumulated, elem);
+
         if let Some(elem) = elem {
             accumulated.push_front(elem);
         }
-        Ok(PartialExpression::Expression(Expression::Identifier(
-            type_names::FUNCTION.to_string(), // TODO: make identifiers not always owning a string
+
+        Ok(PartialExpression::Expression(Expression::Type(
+            Type::BuiltinSeveral {
+                type_name: type_names::FUNCTION,
+                children: vec![parameter, returned],
+            },
         )))
     }
 }

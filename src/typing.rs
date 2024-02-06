@@ -63,8 +63,8 @@ fn check_types_chain(chain: &Chain) -> Result<Type, AnyError> {
             if accumulated_type != *expected_type {
                 return err(format!(
                     "Type mismatch:\
-                \n  actual:   {:?}\
-                \n  expected: {:?}",
+                    \n  actual:   {:?}\
+                    \n  expected: {:?}",
                     accumulated_type, expected_type
                 ));
             }
@@ -141,7 +141,6 @@ mod tests {
 
     #[test]
     fn test_basic_function_type() {
-        //TODO: ugh I need to implement return types in function prototypes
         let program = &parse("function{4} :function()(:i64)");
         assert_ok(check_types(program))
     }
