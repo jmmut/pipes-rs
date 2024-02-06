@@ -242,7 +242,20 @@ mod tests {
 
     #[test]
     fn test_basic_array() {
-        let program = &parse("[ 1 2 ] :array(:i64)");
+        let program = &parse("[1 2] :array(:i64)");
         assert_ok(check_types(program))
+    }
+    #[test]
+    fn test_basic_tuple() {
+        let program = &parse("[1 function{}] :tuple(:i64 :function)");
+        assert_ok(check_types(program))
+    }
+    #[test]
+    fn test_tuples_and_arrays_not_mixed() {
+        let program = &parse("[1 function{}] :array(:i64)");
+        check_types(program).expect_err("should fail");
+        let program = &parse("[1 2] :tuple(:i64 :i64)");
+        check_types(program).expect_err("should fail");
+
     }
 }
