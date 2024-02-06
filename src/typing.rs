@@ -1,5 +1,7 @@
 use crate::common::{err, AnyError};
-use crate::frontend::expression::{Chain, Expression, Transformation, Type};
+use crate::frontend::expression::{
+    Chain, Expression, Function, Transformation, Type, TypedIdentifier,
+};
 use crate::frontend::lexer::Operator;
 use crate::frontend::program::Program;
 
@@ -49,9 +51,9 @@ pub mod builtin_types {
     pub const I64: Type = Type::Builtin { type_name: "i64" };
 }
 
-fn check_types_chain(chain: &Chain) -> Result<(), AnyError> {
+fn check_types_chain(chain: &Chain) -> Result<Type, AnyError> {
     let accumulated = &chain.initial;
-    let mut accumulated_type = get_type(accumulated.as_ref());
+    let mut accumulated_type = get_type(accumulated.as_ref())?;
     for t in &chain.transformations {
         if let Transformation {
             operator: Operator::Type,
@@ -70,13 +72,13 @@ fn check_types_chain(chain: &Chain) -> Result<(), AnyError> {
             accumulated_type = get_operation_type(accumulated, t.operator, &t.operand);
         }
     }
-    Ok(())
+    Ok(accumulated_type)
 }
 
-fn get_type(expression: &Expression) -> Type {
+fn get_type(expression: &Expression) -> Result<Type, AnyError> {
     match expression {
-        Expression::Nothing => builtin_types::NOTHING,
-        Expression::Value(_) => builtin_types::I64,
+        Expression::Nothing => Ok(builtin_types::NOTHING),
+        Expression::Value(_) => Ok(builtin_types::I64),
         Expression::Identifier(_) => {
             unimplemented!()
         }
@@ -89,8 +91,13 @@ fn get_type(expression: &Expression) -> Type {
         Expression::StaticList { .. } => {
             unimplemented!()
         }
-        Expression::Function(_) => {
-            unimplemented!()
+        Expression::Function(Function { parameter, body }) => {
+            let chain_type = check_types_chain(body);
+            let children = vec![parameter.clone(), TypedIdentifier::nameless(chain_type?)];
+            Ok(Type::BuiltinSeveral {
+                type_name: type_names::FUNCTION,
+                children,
+            })
         }
         Expression::Composed(_) => {
             unimplemented!()
@@ -134,7 +141,8 @@ mod tests {
 
     #[test]
     fn test_basic_function_type() {
-        let program = &parse("function{4} :function");
+        //TODO: ugh I need to implement return types in function prototypes
+        let program = &parse("function{4} :function()(:i64)");
         assert_ok(check_types(program))
     }
 }

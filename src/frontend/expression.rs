@@ -117,6 +117,10 @@ pub enum Type {
         type_name: &'static str,
         child: Box<TypedIdentifier>,
     },
+    BuiltinSeveral {
+        type_name: &'static str,
+        children: TypedIdentifiers,
+    },
     Simple {
         type_name: String,
     },
