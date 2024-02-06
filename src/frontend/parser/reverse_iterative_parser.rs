@@ -11,7 +11,7 @@ use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
-use crate::typing::type_names;
+use crate::typing::{is_builtin_nested_type, type_names};
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
@@ -153,7 +153,11 @@ fn get_type_maybe_pop_children(
     let maybe_children = accumulated.pop_front();
     match maybe_children {
         Some(PartialExpression::ChildrenTypes(children)) => {
-            return Expression::Type(Type::children(typename, children))
+            if let Some(builtin_type) = is_builtin_nested_type(&typename) {
+                return Expression::Type(Type::builtin(builtin_type, children));
+            } else {
+                return Expression::Type(Type::children(typename, children));
+            }
         }
         Some(not_children) => accumulated.push_front(not_children),
         None => {}

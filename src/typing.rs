@@ -41,6 +41,18 @@ pub mod type_names {
     pub const TYPE: &'static str = "type";
 }
 
+pub fn is_builtin_nested_type(name: &str) -> Option<&'static str> {
+    if name == type_names::ARRAY {
+        Some(type_names::ARRAY)
+    } else if name == type_names::STRUCT {
+        Some(type_names::STRUCT)
+    } else if name == type_names::TUPLE {
+        Some(type_names::TUPLE)
+    } else {
+        None
+    }
+}
+
 pub mod builtin_types {
     use crate::frontend::expression::Type;
 
@@ -105,8 +117,30 @@ fn get_type(expression: &Expression) -> Result<Type, AnyError> {
         Expression::Chain(_) => {
             unimplemented!()
         }
-        Expression::StaticList { .. } => {
-            unimplemented!()
+        Expression::StaticList { elements } => {
+            let mut types = Vec::new();
+            for e in elements {
+                types.push(get_type(e)?);
+            }
+            if types.len() == 0 {
+                return Ok(Type::BuiltinSingle {
+                    type_name: type_names::ARRAY,
+                    child: Box::new(TypedIdentifier::nameless(Type::Unknown)),
+                });
+            } else if all_same_type(&types) {
+                return Ok(Type::BuiltinSingle {
+                    type_name: type_names::ARRAY,
+                    child: Box::new(TypedIdentifier::nameless(types.pop().unwrap())),
+                });
+            } else {
+                return Ok(Type::BuiltinSeveral {
+                    type_name: type_names::TUPLE,
+                    children: types
+                        .into_iter()
+                        .map(|t| TypedIdentifier::nameless(t))
+                        .collect(),
+                });
+            }
         }
         Expression::Function(Function { parameter, body }) => {
             let chain_type = check_types_chain(body);
@@ -119,6 +153,21 @@ fn get_type(expression: &Expression) -> Result<Type, AnyError> {
         Expression::Composed(_) => {
             unimplemented!()
         }
+    }
+}
+
+fn all_same_type(types: &Vec<Type>) -> bool {
+    if types.len() == 0 {
+        true
+    } else if types.len() == 1 {
+        true
+    } else {
+        for i in 1..types.len() {
+            if types[i - 1] != types[i] {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -193,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_basic_array() {
-        let program = &parse("[ 1 2 ] :array(num :i64)");
+        let program = &parse("[ 1 2 ] :array(:i64)");
         assert_ok(check_types(program))
     }
 }

@@ -171,6 +171,21 @@ impl Type {
             children,
         }
     }
+    pub fn builtin(type_name: &'static str, mut children: TypedIdentifiers) -> Type {
+        if children.is_empty() {
+            Type::Builtin { type_name }
+        } else if children.len() == 1 {
+            Type::BuiltinSingle {
+                type_name,
+                child: Box::new(children.pop().unwrap()),
+            }
+        } else {
+            Type::BuiltinSeveral {
+                type_name,
+                children,
+            }
+        }
+    }
     pub fn nothing() -> Type {
         builtin_types::NOTHING
     }
