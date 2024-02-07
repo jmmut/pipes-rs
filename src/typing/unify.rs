@@ -1,37 +1,23 @@
 use crate::frontend::expression::Type;
 
-fn unify(first: &Type, second: &Type) -> Option<Type> {
+pub fn unify(first: &Type, second: &Type) -> Option<Type> {
     match (first, second) {
         (Type::Unknown, Type::Unknown) => Some(Type::Unknown),
-        (
-            Type::Simple {
-                type_name: first_name,
-            },
-            Type::Simple {
-                type_name: second_name,
-            },
-        ) => {
-            if first_name == second_name {
-                Some(second.clone())
-            } else {
-                None
-            }
+        (Type::Simple { type_name: name_1 }, Type::Simple { type_name: name_2 }) => {
+            clone_if_equal(second, name_1, name_2)
         }
-        (
-            Type::Builtin {
-                type_name: first_name,
-            },
-            Type::Builtin {
-                type_name: second_name,
-            },
-        ) => {
-            if first_name == second_name {
-                Some(second.clone())
-            } else {
-                None
-            }
+        (Type::Builtin { type_name: name_1 }, Type::Builtin { type_name: name_2 }) => {
+            clone_if_equal(second, name_1, name_2)
         }
         _ => None,
+    }
+}
+
+fn clone_if_equal<T: PartialEq>(to_clone: &Type, first: T, second: T) -> Option<Type> {
+    if first == second {
+        Some(to_clone.clone())
+    } else {
+        None
     }
 }
 
