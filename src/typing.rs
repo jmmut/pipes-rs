@@ -215,47 +215,51 @@ mod tests {
             }
         }
     }
+    fn assert_types_ok(code: &str) {
+        let program = &parse(code);
+        assert_ok(check_types(program))
+    }
+    fn assert_types_wrong(code: &str) {
+        let program = &parse(code);
+        check_types(program).expect_err("should fail");
+    }
 
     #[test]
     fn test_basic_i64_type() {
-        let program = &parse("4 :i64");
-        assert_ok(check_types(program))
+        assert_types_ok("4 :i64");
     }
 
     #[test]
     fn test_basic_wrong_type() {
-        let program = &parse("4 :function");
-        check_types(program).expect_err("should fail");
+        assert_types_wrong("4 :function")
     }
 
     #[test]
     fn test_basic_function_type() {
-        let program = &parse("function{4} :function()(:i64)");
-        assert_ok(check_types(program))
+        assert_types_ok("function{4} :function()(:i64)");
     }
 
     #[test]
     fn test_basic_operation() {
-        let program = &parse("4 +3 -1 |* 5 |/ 3 %2 :i64");
-        assert_ok(check_types(program))
+        assert_types_ok("4 +3 -1 |* 5 |/ 3 %2 :i64");
     }
 
     #[test]
     fn test_basic_array() {
-        let program = &parse("[1 2] :array(:i64)");
-        assert_ok(check_types(program))
+        assert_types_ok("[1 2] :array(:i64)");
     }
     #[test]
     fn test_basic_tuple() {
-        let program = &parse("[1 function{}] :tuple(:i64 :function)");
-        assert_ok(check_types(program))
+        assert_types_ok("[1 function{}] :tuple(:i64 :function)");
     }
     #[test]
     fn test_tuples_and_arrays_not_mixed() {
-        let program = &parse("[1 function{}] :array(:i64)");
-        check_types(program).expect_err("should fail");
-        let program = &parse("[1 2] :tuple(:i64 :i64)");
-        check_types(program).expect_err("should fail");
+        assert_types_wrong("[1 function{}] :array(:i64)");
+        assert_types_wrong("[1 2] :tuple(:i64 :i64)");
+    }
 
+    #[test]
+    fn test_empty_array() {
+        assert_types_ok("[] :array(:i64)");
     }
 }
