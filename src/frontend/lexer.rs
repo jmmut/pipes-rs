@@ -62,6 +62,7 @@ pub enum Keyword {
     Something,
     Inspect,
     Public,
+    Cast,
 }
 impl Keyword {
     pub fn name(&self) -> &'static str {
@@ -77,6 +78,7 @@ impl Keyword {
             Keyword::Something => "something",
             Keyword::Inspect => "inspect",
             Keyword::Public => "public",
+            Keyword::Cast => "cast",
         }
     }
 }

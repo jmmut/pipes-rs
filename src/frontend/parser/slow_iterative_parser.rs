@@ -2,13 +2,14 @@ use std::collections::VecDeque;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, error_expected, PartialExpression};
-use crate::frontend::expression::{Chain, Expression, Transformation, Type};
+use crate::frontend::expression::{Chain, Expression, Transformation, Type, TypedIdentifier};
 use crate::frontend::lexer::{lex, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::reverse_iterative_parser::construct_string;
 use crate::frontend::program::Program;
 
 #[cfg(test)]
-pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Program, AnyError> {
+// pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Program, AnyError> {
+pub fn parse(code_text: &str) -> Result<Program, AnyError> {
     let tokens = lex(code_text)?;
     parse_tokens(tokens)
 }
@@ -157,7 +158,11 @@ impl Parser {
         }
 
         if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
-            let a_type = Type::from_nameless(parent, types.into_iter().collect::<Vec<_>>());
+            let children = types
+                .into_iter()
+                .map(|t| TypedIdentifier::nameless(t))
+                .collect::<Vec<_>>();
+            let a_type = Type::from(parent, children);
             Ok(Expression::Type(a_type))
         } else {
             error_expected("array start or expression", elem)

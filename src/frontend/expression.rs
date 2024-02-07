@@ -1,5 +1,5 @@
 use crate::frontend::lexer::Operator;
-use crate::typing::{builtin_types, type_names};
+use crate::typing::{builtin_types, is_builtin_nested_type, is_builtin_simple_type, type_names};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
@@ -31,6 +31,7 @@ pub enum Composed {
     Branch(Branch),
     Something(Something),
     Inspect(Inspect),
+    Cast(Cast),
 }
 
 impl Expression {
@@ -140,9 +141,16 @@ pub type Types = Vec<Type>;
 
 #[allow(unused)]
 impl Type {
+    pub fn from(typename: String, children: TypedIdentifiers) -> Type {
+        if let Some(builtin_type) = is_builtin_nested_type(&typename) {
+            Type::builtin(builtin_type, children)
+        } else {
+            Type::user_defined(typename, children)
+        }
+    }
     pub fn simple(type_name: String) -> Type {
-        if type_name == type_names::I64 {
-            builtin_types::I64
+        if let Some(builtin) = is_builtin_simple_type(&type_name) {
+            builtin
         } else {
             Type::Simple { type_name }
         }
@@ -198,7 +206,7 @@ impl Type {
             Type::nameless_children(parent, children)
         }
     }
-    pub fn from(parent: String, mut children: Vec<TypedIdentifier>) -> Type {
+    pub fn user_defined(parent: String, mut children: TypedIdentifiers) -> Type {
         if children.is_empty() {
             Type::simple(parent)
         } else if children.len() == 1 {
@@ -317,6 +325,11 @@ pub struct Something {
 pub struct Inspect {
     pub elem: TypedIdentifier,
     pub body: Chain,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Cast {
+    pub target_type: TypedIdentifier,
 }
 
 pub type Expressions = Vec<Expression>;

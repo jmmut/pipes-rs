@@ -4,14 +4,14 @@ use std::path::PathBuf;
 use crate::common::{context, err, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
-    Branch, Chain, Composed, Expression, Transformation, Transformations, Type, TypedIdentifier,
-    TypedIdentifiers,
+    Branch, Cast, Chain, Composed, Expression, Transformation, Transformations, Type,
+    TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
-use crate::typing::{is_builtin_nested_type, type_names};
+use crate::typing::type_names;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
@@ -153,11 +153,7 @@ fn get_type_maybe_pop_children(
     let maybe_children = accumulated.pop_front();
     match maybe_children {
         Some(PartialExpression::ChildrenTypes(children)) => {
-            if let Some(builtin_type) = is_builtin_nested_type(&typename) {
-                return Expression::Type(Type::builtin(builtin_type, children));
-            } else {
-                return Expression::Type(Type::children(typename, children));
-            }
+            return Expression::Type(Type::from(typename, children));
         }
         Some(not_children) => accumulated.push_front(not_children),
         None => {}
@@ -179,6 +175,7 @@ fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExp
         Keyword::Something => construct_something(accumulated),
         Keyword::Inspect => construct_inspect(accumulated),
         Keyword::Public => construct_public(parser),
+        Keyword::Cast => construct_cast(parser),
     }
 }
 
@@ -360,6 +357,23 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
         }
     } else {
         error_expected("expression after 'public'", elem)
+    }
+}
+
+fn construct_cast(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
+    let elem = parser.accumulated.pop_front();
+    if let Some(PartialExpression::ChildrenTypes(mut children)) = elem {
+        children.truncate(1);
+        let target_type = if let Some(type_) = children.pop() {
+            type_
+        } else {
+            TypedIdentifier::nothing()
+        };
+        Ok(PartialExpression::Expression(Expression::Composed(
+            Composed::Cast(Cast { target_type }),
+        )))
+    } else {
+        error_expected("type inside parenthesis", elem)
     }
 }
 

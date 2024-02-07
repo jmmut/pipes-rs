@@ -345,6 +345,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Composed(Composed::Inspect(inspect)) => {
                 self.call_inspect_expression(argument, inspect)
             }
+            Expression::Composed(Composed::Cast(_)) => Ok(argument),
             Expression::Chain(chain) => {
                 let function_pointer = self.evaluate_chain(chain)?;
                 self.call_function_pointer(argument, function_pointer)

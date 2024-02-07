@@ -1,8 +1,10 @@
+mod unify;
+
 use crate::common::{err, AnyError};
 use crate::frontend::expression::{
-    Chain, Expression, Function, Transformation, Type, TypedIdentifier,
+    Chain, Composed, Expression, Function, Transformation, Type, TypedIdentifier,
 };
-use crate::frontend::lexer::Operator;
+use crate::frontend::lexer::{Comparison, Operator};
 use crate::frontend::program::Program;
 
 pub fn check_types(program: &Program) -> Result<(), AnyError> {
@@ -53,14 +55,25 @@ pub fn is_builtin_nested_type(name: &str) -> Option<&'static str> {
     }
 }
 
+pub fn is_builtin_simple_type(name: &str) -> Option<Type> {
+    if name == type_names::I64 {
+        Some(builtin_types::I64)
+    } else {
+        None
+    }
+}
+
 pub mod builtin_types {
     use crate::frontend::expression::Type;
+    use crate::typing::type_names;
 
     pub const NOTHING: Type = Type::Builtin {
-        type_name: "Nothing",
+        type_name: "nothing",
     };
     #[allow(unused)]
-    pub const I64: Type = Type::Builtin { type_name: "i64" };
+    pub const I64: Type = Type::Builtin {
+        type_name: type_names::I64,
+    };
 }
 
 fn type_mismatch<T>(
@@ -187,7 +200,9 @@ fn get_operation_type(
             return Ok(builtin_types::I64);
         }
         Operator::Ignore => return get_type(operand),
-        Operator::Call => {}
+        Operator::Call => {
+            return get_call_type(input, operand);
+        }
         Operator::Get => {}
         Operator::Type => {}
         Operator::Assignment => {}
@@ -196,6 +211,32 @@ fn get_operation_type(
         Operator::Comparison(_) => {}
     }
     unimplemented!()
+}
+
+fn get_call_type(input: &Expression, operand: &Expression) -> Result<Type, AnyError> {
+    match operand {
+        Expression::Composed(Composed::Cast(cast)) => {
+            return is_castable_to(input, &cast.target_type);
+        }
+        _ => unimplemented!(),
+    }
+}
+
+fn is_castable_to(input: &Expression, target_type: &TypedIdentifier) -> Result<Type, AnyError> {
+    let input_type = get_type(input)?;
+    is_compatible(&input_type, &target_type.type_)
+}
+
+fn is_compatible(first: &Type, second: &Type) -> Result<Type, AnyError> {
+    // match (first, second) {
+    //     (
+    //         Type::BuiltinSingle {type_name: input_parent_name, child: input_child},
+    //         Type::BuiltinSingle {type_name: target_parent_name, child: target_child}
+    //     ) => {
+    //         if input_parent_name == target_parent_name && is_castable_to()
+    //     }
+    // }
+    todo!()
 }
 
 #[cfg(test)]
@@ -260,6 +301,11 @@ mod tests {
 
     #[test]
     fn test_empty_array() {
-        assert_types_ok("[] :array(:i64)");
+        assert_types_wrong("[] :array(:i64)");
+    }
+
+    #[test]
+    fn test_cast() {
+        assert_types_ok("[] |cast(:array(:i64))");
     }
 }

@@ -193,3 +193,9 @@ fn test_undefined_in_else() {
     lex_and_parse("[]|times_or(e) {} {e}").expect_err("should fail");
     lex_and_parse("0|something(e) {} {e}").expect_err("should fail");
 }
+
+#[test]
+fn test_no_empty_cast() {
+    // this might change to allow backwards type inference
+    lex_and_parse("[] |cast").expect_err("should fail");
+}
