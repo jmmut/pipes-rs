@@ -4,7 +4,7 @@ use crate::common::{err, AnyError};
 use crate::frontend::expression::{
     Chain, Composed, Expression, Function, Transformation, Type, TypedIdentifier,
 };
-use crate::frontend::lexer::{Comparison, Operator};
+use crate::frontend::lexer::Operator;
 use crate::frontend::program::Program;
 use crate::typing::unify::{all_same_type, unify};
 

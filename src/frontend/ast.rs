@@ -9,7 +9,6 @@ use crate::frontend::expression::{
 use crate::frontend::lexer::{lex, Keyword, Operator, Token, TokenizedSource};
 use crate::frontend::location::SourceCode;
 use crate::frontend::program::Program;
-use crate::typing::is_builtin_nested_type;
 
 #[derive(Debug)]
 pub enum PartialExpression {
