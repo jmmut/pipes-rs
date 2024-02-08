@@ -217,6 +217,34 @@ impl Type {
     }
 }
 
+impl Type {
+    pub fn name(&self) -> &str {
+        match self {
+            Type::Unknown => type_names::UNKNOWN,
+            Type::Builtin { type_name }
+            | Type::BuiltinSingle { type_name, .. }
+            | Type::BuiltinSeveral { type_name, .. } => type_name,
+            Type::Simple { type_name }
+            | Type::NestedSingle { type_name, .. }
+            | Type::NestedSeveral { type_name, .. } => type_name,
+        }
+    }
+    pub fn static_name(&self) -> &'static str {
+        match self {
+            Type::Unknown => type_names::UNKNOWN,
+            Type::Builtin { type_name }
+            | Type::BuiltinSingle { type_name, .. }
+            | Type::BuiltinSeveral { type_name, .. } => type_name,
+            Type::Simple { type_name }
+            | Type::NestedSingle { type_name, .. }
+            | Type::NestedSeveral { type_name, .. } => unreachable!(
+                "Type check bug: a custom name '{}' should not be asked to provide a &'static str",
+                type_name
+            ),
+        }
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
     pub initial: Box<Expression>,

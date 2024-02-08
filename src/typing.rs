@@ -31,6 +31,8 @@ pub fn check_types(program: &Program) -> Result<(), AnyError> {
 
 pub mod type_names {
     #[allow(unused)]
+    pub const UNKNOWN: &'static str = "unknown";
+    #[allow(unused)]
     pub const I64: &'static str = "i64";
     #[allow(unused)]
     pub const TUPLE: &'static str = "tuple";
@@ -135,24 +137,24 @@ fn get_type(expression: &Expression) -> Result<Type, AnyError> {
             for e in elements {
                 types.push(get_type(e)?);
             }
-            if types.len() == 0 {
-                return Ok(Type::BuiltinSingle {
+            return if types.len() == 0 {
+                Ok(Type::BuiltinSingle {
                     type_name: type_names::ARRAY,
                     child: Box::new(TypedIdentifier::nameless(Type::Unknown)),
-                });
+                })
             } else if all_same_type(&types) {
-                return Ok(Type::BuiltinSingle {
+                Ok(Type::BuiltinSingle {
                     type_name: type_names::ARRAY,
                     child: Box::new(TypedIdentifier::nameless(types.pop().unwrap())),
-                });
+                })
             } else {
-                return Ok(Type::BuiltinSeveral {
+                Ok(Type::BuiltinSeveral {
                     type_name: type_names::TUPLE,
                     children: types
                         .into_iter()
                         .map(|t| TypedIdentifier::nameless(t))
                         .collect(),
-                });
+                })
             }
         }
         Expression::Function(Function { parameter, body }) => {
