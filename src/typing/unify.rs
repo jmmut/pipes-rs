@@ -95,20 +95,24 @@ fn nested_unify(first: &Type, second: &Type) -> Option<Type> {
             }
             None
         }
-        (Type::BuiltinSeveral {children, ..  }, Type::BuiltinSingle { child, ..}) => {
-            if first.name() == type_names::TUPLE && children.len() > 0 && second.name() == type_names::ARRAY {
+        (Type::BuiltinSeveral { children, .. }, Type::BuiltinSingle { child, .. }) => {
+            if first.name() == type_names::TUPLE
+                && children.len() > 0
+                && second.name() == type_names::ARRAY
+            {
                 let types = children.iter().map(|t| &t.type_).collect::<Vec<_>>();
                 if all_same_type(&types) {
                     if let Some(unified) = unify_typed_identifier(&children[0], &*child) {
-                        return Some(Type::BuiltinSingle {type_name: type_names::ARRAY, child: Box::new(unified)})
+                        return Some(Type::BuiltinSingle {
+                            type_name: type_names::ARRAY,
+                            child: Box::new(unified),
+                        });
                     }
                 }
             }
             None
         }
-        _ => {
-            None
-        }
+        _ => None,
     }
 }
 
@@ -148,7 +152,7 @@ fn unify_list(firsts: &TypedIdentifiers, seconds: &TypedIdentifiers) -> Option<T
     }
 }
 
-fn all_same_type(types: &Vec<&Type>) -> bool {
+pub fn all_same_type<T: PartialEq>(types: &Vec<T>) -> bool {
     if types.len() == 0 {
         true
     } else if types.len() == 1 {
@@ -307,7 +311,7 @@ mod tests {
         let first = Type::builtin("array", vec![child.clone()]);
         let second = Type::builtin("tuple", vec![child.clone(), child.clone()]);
         let unified = unify(&first, &second);
-        assert_eq!(unified,None);
+        assert_eq!(unified, None);
     }
 
     #[test]

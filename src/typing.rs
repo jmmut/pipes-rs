@@ -6,6 +6,7 @@ use crate::frontend::expression::{
 };
 use crate::frontend::lexer::{Comparison, Operator};
 use crate::frontend::program::Program;
+use crate::typing::unify::{all_same_type, unify};
 
 pub fn check_types(program: &Program) -> Result<(), AnyError> {
     match &program.main {
@@ -155,7 +156,7 @@ fn get_type(expression: &Expression) -> Result<Type, AnyError> {
                         .map(|t| TypedIdentifier::nameless(t))
                         .collect(),
                 })
-            }
+            };
         }
         Expression::Function(Function { parameter, body }) => {
             let chain_type = check_types_chain(body);
@@ -168,21 +169,6 @@ fn get_type(expression: &Expression) -> Result<Type, AnyError> {
         Expression::Composed(_) => {
             unimplemented!()
         }
-    }
-}
-
-fn all_same_type(types: &Vec<Type>) -> bool {
-    if types.len() == 0 {
-        true
-    } else if types.len() == 1 {
-        true
-    } else {
-        for i in 1..types.len() {
-            if types[i - 1] != types[i] {
-                return false;
-            }
-        }
-        true
     }
 }
 
@@ -226,19 +212,8 @@ fn get_call_type(input: &Expression, operand: &Expression) -> Result<Type, AnyEr
 
 fn is_castable_to(input: &Expression, target_type: &TypedIdentifier) -> Result<Type, AnyError> {
     let input_type = get_type(input)?;
-    is_compatible(&input_type, &target_type.type_)
-}
-
-fn is_compatible(first: &Type, second: &Type) -> Result<Type, AnyError> {
-    // match (first, second) {
-    //     (
-    //         Type::BuiltinSingle {type_name: input_parent_name, child: input_child},
-    //         Type::BuiltinSingle {type_name: target_parent_name, child: target_child}
-    //     ) => {
-    //         if input_parent_name == target_parent_name && is_castable_to()
-    //     }
-    // }
-    todo!()
+    unify(&input_type, &target_type.type_)
+        .ok_or_else(|| type_mismatch::<Type>(input, &input_type, &target_type.type_).unwrap_err())
 }
 
 #[cfg(test)]
