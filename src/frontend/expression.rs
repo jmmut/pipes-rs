@@ -1,5 +1,7 @@
 use crate::frontend::lexer::Operator;
-use crate::typing::{builtin_types, is_builtin_nested_type, is_builtin_simple_type, type_names};
+use crate::middleend::typing::{
+    builtin_types, is_builtin_nested_type, is_builtin_simple_type, type_names,
+};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {

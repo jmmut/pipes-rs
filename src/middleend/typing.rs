@@ -2,11 +2,11 @@ mod unify;
 
 use crate::common::{err, AnyError};
 use crate::frontend::expression::{
-    Chain, Composed, Expression, Function, Transformation, Type, TypedIdentifier,
+    Chain, Composed, Expression, Expressions, Function, Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::Operator;
 use crate::frontend::program::Program;
-use crate::typing::unify::{all_same_type, unify};
+use crate::middleend::typing::unify::{all_same_type, unify};
 
 pub fn check_types(program: &Program) -> Result<(), AnyError> {
     match &program.main {
@@ -17,8 +17,8 @@ pub fn check_types(program: &Program) -> Result<(), AnyError> {
         Expression::Chain(chain) => {
             check_types_chain(chain)?;
         }
-        Expression::StaticList { .. } => {
-            unimplemented!()
+        Expression::StaticList { elements } => {
+            check_types_list(elements)?;
         }
         Expression::Function(_) => {
             unimplemented!()
@@ -68,7 +68,7 @@ pub fn is_builtin_simple_type(name: &str) -> Option<Type> {
 
 pub mod builtin_types {
     use crate::frontend::expression::Type;
-    use crate::typing::type_names;
+    use crate::middleend::typing::type_names;
 
     pub const NOTHING: Type = Type::Builtin {
         type_name: "nothing",
@@ -79,23 +79,19 @@ pub mod builtin_types {
     };
 }
 
-fn type_mismatch<T>(
-    actual_expression: &Expression,
-    actual: &Type,
-    expected: &Type,
-) -> Result<T, AnyError> {
-    err(format!(
+fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type) -> String {
+    format!(
         "Type mismatch for expression '{:?}':\
         \n  actual:   {:?}\
         \n  expected: {:?}",
         actual_expression, actual, expected
-    ))
+    )
 }
 
 fn assert_same_type(actual_expression: &Expression, expected: &Type) -> Result<Type, AnyError> {
     let actual_type = get_type(actual_expression)?;
     if actual_type != *expected {
-        type_mismatch(actual_expression, &actual_type, expected)
+        err(type_mismatch(actual_expression, &actual_type, expected))
     } else {
         Ok(actual_type)
     }
@@ -111,7 +107,7 @@ fn check_types_chain(chain: &Chain) -> Result<Type, AnyError> {
         } = t
         {
             if accumulated_type != *expected_type {
-                return type_mismatch(accumulated, &accumulated_type, expected_type);
+                return err(type_mismatch(accumulated, &accumulated_type, expected_type));
             }
         } else {
             accumulated_type = get_operation_type(accumulated, t.operator, &t.operand)?;
@@ -130,46 +126,49 @@ fn get_type(expression: &Expression) -> Result<Type, AnyError> {
         Expression::Type(_) => {
             unimplemented!()
         }
-        Expression::Chain(_) => {
-            unimplemented!()
-        }
-        Expression::StaticList { elements } => {
-            let mut types = Vec::new();
-            for e in elements {
-                types.push(get_type(e)?);
-            }
-            return if types.len() == 0 {
-                Ok(Type::BuiltinSingle {
-                    type_name: type_names::ARRAY,
-                    child: Box::new(TypedIdentifier::nameless(Type::Unknown)),
-                })
-            } else if all_same_type(&types) {
-                Ok(Type::BuiltinSingle {
-                    type_name: type_names::ARRAY,
-                    child: Box::new(TypedIdentifier::nameless(types.pop().unwrap())),
-                })
-            } else {
-                Ok(Type::BuiltinSeveral {
-                    type_name: type_names::TUPLE,
-                    children: types
-                        .into_iter()
-                        .map(|t| TypedIdentifier::nameless(t))
-                        .collect(),
-                })
-            };
-        }
-        Expression::Function(Function { parameter, body }) => {
-            let chain_type = check_types_chain(body);
-            let children = vec![parameter.clone(), TypedIdentifier::nameless(chain_type?)];
-            Ok(Type::BuiltinSeveral {
-                type_name: type_names::FUNCTION,
-                children,
-            })
-        }
+        Expression::Chain(chain) => check_types_chain(chain),
+        Expression::StaticList { elements } => check_types_list(elements),
+        Expression::Function(function) => check_type_function(function),
         Expression::Composed(_) => {
             unimplemented!()
         }
     }
+}
+
+fn check_type_function(function: &Function) -> Result<Type, AnyError> {
+    let Function { parameter, body } = function;
+    let chain_type = check_types_chain(body);
+    let children = vec![parameter.clone(), TypedIdentifier::nameless(chain_type?)];
+    Ok(Type::BuiltinSeveral {
+        type_name: type_names::FUNCTION,
+        children,
+    })
+}
+
+fn check_types_list(elements: &Expressions) -> Result<Type, AnyError> {
+    let mut types = Vec::new();
+    for e in elements {
+        types.push(get_type(e)?);
+    }
+    return if types.len() == 0 {
+        Ok(Type::BuiltinSingle {
+            type_name: type_names::ARRAY,
+            child: Box::new(TypedIdentifier::nameless(Type::Unknown)),
+        })
+    } else if all_same_type(&types) {
+        Ok(Type::BuiltinSingle {
+            type_name: type_names::ARRAY,
+            child: Box::new(TypedIdentifier::nameless(types.pop().unwrap())),
+        })
+    } else {
+        Ok(Type::BuiltinSeveral {
+            type_name: type_names::TUPLE,
+            children: types
+                .into_iter()
+                .map(|t| TypedIdentifier::nameless(t))
+                .collect(),
+        })
+    };
 }
 
 fn get_operation_type(
@@ -206,14 +205,37 @@ fn get_call_type(input: &Expression, operand: &Expression) -> Result<Type, AnyEr
         Expression::Composed(Composed::Cast(cast)) => {
             return is_castable_to(input, &cast.target_type);
         }
-        _ => unimplemented!(),
+        Expression::Nothing => {}
+        Expression::Value(_) => {}
+        Expression::Identifier(_) => {
+            //TODO: compute the type of identifiers and cache them
+            return Ok(Type::Unknown);
+        }
+        Expression::Type(_) => {}
+        Expression::Chain(_) => {}
+        Expression::StaticList { .. } => {}
+        Expression::Function(_) => {}
+        Expression::Composed(Composed::Loop(_)) => {}
+        Expression::Composed(Composed::LoopOr(_)) => {}
+        Expression::Composed(Composed::Times(_)) => {}
+        Expression::Composed(Composed::TimesOr(_)) => {}
+        Expression::Composed(Composed::Replace(_)) => {}
+        Expression::Composed(Composed::Map(_)) => {}
+        Expression::Composed(Composed::Branch(_)) => {}
+        Expression::Composed(Composed::Something(_)) => {}
+        Expression::Composed(Composed::Inspect(_)) => {}
     }
+    unimplemented!()
 }
 
 fn is_castable_to(input: &Expression, target_type: &TypedIdentifier) -> Result<Type, AnyError> {
     let input_type = get_type(input)?;
-    unify(&input_type, &target_type.type_)
-        .ok_or_else(|| type_mismatch::<Type>(input, &input_type, &target_type.type_).unwrap_err())
+    let unified = unify(&input_type, &target_type.type_);
+    if let Some(unified) = unified {
+        Ok(unified)
+    } else {
+        err(type_mismatch(input, &input_type, &target_type.type_))
+    }
 }
 
 #[cfg(test)]
@@ -284,5 +306,10 @@ mod tests {
     #[test]
     fn test_cast() {
         assert_types_ok("[] |cast(:array(:i64))");
+    }
+
+    #[test]
+    fn test_chain_inside_array() {
+        assert_types_ok("[{5 + 4}]");
     }
 }

@@ -1,5 +1,5 @@
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
-use crate::typing::type_names;
+use crate::middleend::typing::type_names;
 
 /// Add to `second` whatever we can from `first`, and return a copy of it.
 ///
@@ -171,7 +171,7 @@ pub fn all_same_type<T: PartialEq>(types: &Vec<T>) -> bool {
 mod tests {
     use super::*;
     use crate::frontend::expression::{Type, TypedIdentifier};
-    use crate::typing::{builtin_types, type_names};
+    use crate::middleend::typing::{builtin_types, type_names};
 
     #[test]
     fn test_basic_unifiable() {

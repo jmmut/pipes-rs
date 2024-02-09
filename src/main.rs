@@ -8,6 +8,7 @@ use pipes_rs::evaluate::{Runtime, NOTHING};
 use pipes_rs::frontend::ast::ast_deserialize_source;
 use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::location::SourceCode;
+use pipes_rs::middleend::typing::check_types;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -17,7 +18,11 @@ struct Args {
 
     /// Inline pipes code to be interpreted. Either this or the input file must be provided
     #[arg(short, long)]
-    code_string: Option<String>,
+    evaluate_string: Option<String>,
+
+    /// Only parse and check types, but don't interpret
+    #[arg(short, long)]
+    check: bool,
 
     /// AST syntax, like `[ 5 +7 Op |print_char Op Chain 8 ]`
     #[arg(short, long)]
@@ -45,13 +50,14 @@ fn main() -> Result<(), AnyError> {
 fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result<(), AnyError> {
     reset_sigpipe();
     let Args {
-        code_string,
+        evaluate_string,
+        check,
         input_file,
         prettify,
         ast,
         debug_ast,
     } = args;
-    let code_string = SourceCode::new_from_string_or_file(code_string, input_file)?;
+    let code_string = SourceCode::new_from_string_or_file(evaluate_string, input_file)?;
     let expression = if ast {
         ast_deserialize_source(&code_string)?
     } else {
@@ -67,9 +73,13 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         }
     }
 
-    let result = Runtime::evaluate(expression, read_src, print_dst)?;
-    if result != NOTHING {
-        println!("{}", result);
+    check_types(&expression)?;
+
+    if !check {
+        let result = Runtime::evaluate(expression, read_src, print_dst)?;
+        if result != NOTHING {
+            println!("{}", result);
+        }
     }
     Ok(())
 }
@@ -97,7 +107,8 @@ mod tests {
     fn test_read_file() {
         let mut print_dst = Vec::<u8>::new();
         let args = Args {
-            code_string: None,
+            evaluate_string: None,
+            check: false,
             input_file: Some(PathBuf::from("pipes_programs/demos/hello_world.pipes")),
             ast: false,
             debug_ast: false,

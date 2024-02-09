@@ -83,3 +83,7 @@ TypedIdentifier = Identifier ':' Type | Identifier | ':' Type
 Branch = 'branch' Chain Chain
 Function = 'function' TypedChildren Chain
 ```
+
+### Miscellaneous
+
+If you export the test coverage from RustRover into a .lcov file, you can generate a html report with `genhtml your_file.lcov`.

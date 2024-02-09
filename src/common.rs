@@ -7,9 +7,11 @@ pub fn context<T, S: AsRef<str>>(module: S, result: Result<T, AnyError>) -> Resu
     })
 }
 
+#[track_caller]
 pub fn err<T, S: AsRef<str>>(error_message: S) -> Result<T, AnyError> {
     // place your breakpoints here
-    Err(error_message.as_ref().into())
+    let caller_location = std::panic::Location::caller();
+    Err(format!("(from {})\n{}", caller_location, error_message.as_ref()).into())
 }
 
 #[cfg(test)]
