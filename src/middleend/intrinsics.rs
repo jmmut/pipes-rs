@@ -39,23 +39,23 @@ impl Intrinsic {
                     .unwrap()
             }
             Intrinsic::ReadLines => {
-                parse_type("function(str :array(letter :i64)) (same_input :array(letter :i64))")
+                parse_type("function(reserved :i64) (lines :array(line :array(letter :i64)))")
                     .unwrap()
             }
             Intrinsic::ToStr => {
-                parse_type("function(str :array(letter :i64)) (same_input :array(letter :i64))")
+                parse_type("function(number :i64) (number_str :array(digit_char :i64))")
                     .unwrap()
             }
             Intrinsic::NewArray => {
-                parse_type("function(str :array(letter :i64)) (same_input :array(letter :i64))")
+                parse_type("function(size :i64) (:array)")
                     .unwrap()
             }
             Intrinsic::Size => {
-                parse_type("function(str :array(letter :i64)) (same_input :array(letter :i64))")
+                parse_type("function(:array) (:i64)")
                     .unwrap()
             }
             Intrinsic::Breakpoint => {
-                parse_type("function(str :array(letter :i64)) (same_input :array(letter :i64))")
+                parse_type("function(t) (t)")
                     .unwrap()
             }
         }
