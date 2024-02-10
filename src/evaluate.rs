@@ -4,7 +4,6 @@ use std::rc::Rc;
 use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
-use crate::evaluate::intrinsics::Intrinsic;
 use crate::frontend::expression::{
     Chain, Expression, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr, Transformation,
     TypedIdentifier,
@@ -13,6 +12,7 @@ use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::lexer::{Comparison, Operator};
 use crate::frontend::program::Program;
+use crate::middleend::intrinsics::Intrinsic;
 
 pub type ListPointer = i64;
 pub type FunctionPointer = i64;
@@ -83,36 +83,6 @@ fn unimplemented<T>() -> Result<T, AnyError> {
     err("unimplemented")
 }
 
-pub mod intrinsics {
-    use strum_macros::EnumIter;
-
-    #[derive(Copy, Clone, EnumIter)]
-    pub enum Intrinsic {
-        PrintChar,
-        ReadChar,
-        Print,
-        ReadLines,
-        ToStr,
-        NewArray,
-        Size,
-        Breakpoint,
-    }
-    impl Intrinsic {
-        pub fn name(&self) -> &'static str {
-            match self {
-                Intrinsic::PrintChar => "print_char",
-                Intrinsic::ReadChar => "read_char",
-                Intrinsic::Print => "print",
-                Intrinsic::ReadLines => "read_lines",
-                Intrinsic::ToStr => "to_str",
-                Intrinsic::NewArray => "new_array",
-                Intrinsic::Size => "size",
-                Intrinsic::Breakpoint => "breakpoint",
-            }
-        }
-    }
-}
-
 impl<R: Read, W: Write> Runtime<R, W> {
     /// Executes a given program with a given standard input and output.
     ///
@@ -162,7 +132,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut identifiers = HashMap::new();
         let mut functions = Vec::new();
         let mut i = 0;
-        for intrinsic in intrinsics::Intrinsic::iter() {
+        for intrinsic in Intrinsic::iter() {
             functions.push(Rc::new(FunctionOrIntrinsic::Intrinsic(intrinsic)));
             identifiers.insert(intrinsic.name().to_string(), vec![i]);
             i += 1;

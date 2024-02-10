@@ -1,4 +1,5 @@
-use crate::frontend::expression::Expression;
+use crate::common::err;
+use crate::frontend::expression::{Expression, Type};
 use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
 use crate::frontend::parser::parse_tokens;
@@ -34,4 +35,16 @@ pub fn lex_and_parse_with_identifiers<S: Into<SourceCode>>(
     let ast = Parser::new_with_available(None, identifiers, None);
     let expression = parse_tokens_cached(tokens?.tokens, ast);
     expression
+}
+
+pub fn parse_type<S: Into<SourceCode>>(code_text: S) -> Result<Type, AnyError> {
+    let program = lex_and_parse(code_text)?;
+    if let Expression::Type(type_) = program.main {
+        Ok(type_)
+    } else {
+        err(format!(
+            "Could not parse expression as a type: {:?}",
+            program.main
+        ))
+    }
 }

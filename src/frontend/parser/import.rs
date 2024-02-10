@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
-use crate::evaluate::intrinsics;
 use crate::frontend::expression::{
     Branch, Chain, Composed, Expression, Function, Inspect, Loop, LoopOr, Map, Replace, Something,
     Times, TimesOr, Transformation, Type, TypedIdentifier,
@@ -12,6 +11,7 @@ use crate::frontend::lexer::{lex, Operator};
 use crate::frontend::location::SourceCode;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
 use crate::frontend::parser::root::qualify;
+use crate::middleend::intrinsics;
 
 /// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(

@@ -1,3 +1,4 @@
+use crate::common::{err, AnyError};
 use crate::frontend::lexer::Operator;
 use crate::middleend::typing::{
     builtin_types, is_builtin_nested_type, is_builtin_simple_type, type_names,
@@ -217,6 +218,13 @@ impl Type {
             Type::children(parent, children)
         }
     }
+    pub fn function(parameter: TypedIdentifier, returned: TypedIdentifier) -> Type {
+        let children = vec![parameter.clone(), returned];
+        Type::BuiltinSeveral {
+            type_name: type_names::FUNCTION,
+            children,
+        }
+    }
 }
 
 impl Type {
@@ -245,7 +253,36 @@ impl Type {
             ),
         }
     }
+
+    pub fn as_function(&self) -> Result<Option<(Type, Type)>, AnyError> {
+        if let Type::BuiltinSeveral {
+            type_name: type_names::FUNCTION,
+            children,
+        } = self
+        {
+            if children.len() == 2 {
+                Ok(Some((children[0].type_.clone(), children[1].type_.clone())))
+            } else {
+                err("Bug: function type should have 2 types: parameter type and returned type")
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
+
+// impl PartialEq for Type {
+//     fn eq(&self, other: &Self) -> bool {
+//         if let Type::BuiltinSeveral {
+//             type_name: type_names::STRUCT,
+//             children
+//         } = self {
+//
+//         } else {
+//             self.name() == other.name() &&
+//         }
+//     }
+// }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
