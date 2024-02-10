@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use strum::IntoEnumIterator;
 
-use crate::common::{AnyError, context, err};
+use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Chain, Composed, Expression, Expressions, Function, Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::Operator;
 use crate::frontend::program::Program;
-use crate::middleend::intrinsics::Intrinsic;
+use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
 use crate::middleend::typing::unify::{all_same_type, unify};
 
 mod unify;
@@ -18,53 +18,24 @@ pub fn check_types(program: &Program) -> Result<(), AnyError> {
     typer.get_type(&typer.program.main).map(|_| ())
 }
 
-pub mod type_names {
-    #[allow(unused)]
-    pub const UNKNOWN: &'static str = "unknown";
-    #[allow(unused)]
-    pub const I64: &'static str = "i64";
-    #[allow(unused)]
-    pub const TUPLE: &'static str = "tuple";
-    #[allow(unused)]
-    pub const ARRAY: &'static str = "array";
-    #[allow(unused)]
-    pub const STRUCT: &'static str = "struct";
-    pub const FUNCTION: &'static str = "function";
-    #[allow(unused)]
-    pub const TYPE: &'static str = "type";
-}
-
 pub fn is_builtin_nested_type(name: &str) -> Option<&'static str> {
-    if name == type_names::ARRAY {
-        Some(type_names::ARRAY)
-    } else if name == type_names::STRUCT {
-        Some(type_names::STRUCT)
-    } else if name == type_names::TUPLE {
-        Some(type_names::TUPLE)
+    if name == BuiltinType::Array.name() {
+        Some(BuiltinType::Array.name())
+    } else if name == BuiltinType::Struct.name() {
+        Some(BuiltinType::Struct.name())
+    } else if name == BuiltinType::Tuple.name() {
+        Some(BuiltinType::Tuple.name())
     } else {
         None
     }
 }
 
 pub fn is_builtin_simple_type(name: &str) -> Option<Type> {
-    if name == type_names::I64 {
+    if name == BuiltinType::I64.name() {
         Some(builtin_types::I64)
     } else {
         None
     }
-}
-
-pub mod builtin_types {
-    use crate::frontend::expression::Type;
-    use crate::middleend::typing::type_names;
-
-    pub const NOTHING: Type = Type::Builtin {
-        type_name: "nothing",
-    };
-    #[allow(unused)]
-    pub const I64: Type = Type::Builtin {
-        type_name: type_names::I64,
-    };
 }
 
 type BindingsTypesStack = Vec<Type>;
@@ -119,9 +90,11 @@ impl<'a> Typer<'a> {
                 } else {
                     "Some constants have incorrect types. (Are there cyclic dependencies?)"
                 };
-                let error_messages = errors.iter().map(|e| e.to_string()).reduce(|accum, e| {
-                    accum + "\n" + &e
-                }).unwrap();
+                let error_messages = errors
+                    .iter()
+                    .map(|e| e.to_string())
+                    .reduce(|accum, e| accum + "\n" + &e)
+                    .unwrap();
                 return err(format!("{}:{}", error_intro, error_messages));
             }
             identifiers_vec = failed;
@@ -161,10 +134,16 @@ impl<'a> Typer<'a> {
             if let Some(last) = types.last() {
                 Ok(last.clone())
             } else {
-                err(format!("Bug: Identifier '{}' is not bound to any value", name))
+                err(format!(
+                    "Bug: Identifier '{}' is not bound to any value",
+                    name
+                ))
             }
         } else {
-            err(format!("Bug: Undefined identifier '{}'. This should have been detected by earlier stages.", name))
+            err(format!(
+                "Bug: Undefined identifier '{}'. This should have been detected by earlier stages.",
+                name
+            ))
         }
     }
 
@@ -205,8 +184,9 @@ impl<'a> Typer<'a> {
                 accumulated_type = self.get_operation_type(accumulated, t.operator, &t.operand)?;
                 if let Transformation {
                     operator: Operator::Assignment,
-                    operand: Expression::Identifier(name)
-                } = t {
+                    operand: Expression::Identifier(name),
+                } = t
+                {
                     *assigned_in_this_chain.entry(name.clone()).or_insert(0) += 1;
                     self.bind_identifier_type(name.clone(), accumulated_type.clone());
                 }
@@ -231,17 +211,17 @@ impl<'a> Typer<'a> {
         }
         return if types.len() == 0 {
             Ok(Type::BuiltinSingle {
-                type_name: type_names::ARRAY,
+                type_name: BuiltinType::Array.name(),
                 child: Box::new(TypedIdentifier::nameless(Type::Unknown)),
             })
         } else if all_same_type(&types) {
             Ok(Type::BuiltinSingle {
-                type_name: type_names::ARRAY,
+                type_name: BuiltinType::Array.name(),
                 child: Box::new(TypedIdentifier::nameless(types.pop().unwrap())),
             })
         } else {
             Ok(Type::BuiltinSeveral {
-                type_name: type_names::TUPLE,
+                type_name: BuiltinType::Tuple.name(),
                 children: types
                     .into_iter()
                     .map(|t| TypedIdentifier::nameless(t))

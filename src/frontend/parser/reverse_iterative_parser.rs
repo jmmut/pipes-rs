@@ -11,7 +11,7 @@ use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
-use crate::middleend::typing::type_names;
+use crate::middleend::intrinsics::BuiltinType;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
@@ -199,7 +199,7 @@ fn construct_function(
 
         Ok(PartialExpression::Expression(Expression::Type(
             Type::BuiltinSeveral {
-                type_name: type_names::FUNCTION,
+                type_name: BuiltinType::Function.name(),
                 children: vec![parameter, returned],
             },
         )))

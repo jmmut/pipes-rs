@@ -1,8 +1,8 @@
 use crate::common::{err, AnyError};
 use crate::frontend::lexer::Operator;
-use crate::middleend::typing::{
-    builtin_types, is_builtin_nested_type, is_builtin_simple_type, type_names,
-};
+use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
+use crate::middleend::typing::{is_builtin_nested_type, is_builtin_simple_type};
+use strum::AsStaticRef;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
@@ -107,6 +107,24 @@ impl Expression {
     #[allow(unused)]
     pub fn inspect(elem: TypedIdentifier, body: Chain) -> Self {
         Self::Composed(Composed::Inspect(Inspect { elem, body }))
+    }
+}
+
+pub enum Identifier {
+    Builtin(&'static str),
+    UserDefined(String),
+}
+
+impl Identifier {
+    /// `S: Into<String> + AsRef<str>`: take a String by value and move it if it's
+    /// a user defined name, or use it as a &str without copying if it's a builtin name.
+    /// I'm not sure the generic constraint works as expected.
+    pub fn new<S: Into<String> + AsRef<str>>(name: S) -> Self {
+        if let Some(name) = is_builtin_type(name.as_ref()) {
+            Self::Builtin(name)
+        } else {
+            Self::UserDefined(name.into())
+        }
     }
 }
 
@@ -221,7 +239,7 @@ impl Type {
     pub fn function(parameter: TypedIdentifier, returned: TypedIdentifier) -> Type {
         let children = vec![parameter.clone(), returned];
         Type::BuiltinSeveral {
-            type_name: type_names::FUNCTION,
+            type_name: BuiltinType::Function.name(),
             children,
         }
     }
@@ -230,7 +248,7 @@ impl Type {
 impl Type {
     pub fn name(&self) -> &str {
         match self {
-            Type::Unknown => type_names::UNKNOWN,
+            Type::Unknown => BuiltinType::Unknown.name(),
             Type::Builtin { type_name }
             | Type::BuiltinSingle { type_name, .. }
             | Type::BuiltinSeveral { type_name, .. } => type_name,
@@ -241,7 +259,7 @@ impl Type {
     }
     pub fn static_name(&self) -> &'static str {
         match self {
-            Type::Unknown => type_names::UNKNOWN,
+            Type::Unknown => BuiltinType::Unknown.name(),
             Type::Builtin { type_name }
             | Type::BuiltinSingle { type_name, .. }
             | Type::BuiltinSeveral { type_name, .. } => type_name,
@@ -255,8 +273,9 @@ impl Type {
     }
 
     pub fn as_function(&self) -> Result<Option<(Type, Type)>, AnyError> {
+        let func_name = BuiltinType::Function.name();
         if let Type::BuiltinSeveral {
-            type_name: type_names::FUNCTION,
+            type_name: func_name,
             children,
         } = self
         {
@@ -270,19 +289,6 @@ impl Type {
         }
     }
 }
-
-// impl PartialEq for Type {
-//     fn eq(&self, other: &Self) -> bool {
-//         if let Type::BuiltinSeveral {
-//             type_name: type_names::STRUCT,
-//             children
-//         } = self {
-//
-//         } else {
-//             self.name() == other.name() &&
-//         }
-//     }
-// }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {

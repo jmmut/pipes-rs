@@ -1,5 +1,5 @@
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
-use crate::middleend::typing::type_names;
+use crate::middleend::intrinsics::BuiltinType;
 
 /// Add to `second` whatever we can from `first`, and return a copy of it.
 ///
@@ -96,15 +96,15 @@ fn nested_unify(first: &Type, second: &Type) -> Option<Type> {
             None
         }
         (Type::BuiltinSeveral { children, .. }, Type::BuiltinSingle { child, .. }) => {
-            if first.name() == type_names::TUPLE
+            if first.name() == BuiltinType::Tuple.name()
                 && children.len() > 0
-                && second.name() == type_names::ARRAY
+                && second.name() == BuiltinType::Array.name()
             {
                 let types = children.iter().map(|t| &t.type_).collect::<Vec<_>>();
                 if all_same_type(&types) {
                     if let Some(unified) = unify_typed_identifier(&children[0], &*child) {
                         return Some(Type::BuiltinSingle {
-                            type_name: type_names::ARRAY,
+                            type_name: BuiltinType::Array.name(),
                             child: Box::new(unified),
                         });
                     }
@@ -171,7 +171,8 @@ pub fn all_same_type<T: PartialEq>(types: &Vec<T>) -> bool {
 mod tests {
     use super::*;
     use crate::frontend::expression::{Type, TypedIdentifier};
-    use crate::middleend::typing::{builtin_types, type_names};
+    use crate::middleend::intrinsics::BuiltinType;
+    use crate::middleend::typing::builtin_types;
 
     #[test]
     fn test_basic_unifiable() {
@@ -195,7 +196,7 @@ mod tests {
                 type_name: "i64".to_string(),
             },
             &Type::Builtin {
-                type_name: type_names::I64,
+                type_name: BuiltinType::I64.name(),
             },
         );
         assert_eq!(unified, None);
@@ -222,7 +223,7 @@ mod tests {
         );
         assert_eq!(unified, Some(second));
         let second = Type::BuiltinSingle {
-            type_name: type_names::STRUCT,
+            type_name: BuiltinType::Struct.name(),
             child: Box::new(TypedIdentifier {
                 name: "field".to_string(),
                 type_: builtin_types::I64,
@@ -230,7 +231,7 @@ mod tests {
         };
         let unified = unify(
             &Type::BuiltinSingle {
-                type_name: type_names::STRUCT,
+                type_name: BuiltinType::Struct.name(),
                 child: Box::new(TypedIdentifier {
                     name: "field".to_string(),
                     type_: builtin_types::I64,
@@ -274,7 +275,7 @@ mod tests {
         );
         assert_eq!(unified, Some(second));
         let second = Type::BuiltinSeveral {
-            type_name: type_names::STRUCT,
+            type_name: BuiltinType::Struct.name(),
             children: vec![
                 TypedIdentifier {
                     name: "field".to_string(),
@@ -288,7 +289,7 @@ mod tests {
         };
         let unified = unify(
             &Type::BuiltinSeveral {
-                type_name: type_names::STRUCT,
+                type_name: BuiltinType::Struct.name(),
                 children: vec![
                     TypedIdentifier {
                         name: "field".to_string(),

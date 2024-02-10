@@ -1,5 +1,6 @@
 use crate::frontend::expression::Type;
 use crate::frontend::parse_type;
+use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 #[derive(Copy, Clone, EnumIter)]
@@ -43,21 +44,63 @@ impl Intrinsic {
                     .unwrap()
             }
             Intrinsic::ToStr => {
-                parse_type("function(number :i64) (number_str :array(digit_char :i64))")
-                    .unwrap()
+                parse_type("function(number :i64) (number_str :array(digit_char :i64))").unwrap()
             }
-            Intrinsic::NewArray => {
-                parse_type("function(size :i64) (:array)")
-                    .unwrap()
-            }
-            Intrinsic::Size => {
-                parse_type("function(:array) (:i64)")
-                    .unwrap()
-            }
-            Intrinsic::Breakpoint => {
-                parse_type("function(t) (t)")
-                    .unwrap()
-            }
+            Intrinsic::NewArray => parse_type("function(size :i64) (:array)").unwrap(),
+            Intrinsic::Size => parse_type("function(:array) (:i64)").unwrap(),
+            Intrinsic::Breakpoint => parse_type("function(t) (t)").unwrap(),
         }
     }
+}
+
+#[derive(EnumIter)]
+pub enum BuiltinType {
+    Unknown,
+    Nothing,
+    I64,
+    Tuple,
+    Array,
+    Struct,
+    Function,
+    Type,
+}
+
+impl BuiltinType {
+    pub const fn name(&self) -> &'static str {
+        match self {
+            BuiltinType::Unknown => "unknown",
+            BuiltinType::Nothing => "nothing",
+            BuiltinType::I64 => "i64",
+            BuiltinType::Tuple => "tuple",
+            BuiltinType::Array => "array",
+            BuiltinType::Struct => "struct",
+            BuiltinType::Function => "function",
+            BuiltinType::Type => "type",
+        }
+    }
+}
+
+pub mod builtin_types {
+    use crate::frontend::expression::Type;
+    use crate::middleend::intrinsics::BuiltinType;
+    pub const UNKNOWN: Type = Type::Builtin {
+        type_name: BuiltinType::Unknown.name(),
+    };
+    pub const NOTHING: Type = Type::Builtin {
+        type_name: BuiltinType::Nothing.name(),
+    };
+    #[allow(unused)]
+    pub const I64: Type = Type::Builtin {
+        type_name: BuiltinType::I64.name(),
+    };
+}
+
+pub fn is_builtin_type(name: &str) -> Option<&'static str> {
+    for builtin in BuiltinType::iter() {
+        let builtin_name = builtin.name();
+        if builtin_name == name {
+            return Some(builtin_name);
+        }
+    }
+    None
 }
