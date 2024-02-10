@@ -222,97 +222,51 @@ impl Type {
     }
 }
 
+/// Structural equality, useful for tests in this project.
 /// In summary, equality needs to be custom to be able to ignore nested names except for structs.
 /// This custom comparison can not be done just for TypedIdentifier because it doesn't know if
 /// it's being used in a struct or in some other type.
+/// For semantic equality, see [crate::middleend::typing::unify].
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         if self.name() != other.name() {
             return false;
         }
-        if self.name() == BuiltinType::Struct.name() {
-            if let (
-                Type::Nested {
-                    children: children_1,
-                    ..
-                },
-                Type::Nested {
-                    children: children_2,
-                    ..
-                },
-            ) = (self, other)
-            {
-                return children_1 == children_2; // this comparison includes the name of the typed identifiers
-            } else {
-                panic!(
-                    "Bug: structs should be Type::Nested, but are: {:?}, {:?}",
-                    self, other
-                )
-            }
-        } else {
-            match (self, other) {
-                (Type::Simple { .. }, Type::Simple { .. }) => {
-                    return true;
-                }
-                (
-                    Type::Nested {
-                        children: children_1,
-                        ..
-                    },
-                    Type::Nested {
-                        children: children_2,
-                        ..
-                    },
-                ) => {
-                    return if children_1.len() != children_2.len() {
-                        false
-                    } else {
-                        for (child_1, child_2) in children_1.iter().zip(children_2) {
-                            if child_1.type_ != child_2.type_ {
-                                return false;
-                            }
+        return match (self, other) {
+            (Type::Simple { .. }, Type::Simple { .. }) => true,
+            #[rustfmt::skip]
+            (
+                Type::Nested { children: children_1, .. },
+                Type::Nested { children: children_2, .. },
+            ) => {
+                if children_1.len() != children_2.len() {
+                    false
+                } else if self.name() == BuiltinType::Struct.name() {
+                    children_1 == children_2 // this comparison includes the name of the typed identifiers
+                } else {
+                    // if not structs, only compare the types, not the names
+                    for (child_1, child_2) in children_1.iter().zip(children_2) {
+                        if child_1.type_ != child_2.type_ {
+                            return false;
                         }
-                        true
                     }
-                }
-
-                // (_, _) => {
-                //     return false;
-                // }
-                (
-                    Type::Function {
-                        parameter: param_1,
-                        returned: ret_1,
-                    },
-                    Type::Function {
-                        parameter: param_2,
-                        returned: ret_2,
-                    },
-                ) => {
-                    return param_1.type_ == param_2.type_ && ret_1.type_ == ret_2.type_;
-                }
-                (Type::Simple { .. }, Type::Nested { .. }) => {
-                    return false;
-                }
-                (Type::Simple { .. }, Type::Function { .. }) => {
-                    return false;
-                }
-
-                (Type::Nested { .. }, Type::Simple { .. }) => {
-                    return false;
-                }
-                (Type::Nested { .. }, Type::Function { .. }) => {
-                    return false;
-                }
-
-                (Type::Function { .. }, Type::Simple { .. }) => {
-                    return false;
-                }
-                (Type::Function { .. }, Type::Nested { .. }) => {
-                    return false;
+                    true
                 }
             }
-        }
+            #[rustfmt::skip]
+            (
+                Type::Function { parameter: param_1, returned: ret_1},
+                Type::Function { parameter: param_2, returned: ret_2},
+            ) => param_1.type_ == param_2.type_ && ret_1.type_ == ret_2.type_,
+            (Type::Simple { .. }, Type::Nested { .. }) => false,
+            (Type::Simple { .. }, Type::Function { .. }) => false,
+
+            (Type::Nested { .. }, Type::Simple { .. }) => false,
+            (Type::Nested { .. }, Type::Function { .. }) => false,
+
+            (Type::Function { .. }, Type::Simple { .. }) => false,
+            (Type::Function { .. }, Type::Nested { .. }) => false,
+        };
     }
 }
 

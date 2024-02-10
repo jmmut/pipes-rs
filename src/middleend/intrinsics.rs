@@ -97,6 +97,9 @@ pub mod builtin_types {
     pub const I64: Type = Type::Simple {
         type_name: TypeName::Builtin(BuiltinType::I64.name()),
     };
+    pub const TYPE: Type = Type::Simple {
+        type_name: TypeName::Builtin(BuiltinType::Type.name()),
+    };
 }
 
 pub fn is_builtin_type(name: &str) -> Option<&'static str> {

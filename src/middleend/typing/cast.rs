@@ -1,64 +1,92 @@
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
 use crate::middleend::intrinsics::{builtin_types, BuiltinType};
+use crate::middleend::typing::unify::all_same_type;
 
-/// Compare types semantically and merge them.
-/// In summary, the Any type can be casted implicitly to any type, and this function
-/// can be used to infer types. For example, the types `function(:i64) (:any)` and
-/// `function(:any) (:i64)` are compatible, and this function would return `function(:i64) (:i64)`.
-pub fn unify(first: &Type, second: &Type) -> Option<Type> {
+/// Add to `second` whatever we can from `first`, and return a copy of it.
+///
+/// The fact that second takes preference is important because 2 types might be different but still
+/// compatible, like `:tuple(:i64 :64)` and `:array(:i64)`.
+pub fn cast(first: &Type, second: &Type) -> Option<Type> {
     let first_name = first.name();
     let second_name = second.name();
     if first_name == BuiltinType::Any.name() {
         return Some(second.clone());
     } else if second_name == BuiltinType::Any.name() {
         return Some(first.clone());
-    } else if first_name != second_name {
-        return None;
     }
     match (first, second) {
-        (Type::Simple { .. }, Type::Simple { .. }) => Some(second.clone()),
+        (Type::Simple { .. }, Type::Simple { .. }) => {
+            clone_if_equal(second, first_name, second_name)
+        }
         #[rustfmt::skip]
         (Type::Nested { children: children_1, .. }, Type::Nested { children: children_2, .. }) => {
-            unify_nested(second_name, children_1, children_2)
+            cast_nested(first_name, second_name, children_1, children_2)
         },
-        #[rustfmt::skip]
-        (
-            Type::Function { parameter: param_1, returned: returned_1},
-            Type::Function { parameter: param_2, returned: returned_2},
-        ) => {
-            let parameter = Box::new(unify_typed_identifier(param_1, param_2)?);
-            let returned = Box::new(unify_typed_identifier(returned_1, returned_2)?);
-            Some(Type::Function {parameter, returned})
+        (Type::Function { .. }, Type::Function { .. }) => {
+            //TODO
+            None
         }
         (_, _) => None,
     }
 }
 
-fn unify_nested(
-    second_name: &str,
-    children_1: &TypedIdentifiers,
-    children_2: &TypedIdentifiers,
-) -> Option<Type> {
-    if let Some(children) = unify_list(children_1, children_2) {
-        Some(Type::from(second_name, children))
+fn clone_if_equal<T: PartialEq>(to_clone: &Type, first: T, second: T) -> Option<Type> {
+    if first == second {
+        Some(to_clone.clone())
     } else {
         None
     }
 }
 
-fn unify_typed_identifier(
+fn cast_nested(
+    first_name: &str,
+    second_name: &str,
+    children_1: &TypedIdentifiers,
+    children_2: &TypedIdentifiers,
+) -> Option<Type> {
+    if first_name == second_name {
+        if let Some(children) = cast_list(children_1, children_2) {
+            Some(Type::from(second_name, children))
+        } else {
+            None
+        }
+    } else {
+        if first_name == BuiltinType::Array.name() && second_name == BuiltinType::Tuple.name() {
+            None // forbid casting array to tuple because the lengths might not match
+        } else if first_name == BuiltinType::Tuple.name()
+            && second_name == BuiltinType::Array.name()
+        {
+            if all_same_type(children_1) {
+                let any = TypedIdentifier::nameless(builtin_types::ANY);
+                let tuple_type = children_1.last().unwrap_or(&any);
+                let array_type = children_2.last().unwrap();
+                if let Some(unified_inner) = cast_typed_identifier(tuple_type, array_type) {
+                    Some(Type::from(second_name, vec![unified_inner]))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+}
+
+fn cast_typed_identifier(
     first: &TypedIdentifier,
     second: &TypedIdentifier,
 ) -> Option<TypedIdentifier> {
-    if let Some(type_) = unify(&first.type_, &second.type_) {
-        let name = unify_name(&first.name, &second.name);
+    if let Some(type_) = cast(&first.type_, &second.type_) {
+        let name = cast_name(&first.name, &second.name);
         Some(TypedIdentifier { name, type_ })
     } else {
         None
     }
 }
 
-fn unify_name(first: &String, second: &String) -> String {
+fn cast_name(first: &String, second: &String) -> String {
     if second.is_empty() {
         first.clone()
     } else {
@@ -66,11 +94,11 @@ fn unify_name(first: &String, second: &String) -> String {
     }
 }
 
-fn unify_list(firsts: &TypedIdentifiers, seconds: &TypedIdentifiers) -> Option<TypedIdentifiers> {
+fn cast_list(firsts: &TypedIdentifiers, seconds: &TypedIdentifiers) -> Option<TypedIdentifiers> {
     if firsts.len() == seconds.len() {
         let mut unified_types = Vec::new();
         for i in 0..firsts.len() {
-            if let Some(unified) = unify_typed_identifier(&firsts[i], &seconds[i]) {
+            if let Some(unified) = cast_typed_identifier(&firsts[i], &seconds[i]) {
                 unified_types.push(unified);
             } else {
                 return None;
@@ -82,21 +110,6 @@ fn unify_list(firsts: &TypedIdentifiers, seconds: &TypedIdentifiers) -> Option<T
     }
 }
 
-pub fn all_same_type<T: PartialEq>(types: &Vec<T>) -> bool {
-    if types.len() == 0 {
-        true
-    } else if types.len() == 1 {
-        true
-    } else {
-        for i in 1..types.len() {
-            if types[i - 1] != types[i] {
-                return false;
-            }
-        }
-        true
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,13 +118,13 @@ mod tests {
 
     #[test]
     fn test_basic_unifiable() {
-        let unified = unify(&Type::nothing(), &Type::nothing());
+        let unified = cast(&Type::nothing(), &Type::nothing());
         assert_eq!(unified, Some(Type::nothing()));
 
-        let unified = unify(&Type::simple("i64".to_string()), &builtin_types::I64);
+        let unified = cast(&Type::simple("i64".to_string()), &builtin_types::I64);
         assert_eq!(unified, Some(builtin_types::I64));
 
-        let unified = unify(
+        let unified = cast(
             &Type::simple("custom".to_string()),
             &Type::simple("custom".to_string()),
         );
@@ -120,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_basic_different() {
-        let unified = unify(&Type::simple("i64"), &Type::simple("float"));
+        let unified = cast(&Type::simple("i64"), &Type::simple("float"));
         assert_eq!(unified, None);
     }
 
@@ -134,7 +147,7 @@ mod tests {
             }],
         );
 
-        let unified = unify(
+        let unified = cast(
             &Type::children(
                 "mystruct",
                 vec![TypedIdentifier {
@@ -162,7 +175,7 @@ mod tests {
                 },
             ],
         );
-        let unified = unify(
+        let unified = cast(
             &Type::children(
                 "mystruct",
                 vec![
@@ -186,7 +199,7 @@ mod tests {
         let child = TypedIdentifier::nameless(builtin_types::I64);
         let first = Type::from("array", vec![child.clone()]);
         let second = Type::from("tuple", vec![child.clone(), child.clone()]);
-        let unified = unify(&first, &second);
+        let unified = cast(&first, &second);
         assert_eq!(unified, None);
     }
 
@@ -195,38 +208,7 @@ mod tests {
         let child = TypedIdentifier::nameless(builtin_types::I64);
         let first = Type::from("tuple", vec![child.clone(), child.clone()]);
         let second = Type::from("array", vec![child.clone()]);
-        let unified = unify(&first, &second);
-        assert_eq!(unified, None);
-    }
-
-    #[test]
-    fn test_complementary_types() {
-        let second = Type::children(
-            "mystruct",
-            vec![
-                TypedIdentifier::nameless(builtin_types::ANY),
-                TypedIdentifier::nameless(builtin_types::I64),
-            ],
-        );
-        let unified = unify(
-            &Type::children(
-                "mystruct",
-                vec![
-                    TypedIdentifier::nameless(builtin_types::I64),
-                    TypedIdentifier::nameless(builtin_types::ANY),
-                ],
-            ),
-            &second,
-        );
-        assert_eq!(
-            unified,
-            Some(Type::children(
-                "mystruct",
-                vec![
-                    TypedIdentifier::nameless(builtin_types::I64),
-                    TypedIdentifier::nameless(builtin_types::I64),
-                ],
-            ))
-        );
+        let unified = cast(&first, &second);
+        assert_eq!(unified, Some(second));
     }
 }

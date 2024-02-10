@@ -9,13 +9,19 @@ use crate::frontend::expression::{
 use crate::frontend::lexer::Operator;
 use crate::frontend::program::Program;
 use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
+use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{all_same_type, unify};
 
-mod unify;
+pub mod cast;
+pub mod unify;
 
 pub fn check_types(program: &Program) -> Result<(), AnyError> {
+    get_type(program).map(|_| ())
+}
+
+pub fn get_type(program: &Program) -> Result<Type, AnyError> {
     let mut typer = Typer::new(program)?;
-    typer.get_type(&typer.program.main).map(|_| ())
+    typer.get_type(&typer.program.main)
 }
 
 pub fn is_builtin_nested_type(name: &str) -> Option<&'static str> {
@@ -152,9 +158,7 @@ impl<'a> Typer<'a> {
             Expression::Nothing => Ok(builtin_types::NOTHING),
             Expression::Value(_) => Ok(builtin_types::I64),
             Expression::Identifier(name) => self.check_types_identifier(name),
-            Expression::Type(_) => {
-                unimplemented!()
-            }
+            Expression::Type(_) => Ok(builtin_types::TYPE),
             Expression::Chain(chain) => self.check_types_chain(chain),
             Expression::StaticList { elements } => self.check_types_list(elements),
             Expression::Function(function) => self.check_type_function(function),
@@ -172,24 +176,14 @@ impl<'a> Typer<'a> {
         let mut accumulated_type = self.get_type(accumulated.as_ref())?;
         let mut assigned_in_this_chain = HashMap::new();
         for t in &chain.transformations {
+            accumulated_type = self.get_operation_type(accumulated, t.operator, &t.operand)?;
             if let Transformation {
-                operator: Operator::Type,
-                operand: Expression::Type(expected_type),
+                operator: Operator::Assignment,
+                operand: Expression::Identifier(name),
             } = t
             {
-                if accumulated_type != *expected_type {
-                    return err(type_mismatch(accumulated, &accumulated_type, expected_type));
-                }
-            } else {
-                accumulated_type = self.get_operation_type(accumulated, t.operator, &t.operand)?;
-                if let Transformation {
-                    operator: Operator::Assignment,
-                    operand: Expression::Identifier(name),
-                } = t
-                {
-                    *assigned_in_this_chain.entry(name.clone()).or_insert(0) += 1;
-                    self.bind_identifier_type(name.clone(), accumulated_type.clone());
-                }
+                *assigned_in_this_chain.entry(name.clone()).or_insert(0) += 1;
+                self.bind_identifier_type(name.clone(), accumulated_type.clone());
             }
         }
         for (to_unbind, times) in assigned_in_this_chain {
@@ -237,33 +231,42 @@ impl<'a> Typer<'a> {
             | Operator::Multiply
             | Operator::Divide
             | Operator::Modulo => {
-                self.assert_same_type(input, &builtin_types::I64)?;
-                self.assert_same_type(operand, &builtin_types::I64)?;
-                return Ok(builtin_types::I64);
+                let unified_input = self.assert_type_unifies(input, &builtin_types::I64)?;
+                let unified_operand = self.assert_type_unifies(operand, &unified_input)?;
+                return Ok(unified_operand);
             }
             Operator::Ignore => return self.get_type(operand),
             Operator::Call => {
                 return self.get_call_type(input, operand);
             }
-            Operator::Get => unimplemented!(),
-            Operator::Type => unimplemented!(),
-            Operator::Assignment => unimplemented!(),
-            Operator::Overwrite => unimplemented!(),
-            Operator::Concatenate => {
-                let input_type = self.get_type(input)?;
-                let output_type = self.assert_same_type(operand, &input_type)?;
-                if output_type.name() != BuiltinType::Array.name() {
-                    err(type_mismatch(
-                        input,
-                        &input_type,
-                        &Type::from(
-                            BuiltinType::Array.name(),
-                            vec![TypedIdentifier::nameless(builtin_types::ANY)],
-                        ),
-                    ))
+            Operator::Get => {
+                let array =
+                    Type::from_nameless(BuiltinType::Array.name(), vec![builtin_types::ANY]);
+                let unified_input = self.assert_type_unifies(&input, &array)?;
+                self.assert_type_unifies(operand, &builtin_types::I64)?;
+                if let Type::Nested { children, .. } = unified_input {
+                    Ok(children[0].type_.clone())
                 } else {
-                    Ok(output_type)
+                    err("Bug: array should be a Type::nested at this point")
                 }
+            }
+            Operator::Type => {
+                if let Expression::Type(expected_type) = operand {
+                    self.assert_type_unifies(input, expected_type)
+                } else {
+                    err(format!(
+                        "Operator ':' can only be followed by a type, not {:?}",
+                        operand
+                    ))
+                }
+            }
+            Operator::Assignment | Operator::Overwrite => self.get_type(input),
+            Operator::Concatenate => {
+                let array =
+                    Type::from_nameless(BuiltinType::Array.name(), vec![builtin_types::ANY]);
+                let unified_input = self.assert_type_unifies(input, &array)?;
+                let unified_operand = self.assert_type_unifies(operand, &unified_input)?;
+                return Ok(unified_operand);
             }
             Operator::Comparison(_) => unimplemented!(),
         }
@@ -320,7 +323,7 @@ impl<'a> Typer<'a> {
             returned,
         } = callable_type
         {
-            self.assert_same_type(input, &parameter.type_)?;
+            self.assert_type_unifies(input, &parameter.type_)?;
             Ok(returned.type_.clone())
         } else {
             let input_type = self.get_type(input)?;
@@ -338,7 +341,7 @@ impl<'a> Typer<'a> {
         target_type: &TypedIdentifier,
     ) -> Result<Type, AnyError> {
         let input_type = self.get_type(input)?;
-        let unified = unify(&input_type, &target_type.type_);
+        let unified = cast(&input_type, &target_type.type_);
         if let Some(unified) = unified {
             Ok(unified)
         } else {
@@ -346,16 +349,17 @@ impl<'a> Typer<'a> {
         }
     }
 
-    fn assert_same_type(
+    fn assert_type_unifies(
         &mut self,
         actual_expression: &Expression,
         expected: &Type,
     ) -> Result<Type, AnyError> {
         let actual_type = self.get_type(actual_expression)?;
-        if actual_type != *expected {
-            err(type_mismatch(actual_expression, &actual_type, expected))
+        let unified = unify(expected, &actual_type);
+        if let Some(unified) = unified {
+            Ok(unified)
         } else {
-            Ok(actual_type)
+            err(type_mismatch(actual_expression, &actual_type, expected))
         }
     }
 }
@@ -371,6 +375,7 @@ fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type)
 
 #[cfg(test)]
 mod tests {
+    use crate::common::unwrap_display;
     use std::collections::HashSet;
 
     use crate::evaluate::Runtime;
@@ -435,7 +440,12 @@ mod tests {
 
     #[test]
     fn test_empty_array() {
-        assert_types_wrong("[] :array(:i64)");
+        let parsed = parse("[] :array(:i64)");
+        let type_ = unwrap_display(get_type(&parsed));
+        assert_eq!(
+            type_,
+            Type::from_nameless(BuiltinType::Array.name(), vec![builtin_types::I64])
+        )
     }
 
     #[test]
