@@ -11,7 +11,6 @@ use crate::frontend::lexer::{Keyword, Operator, Token, TokenizedSource, Tokens};
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
-use crate::middleend::intrinsics::BuiltinType;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))

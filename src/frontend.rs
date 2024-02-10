@@ -6,7 +6,7 @@ use crate::frontend::parser::parse_tokens;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
 use crate::frontend::program::Program;
 use crate::AnyError;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 pub mod ast;
 pub mod expression;

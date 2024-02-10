@@ -4,7 +4,7 @@ use crate::middleend::intrinsics::{builtin_types, BuiltinType};
 /// Add to `second` whatever we can from `first`, and return a copy of it.
 ///
 /// The fact that second takes preference is important because 2 types might be different but still
-/// compatible, like `:array(:i64)` and `:tuple(:i64 :64)`.
+/// compatible, like `:tuple(:i64 :64)` and `:array(:i64)`.
 pub fn unify(first: &Type, second: &Type) -> Option<Type> {
     let first_name = first.name();
     let second_name = second.name();
@@ -15,23 +15,11 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
     }
     match (first, second) {
         (Type::Simple { .. }, Type::Simple { .. }) => {
-            if first_name == second_name {
-                Some(second.clone())
-            } else {
-                None
-            }
+            clone_if_equal(second, first_name, second_name)
         }
         #[rustfmt::skip]
         (Type::Nested { children: children_1, .. }, Type::Nested { children: children_2, .. }) => {
-            if first_name == second_name {
-                if let Some(children) = unify_list(children_1, children_2) {
-                    Some(Type::from(second_name, children))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            unify_nested(first_name, second_name, children_1, children_2)
         },
         (Type::Function { .. }, Type::Function { .. }) => {
             //TODO
@@ -39,29 +27,6 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
         }
         (_, _) => None,
     }
-    //     {
-    //     (Type::Unknown, Type::Unknown) => Some(Type::Unknown),
-    //     (Type::Unknown, _) => Some(second.clone()),
-    //     (_, Type::Unknown) => Some(first.clone()),
-    //     (Type::Simple { .. }, Type::Simple { .. }) => {
-    //         clone_if_equal(second, first.name(), second.name())
-    //     }
-    //     (Type::Builtin { .. }, Type::Builtin { .. }) => {
-    //         clone_if_equal(second, first.name(), second.name())
-    //     }
-    //     (Type::Builtin { .. }, Type::Simple { .. })
-    //     | (Type::Simple { .. }, Type::Builtin { .. }) => None,
-    //     (Type::BuiltinSingle { .. }, _)
-    //     | (Type::BuiltinSeveral { .. }, _)
-    //     | (Type::NestedSingle { .. }, _)
-    //     | (Type::NestedSeveral { .. }, _) => nested_unify(first, second),
-    //     _ => {
-    //         unreachable!(
-    //             "Type check bug: missing combination in unify: {:?} and {:?}",
-    //             first, second
-    //         )
-    //     }
-    // }
 }
 
 fn clone_if_equal<T: PartialEq>(to_clone: &Type, first: T, second: T) -> Option<Type> {
@@ -69,6 +34,42 @@ fn clone_if_equal<T: PartialEq>(to_clone: &Type, first: T, second: T) -> Option<
         Some(to_clone.clone())
     } else {
         None
+    }
+}
+
+fn unify_nested(
+    first_name: &str,
+    second_name: &str,
+    children_1: &TypedIdentifiers,
+    children_2: &TypedIdentifiers,
+) -> Option<Type> {
+    if first_name == second_name {
+        if let Some(children) = unify_list(children_1, children_2) {
+            Some(Type::from(second_name, children))
+        } else {
+            None
+        }
+    } else {
+        if first_name == BuiltinType::Array.name() && second_name == BuiltinType::Tuple.name() {
+            None // forbid casting array to tuple because the lengths might not match
+        } else if first_name == BuiltinType::Tuple.name()
+            && second_name == BuiltinType::Array.name()
+        {
+            if all_same_type(children_1) {
+                let any = TypedIdentifier::nameless(builtin_types::ANY);
+                let tuple_type = children_1.last().unwrap_or(&any);
+                let array_type = children_2.last().unwrap();
+                if let Some(unified_inner) = unify_typed_identifier(tuple_type, array_type) {
+                    Some(Type::from(second_name, vec![unified_inner]))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -127,7 +128,6 @@ pub fn all_same_type<T: PartialEq>(types: &Vec<T>) -> bool {
 mod tests {
     use super::*;
     use crate::frontend::expression::{Type, TypedIdentifier};
-    use crate::middleend::intrinsics::BuiltinType;
     use crate::middleend::typing::builtin_types;
 
     #[test]

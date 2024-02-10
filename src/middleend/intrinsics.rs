@@ -59,7 +59,7 @@ pub enum BuiltinType {
     Any,
     Nothing,
     I64,
-    Tuple,
+    Tuple, // maybe not needed, and any user defined type with children behaves the same
     Array,
     Struct,
     Function,
