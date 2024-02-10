@@ -1,3 +1,4 @@
+use crate::common::unwrap_display;
 use std::path::PathBuf;
 
 use crate::frontend::ast::ast_deserialize;
@@ -170,21 +171,15 @@ fn assert_eq_ast(code: &str, ast: &str) {
 fn test_import() {
     let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
     let code = SourceCode::new(main_path).unwrap();
-    match lex_and_parse(code) {
-        Ok(parsed) => {
-            assert_eq!(
-                parsed
-                    .identifiers
-                    .contains_key("some_namespace/reusable_functions/increment"),
-                true,
-                "actual: {:?}",
-                parsed.identifiers.keys()
-            );
-        }
-        Err(e) => {
-            panic!("{}", e)
-        }
-    }
+    let parsed = unwrap_display(lex_and_parse(code));
+    assert_eq!(
+        parsed
+            .identifiers
+            .contains_key("some_namespace/reusable_functions/increment"),
+        true,
+        "actual: {:?}",
+        parsed.identifiers.keys()
+    );
 }
 
 #[test]

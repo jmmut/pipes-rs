@@ -110,12 +110,14 @@ impl Expression {
     }
 }
 
-pub enum Identifier {
+#[derive(PartialEq, Debug, Clone)]
+pub enum TypeName {
+    // None,
     Builtin(&'static str),
     UserDefined(String),
 }
 
-impl Identifier {
+impl TypeName {
     /// `S: Into<String> + AsRef<str>`: take a String by value and move it if it's
     /// a user defined name, or use it as a &str without copying if it's a builtin name.
     /// I'm not sure the generic constraint works as expected.
@@ -126,121 +128,77 @@ impl Identifier {
             Self::UserDefined(name.into())
         }
     }
+    pub fn name(&self) -> &str {
+        match self {
+            // TypeName::None => {""}
+            TypeName::Builtin(n) => n,
+            TypeName::UserDefined(n) => n,
+        }
+    }
+}
+
+impl<S: Into<String> + AsRef<str>> From<S> for TypeName {
+    fn from(value: S) -> Self {
+        TypeName::new(value)
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Type {
-    Unknown,
-    // Any,
-    Builtin {
-        type_name: &'static str,
-    },
-    BuiltinSingle {
-        type_name: &'static str,
-        child: Box<TypedIdentifier>,
-    },
-    BuiltinSeveral {
-        type_name: &'static str,
-        children: TypedIdentifiers,
-    },
     Simple {
-        type_name: String,
+        type_name: TypeName,
     },
-    NestedSingle {
-        type_name: String,
-        child: Box<TypedIdentifier>,
-    },
-    NestedSeveral {
-        type_name: String,
+    Nested {
+        type_name: TypeName,
         children: TypedIdentifiers,
     },
-    // Function?
+    Function {
+        parameter: Box<TypedIdentifier>,
+        returned: Box<TypedIdentifier>,
+    },
 }
 
 #[allow(unused)]
 pub type Types = Vec<Type>;
 
-#[allow(unused)]
 impl Type {
-    pub fn from(typename: String, children: TypedIdentifiers) -> Type {
-        if let Some(builtin_type) = is_builtin_nested_type(&typename) {
-            Type::builtin(builtin_type, children)
+    pub fn from<S: Into<String> + AsRef<str>>(typename: S, mut children: TypedIdentifiers) -> Type {
+        if children.is_empty() {
+            Type::simple(typename)
         } else {
-            Type::user_defined(typename, children)
+            Type::children(typename, children)
         }
     }
-    pub fn simple(type_name: String) -> Type {
-        if let Some(builtin) = is_builtin_simple_type(&type_name) {
-            builtin
-        } else {
-            Type::Simple { type_name }
-        }
-    }
-    pub fn nameless_child(type_name: String, child: Box<Type>) -> Type {
-        Type::NestedSingle {
-            type_name,
-            child: Box::new(TypedIdentifier::nameless(*child)),
-        }
-    }
-    pub fn nameless_children(type_name: String, children: Vec<Type>) -> Type {
-        Type::NestedSeveral {
-            type_name,
-            children: children
+    pub fn from_nameless<S: Into<String> + AsRef<str>>(typename: S, mut children: Types) -> Type {
+        Self::from(
+            typename,
+            children
                 .into_iter()
-                .map(TypedIdentifier::nameless)
+                .map(|t| TypedIdentifier::nameless(t))
                 .collect(),
-        }
+        )
     }
-    pub fn child(type_name: String, child: Box<TypedIdentifier>) -> Type {
-        Type::NestedSingle { type_name, child }
+    pub fn simple<S: Into<String> + AsRef<str>>(type_name: S) -> Type {
+        let type_name = TypeName::new(type_name);
+        Type::Simple { type_name }
     }
-    pub fn children(type_name: String, children: TypedIdentifiers) -> Type {
-        Type::NestedSeveral {
+    pub fn children<S: Into<String> + AsRef<str>>(
+        type_name: S,
+        children: TypedIdentifiers,
+    ) -> Type {
+        let type_name = TypeName::new(type_name);
+        Type::Nested {
             type_name,
             children,
-        }
-    }
-    pub fn builtin(type_name: &'static str, mut children: TypedIdentifiers) -> Type {
-        if children.is_empty() {
-            Type::Builtin { type_name }
-        } else if children.len() == 1 {
-            Type::BuiltinSingle {
-                type_name,
-                child: Box::new(children.pop().unwrap()),
-            }
-        } else {
-            Type::BuiltinSeveral {
-                type_name,
-                children,
-            }
         }
     }
     pub fn nothing() -> Type {
         builtin_types::NOTHING
     }
-    pub fn from_nameless(parent: String, mut children: Vec<Type>) -> Type {
-        if children.is_empty() {
-            Type::simple(parent)
-        } else if children.len() == 1 {
-            Type::nameless_child(parent, Box::new(children.pop().unwrap()))
-        } else {
-            Type::nameless_children(parent, children)
-        }
-    }
-    pub fn user_defined(parent: String, mut children: TypedIdentifiers) -> Type {
-        if children.is_empty() {
-            Type::simple(parent)
-        } else if children.len() == 1 {
-            Type::child(parent, Box::new(children.pop().unwrap()))
-        } else {
-            Type::children(parent, children)
-        }
-    }
     pub fn function(parameter: TypedIdentifier, returned: TypedIdentifier) -> Type {
-        let children = vec![parameter.clone(), returned];
-        Type::BuiltinSeveral {
-            type_name: BuiltinType::Function.name(),
-            children,
+        Type::Function {
+            parameter: Box::new(parameter),
+            returned: Box::new(returned),
         }
     }
 }
@@ -248,47 +206,24 @@ impl Type {
 impl Type {
     pub fn name(&self) -> &str {
         match self {
-            Type::Unknown => BuiltinType::Unknown.name(),
-            Type::Builtin { type_name }
-            | Type::BuiltinSingle { type_name, .. }
-            | Type::BuiltinSeveral { type_name, .. } => type_name,
-            Type::Simple { type_name }
-            | Type::NestedSingle { type_name, .. }
-            | Type::NestedSeveral { type_name, .. } => type_name,
-        }
-    }
-    pub fn static_name(&self) -> &'static str {
-        match self {
-            Type::Unknown => BuiltinType::Unknown.name(),
-            Type::Builtin { type_name }
-            | Type::BuiltinSingle { type_name, .. }
-            | Type::BuiltinSeveral { type_name, .. } => type_name,
-            Type::Simple { type_name }
-            | Type::NestedSingle { type_name, .. }
-            | Type::NestedSeveral { type_name, .. } => unreachable!(
-                "Type check bug: a custom name '{}' should not be asked to provide a &'static str",
-                type_name
-            ),
+            Type::Simple { type_name } | Type::Nested { type_name, .. } => type_name.name(),
+            Type::Function { .. } => BuiltinType::Function.name(),
         }
     }
 
     pub fn as_function(&self) -> Result<Option<(Type, Type)>, AnyError> {
-        let func_name = BuiltinType::Function.name();
-        if let Type::BuiltinSeveral {
-            type_name: func_name,
-            children,
+        if let Type::Function {
+            parameter,
+            returned,
         } = self
         {
-            if children.len() == 2 {
-                Ok(Some((children[0].type_.clone(), children[1].type_.clone())))
-            } else {
-                err("Bug: function type should have 2 types: parameter type and returned type")
-            }
+            Ok(Some((parameter.type_.clone(), returned.type_.clone())))
         } else {
             Ok(None)
         }
     }
 }
+
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
@@ -333,10 +268,16 @@ impl TypedIdentifier {
             type_: Type::nothing(),
         }
     }
+    pub fn unknown() -> Self {
+        Self {
+            name: "".to_string(),
+            type_: builtin_types::UNKNOWN,
+        }
+    }
     pub fn unknown_type(name: String) -> Self {
         Self {
             name,
-            type_: Type::Unknown,
+            type_: builtin_types::UNKNOWN,
         }
     }
     pub fn nameless(type_: Type) -> Self {

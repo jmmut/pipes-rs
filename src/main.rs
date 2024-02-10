@@ -102,6 +102,7 @@ fn reset_sigpipe() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pipes_rs::common::unwrap_display;
 
     #[test]
     fn test_read_file() {
@@ -114,7 +115,7 @@ mod tests {
             debug_ast: false,
             prettify: true,
         };
-        interpret(args, std::io::stdin(), &mut print_dst).unwrap();
+        unwrap_display(interpret(args, std::io::stdin(), &mut print_dst));
         assert_eq!(
             String::from_utf8(print_dst).unwrap().as_str(),
             "Hello World!\n"

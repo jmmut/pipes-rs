@@ -210,23 +210,15 @@ impl<'a> Typer<'a> {
             types.push(self.get_type(e)?);
         }
         return if types.len() == 0 {
-            Ok(Type::BuiltinSingle {
-                type_name: BuiltinType::Array.name(),
-                child: Box::new(TypedIdentifier::nameless(Type::Unknown)),
-            })
+            Ok(Type::from_nameless(
+                BuiltinType::Array.name(),
+                vec![builtin_types::ANY],
+            ))
         } else if all_same_type(&types) {
-            Ok(Type::BuiltinSingle {
-                type_name: BuiltinType::Array.name(),
-                child: Box::new(TypedIdentifier::nameless(types.pop().unwrap())),
-            })
+            types.truncate(1);
+            Ok(Type::from_nameless(BuiltinType::Array.name(), types))
         } else {
-            Ok(Type::BuiltinSeveral {
-                type_name: BuiltinType::Tuple.name(),
-                children: types
-                    .into_iter()
-                    .map(|t| TypedIdentifier::nameless(t))
-                    .collect(),
-            })
+            Ok(Type::from_nameless(BuiltinType::Tuple.name(), types))
         };
     }
 
@@ -269,36 +261,25 @@ impl<'a> Typer<'a> {
             Expression::Composed(Composed::Cast(cast)) => {
                 self.is_castable_to(input, &cast.target_type)
             }
-            Expression::Nothing => {
-                unimplemented!()
-            }
-            Expression::Value(_) => {
-                unimplemented!()
-            }
-            Expression::Identifier(_) => {
-                //TODO: compute the type of identifiers and cache them
-                Ok(Type::Unknown)
-            }
-            Expression::Type(_) => {
-                unimplemented!()
+            Expression::Identifier(name) => {
+                let callable_type = self.get_identifier_type(name)?;
+                self.check_type_callable(input, operand, &callable_type)
             }
             Expression::Chain(chain) => {
-                let chain_type = self.check_types_chain(chain)?;
-                if let Some((parameter, returned)) = chain_type.as_function()? {
-                    Ok(returned)
-                } else {
-                    // TODO: should not assume the chain is a function!
-                    let unknown = TypedIdentifier::nameless(Type::Unknown);
-                    let any_function = Type::function(unknown.clone(), unknown);
-                    err(type_mismatch(operand, &chain_type, &any_function))
-                }
+                let callable_type = self.check_types_chain(chain)?;
+                self.check_type_callable(input, operand, &callable_type)
             }
-            Expression::StaticList { .. } => {
-                unimplemented!()
+            Expression::Function(function) => {
+                let callable_type = self.check_type_function(function)?;
+                self.check_type_callable(input, operand, &callable_type)
             }
-            Expression::Function(_) => {
-                unimplemented!()
-            }
+            Expression::Nothing
+            | Expression::Value(_)
+            | Expression::Type(_)
+            | Expression::StaticList { .. } => err(format!(
+                "Can not call this type of expression: {:?}",
+                operand
+            )),
             Expression::Composed(Composed::Loop(_)) => {
                 unimplemented!()
             }
@@ -326,6 +307,29 @@ impl<'a> Typer<'a> {
             Expression::Composed(Composed::Inspect(_)) => {
                 unimplemented!()
             }
+        }
+    }
+
+    fn check_type_callable(
+        &mut self,
+        input: &Expression,
+        callable: &Expression,
+        callable_type: &Type,
+    ) -> Result<Type, AnyError> {
+        if let Type::Function {
+            parameter,
+            returned,
+        } = callable_type
+        {
+            self.assert_same_type(input, &parameter.type_)?;
+            Ok(returned.type_.clone())
+        } else {
+            let input_type = self.get_type(input)?;
+            let expected_prototype = Type::function(
+                TypedIdentifier::nameless(input_type),
+                TypedIdentifier::unknown(),
+            );
+            err(type_mismatch(callable, &callable_type, &expected_prototype))
         }
     }
 

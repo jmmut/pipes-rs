@@ -182,20 +182,15 @@ pub fn construct_function_from_chain(
     let elem = accumulated.pop();
     match elem {
         Some(PartialExpression::Keyword(Keyword::Function)) => {
-            let parameter = TypedIdentifier {
-                name: "".to_string(),
-                type_: Type::nothing(),
-            };
+            let parameter = TypedIdentifier::nameless(Type::nothing());
             Ok(Function { parameter, body })
         }
         Some(PartialExpression::Expression(Expression::Identifier(param))) => {
             let elem = accumulated.pop();
             match elem {
                 Some(PartialExpression::Keyword(Keyword::Function)) => {
-                    let parameter = TypedIdentifier {
-                        name: param,
-                        type_: Type::Unknown, // TODO: accept typed parameter definition
-                    };
+                    // TODO: accept typed parameter definition
+                    let parameter = TypedIdentifier::unknown_type(param);
                     Ok(Function { parameter, body })
                 }
                 _ => {
@@ -257,10 +252,8 @@ pub fn construct_loop_from_chain(
             let elem = accumulated.pop();
             match elem {
                 Some(PartialExpression::Keyword(Keyword::Loop)) => {
-                    let iteration_elem = TypedIdentifier {
-                        name: param,
-                        type_: Type::Unknown, // TODO: accept typed parameter definition
-                    };
+                    // TODO: accept typed parameter definition
+                    let iteration_elem = TypedIdentifier::unknown_type(param);
                     Ok(Loop {
                         iteration_elem,
                         body,

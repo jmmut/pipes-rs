@@ -26,3 +26,12 @@ pub fn assert_mentions(err: AnyError, mentions: &[&str]) {
         );
     }
 }
+
+pub fn unwrap_display<T>(res: Result<T, AnyError>) -> T {
+    match res {
+        Ok(t) => t,
+        Err(e) => {
+            panic!("{}", e)
+        }
+    }
+}

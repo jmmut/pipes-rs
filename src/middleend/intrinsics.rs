@@ -56,6 +56,7 @@ impl Intrinsic {
 #[derive(EnumIter)]
 pub enum BuiltinType {
     Unknown,
+    Any,
     Nothing,
     I64,
     Tuple,
@@ -69,6 +70,7 @@ impl BuiltinType {
     pub const fn name(&self) -> &'static str {
         match self {
             BuiltinType::Unknown => "unknown",
+            BuiltinType::Any => "any",
             BuiltinType::Nothing => "nothing",
             BuiltinType::I64 => "i64",
             BuiltinType::Tuple => "tuple",
@@ -81,17 +83,19 @@ impl BuiltinType {
 }
 
 pub mod builtin_types {
-    use crate::frontend::expression::Type;
+    use crate::frontend::expression::{Type, TypeName};
     use crate::middleend::intrinsics::BuiltinType;
-    pub const UNKNOWN: Type = Type::Builtin {
-        type_name: BuiltinType::Unknown.name(),
+    pub const UNKNOWN: Type = Type::Simple {
+        type_name: TypeName::Builtin(BuiltinType::Unknown.name()),
     };
-    pub const NOTHING: Type = Type::Builtin {
-        type_name: BuiltinType::Nothing.name(),
+    pub const ANY: Type = Type::Simple {
+        type_name: TypeName::Builtin(BuiltinType::Any.name()),
     };
-    #[allow(unused)]
-    pub const I64: Type = Type::Builtin {
-        type_name: BuiltinType::I64.name(),
+    pub const NOTHING: Type = Type::Simple {
+        type_name: TypeName::Builtin(BuiltinType::Nothing.name()),
+    };
+    pub const I64: Type = Type::Simple {
+        type_name: TypeName::Builtin(BuiltinType::I64.name()),
     };
 }
 

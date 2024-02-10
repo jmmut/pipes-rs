@@ -198,10 +198,7 @@ fn construct_function(
         }
 
         Ok(PartialExpression::Expression(Expression::Type(
-            Type::BuiltinSeveral {
-                type_name: BuiltinType::Function.name(),
-                children: vec![parameter, returned],
-            },
+            Type::function(parameter, returned),
         )))
     }
 }
