@@ -114,6 +114,25 @@ pub mod intrinsics {
 }
 
 impl<R: Read, W: Write> Runtime<R, W> {
+    /// Executes a given program with a given standard input and output.
+    ///
+    /// To use the regular stdin and stdout of the interpreter process, use:
+    /// ```
+    /// use pipes_rs::{evaluate::Runtime, frontend::{program::Program, lex_and_parse}};
+    /// let program = lex_and_parse(r#""Hello World!" |print"#).unwrap();
+    /// Runtime::evaluate(program, std::io::stdin(), std::io::stdout()).unwrap();
+    /// ```
+    /// To use a in-memory buffers (useful for providing input or capturing output in tests),
+    /// you can do this, because `&[u8]` implements Read and `&mut Vec<u8>` implements Write:
+    /// ```
+    /// use pipes_rs::{evaluate::Runtime, frontend::{program::Program, lex_and_parse}};
+    /// let expression = lex_and_parse("'5' |print_char ;0 |read_char").unwrap();
+    /// let into = "7".as_bytes();
+    /// let mut out = Vec::<u8>::new();
+    /// let result = Runtime::evaluate(expression, into, &mut out);
+    /// assert_eq!(result.unwrap() as u8, '7' as u8);
+    /// assert_eq!(out, "5".as_bytes());
+    /// ```
     pub fn evaluate(
         program: Program,
         read_input: R,
@@ -878,11 +897,11 @@ mod tests {
     #[test]
     fn test_intrinsics() {
         let mut out = Vec::<u8>::new();
-        let into = vec![b'7'];
-        let expression = lex_and_parse("5 +48 |print_char; 0|read_char").unwrap();
-        let result = Runtime::evaluate(expression, &*into, &mut out);
+        let into = "72".as_bytes();
+        let expression = lex_and_parse("'5' |print_char; 0|read_char").unwrap();
+        let result = Runtime::evaluate(expression, into, &mut out);
         assert_eq!(result.unwrap() as u8, '7' as u8);
-        assert_eq!(out, vec![b'5']);
+        assert_eq!(out, "5".as_bytes());
     }
     #[test]
     fn test_read_lines() {

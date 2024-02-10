@@ -319,7 +319,8 @@ fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frontend::lex_and_parse;
+    use crate::evaluate::Runtime;
+    use crate::frontend::{lex_and_parse, lex_and_parse_with_identifiers};
 
     fn parse(code: &str) -> Program {
         lex_and_parse(code).unwrap()
@@ -389,5 +390,21 @@ mod tests {
     #[test]
     fn test_chain_inside_array() {
         assert_types_ok("[{5 + 4}]");
+    }
+
+    #[test]
+    fn test_identifier() {
+        let func = lex_and_parse("function(x) {x+1}").unwrap();
+        let identifiers = HashMap::from([("increment".to_string(), func.main)]);
+        let mut main =
+            lex_and_parse_with_identifiers("4 |increment", identifiers.keys().cloned().collect())
+                .unwrap();
+        main.identifiers = identifiers;
+
+        assert_ok(check_types(&main));
+        let read_input: &[u8] = &[];
+        let print_output = Vec::<u8>::new();
+        let result = Runtime::evaluate(main, read_input, print_output);
+        assert_eq!(result.unwrap(), 5);
     }
 }
