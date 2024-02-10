@@ -192,6 +192,9 @@ impl<'a> Typer<'a> {
                 }
             }
         }
+        for (to_unbind, times) in assigned_in_this_chain {
+            self.unbind_identifier(&to_unbind, times)?;
+        }
         Ok(accumulated_type)
     }
 
@@ -242,14 +245,28 @@ impl<'a> Typer<'a> {
             Operator::Call => {
                 return self.get_call_type(input, operand);
             }
-            Operator::Get => {}
-            Operator::Type => {}
-            Operator::Assignment => {}
-            Operator::Overwrite => {}
-            Operator::Concatenate => {}
-            Operator::Comparison(_) => {}
+            Operator::Get => unimplemented!(),
+            Operator::Type => unimplemented!(),
+            Operator::Assignment => unimplemented!(),
+            Operator::Overwrite => unimplemented!(),
+            Operator::Concatenate => {
+                let input_type = self.get_type(input)?;
+                let output_type = self.assert_same_type(operand, &input_type)?;
+                if output_type.name() != BuiltinType::Array.name() {
+                    err(type_mismatch(
+                        input,
+                        &input_type,
+                        &Type::from(
+                            BuiltinType::Array.name(),
+                            vec![TypedIdentifier::nameless(builtin_types::ANY)],
+                        ),
+                    ))
+                } else {
+                    Ok(output_type)
+                }
+            }
+            Operator::Comparison(_) => unimplemented!(),
         }
-        unimplemented!()
     }
 
     fn get_call_type(
@@ -280,33 +297,15 @@ impl<'a> Typer<'a> {
                 "Can not call this type of expression: {:?}",
                 operand
             )),
-            Expression::Composed(Composed::Loop(_)) => {
-                unimplemented!()
-            }
-            Expression::Composed(Composed::LoopOr(_)) => {
-                unimplemented!()
-            }
-            Expression::Composed(Composed::Times(_)) => {
-                unimplemented!()
-            }
-            Expression::Composed(Composed::TimesOr(_)) => {
-                unimplemented!()
-            }
-            Expression::Composed(Composed::Replace(_)) => {
-                unimplemented!()
-            }
-            Expression::Composed(Composed::Map(_)) => {
-                unimplemented!()
-            }
-            Expression::Composed(Composed::Branch(_)) => {
-                unimplemented!()
-            }
-            Expression::Composed(Composed::Something(_)) => {
-                unimplemented!()
-            }
-            Expression::Composed(Composed::Inspect(_)) => {
-                unimplemented!()
-            }
+            Expression::Composed(Composed::Loop(_)) => unimplemented!(),
+            Expression::Composed(Composed::LoopOr(_)) => unimplemented!(),
+            Expression::Composed(Composed::Times(_)) => unimplemented!(),
+            Expression::Composed(Composed::TimesOr(_)) => unimplemented!(),
+            Expression::Composed(Composed::Replace(_)) => unimplemented!(),
+            Expression::Composed(Composed::Map(_)) => unimplemented!(),
+            Expression::Composed(Composed::Branch(_)) => unimplemented!(),
+            Expression::Composed(Composed::Something(_)) => unimplemented!(),
+            Expression::Composed(Composed::Inspect(_)) => unimplemented!(),
         }
     }
 
@@ -468,5 +467,10 @@ mod tests {
         let type_ = Typer::new(&main).unwrap().get_type(&main.main).unwrap();
         let i64 = TypedIdentifier::nameless(builtin_types::I64);
         assert_eq!(type_, Type::function(i64.clone(), i64))
+    }
+
+    #[test]
+    fn test_chain() {
+        assert_types_ok("[1] ++[2] #0 :i64 =n +1 =>n");
     }
 }
