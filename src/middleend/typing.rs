@@ -202,30 +202,77 @@ fn get_operation_type(
 
 fn get_call_type(input: &Expression, operand: &Expression) -> Result<Type, AnyError> {
     match operand {
-        Expression::Composed(Composed::Cast(cast)) => {
-            return is_castable_to(input, &cast.target_type);
+        Expression::Composed(Composed::Cast(cast)) => is_castable_to(input, &cast.target_type),
+        Expression::Nothing => {
+            unimplemented!()
         }
-        Expression::Nothing => {}
-        Expression::Value(_) => {}
+        Expression::Value(_) => {
+            unimplemented!()
+        }
         Expression::Identifier(_) => {
             //TODO: compute the type of identifiers and cache them
-            return Ok(Type::Unknown);
+            Ok(Type::Unknown)
         }
-        Expression::Type(_) => {}
-        Expression::Chain(_) => {}
-        Expression::StaticList { .. } => {}
-        Expression::Function(_) => {}
-        Expression::Composed(Composed::Loop(_)) => {}
-        Expression::Composed(Composed::LoopOr(_)) => {}
-        Expression::Composed(Composed::Times(_)) => {}
-        Expression::Composed(Composed::TimesOr(_)) => {}
-        Expression::Composed(Composed::Replace(_)) => {}
-        Expression::Composed(Composed::Map(_)) => {}
-        Expression::Composed(Composed::Branch(_)) => {}
-        Expression::Composed(Composed::Something(_)) => {}
-        Expression::Composed(Composed::Inspect(_)) => {}
+        Expression::Type(_) => {
+            unimplemented!()
+        }
+        Expression::Chain(chain) => {
+            let chain_type = check_types_chain(chain)?;
+            if let Type::BuiltinSeveral {
+                type_name: type_names::FUNCTION,
+                children,
+            } = chain_type
+            {
+                if children.len() == 2 {
+                    Ok(children[1].type_.clone())
+                } else {
+                    err("Bug: function type should have 2 types: parameter type and returned type")
+                }
+            } else {
+                // TODO: should not assume the chain is a function!
+                let unknown = TypedIdentifier::nameless(Type::Unknown);
+                let children = vec![unknown.clone(), unknown];
+                let any_function = Type::BuiltinSeveral {
+                    type_name: type_names::FUNCTION,
+                    children,
+                };
+                err(type_mismatch(operand, &chain_type, &any_function))
+            }
+        }
+        Expression::StaticList { .. } => {
+            unimplemented!()
+        }
+        Expression::Function(_) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::Loop(_)) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::LoopOr(_)) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::Times(_)) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::TimesOr(_)) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::Replace(_)) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::Map(_)) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::Branch(_)) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::Something(_)) => {
+            unimplemented!()
+        }
+        Expression::Composed(Composed::Inspect(_)) => {
+            unimplemented!()
+        }
     }
-    unimplemented!()
 }
 
 fn is_castable_to(input: &Expression, target_type: &TypedIdentifier) -> Result<Type, AnyError> {
