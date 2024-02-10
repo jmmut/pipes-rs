@@ -1,5 +1,5 @@
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
-use crate::middleend::intrinsics::{builtin_types, BuiltinType};
+use crate::middleend::intrinsics::BuiltinType;
 
 /// Compare types semantically and merge them.
 /// In summary, the Any type can be casted implicitly to any type, and this function

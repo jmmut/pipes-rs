@@ -172,11 +172,11 @@ impl<'a> Typer<'a> {
     }
 
     fn check_types_chain(&mut self, chain: &Chain) -> Result<Type, AnyError> {
-        let accumulated = &chain.initial;
-        let mut accumulated_type = self.get_type(accumulated.as_ref())?;
+        let mut accumulated_type = self.get_type(&chain.initial)?;
         let mut assigned_in_this_chain = HashMap::new();
         for t in &chain.transformations {
-            accumulated_type = self.get_operation_type(accumulated, t.operator, &t.operand)?;
+            accumulated_type =
+                self.get_operation_type(&accumulated_type, t.operator, &t.operand)?;
             if let Transformation {
                 operator: Operator::Assignment,
                 operand: Expression::Identifier(name),
@@ -221,7 +221,7 @@ impl<'a> Typer<'a> {
 
     fn get_operation_type(
         &mut self,
-        input: &Expression,
+        input: &Type,
         operator: Operator,
         operand: &Expression,
     ) -> Result<Type, AnyError> {
@@ -231,8 +231,9 @@ impl<'a> Typer<'a> {
             | Operator::Multiply
             | Operator::Divide
             | Operator::Modulo => {
-                let unified_input = self.assert_type_unifies(input, &builtin_types::I64)?;
-                let unified_operand = self.assert_type_unifies(operand, &unified_input)?;
+                let unified_input =
+                    self.assert_type_unifies(input, &builtin_types::I64, operator)?;
+                let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
             }
             Operator::Ignore => return self.get_type(operand),
@@ -242,8 +243,8 @@ impl<'a> Typer<'a> {
             Operator::Get => {
                 let array =
                     Type::from_nameless(BuiltinType::Array.name(), vec![builtin_types::ANY]);
-                let unified_input = self.assert_type_unifies(&input, &array)?;
-                self.assert_type_unifies(operand, &builtin_types::I64)?;
+                let unified_input = self.assert_type_unifies(&input, &array, operator)?;
+                self.assert_expr_unifies(operand, &builtin_types::I64)?;
                 if let Type::Nested { children, .. } = unified_input {
                     Ok(children[0].type_.clone())
                 } else {
@@ -252,7 +253,7 @@ impl<'a> Typer<'a> {
             }
             Operator::Type => {
                 if let Expression::Type(expected_type) = operand {
-                    self.assert_type_unifies(input, expected_type)
+                    self.assert_type_unifies(input, expected_type, operator)
                 } else {
                     err(format!(
                         "Operator ':' can only be followed by a type, not {:?}",
@@ -260,38 +261,34 @@ impl<'a> Typer<'a> {
                     ))
                 }
             }
-            Operator::Assignment | Operator::Overwrite => self.get_type(input),
+            Operator::Assignment | Operator::Overwrite => Ok(input.clone()),
             Operator::Concatenate => {
                 let array =
                     Type::from_nameless(BuiltinType::Array.name(), vec![builtin_types::ANY]);
-                let unified_input = self.assert_type_unifies(input, &array)?;
-                let unified_operand = self.assert_type_unifies(operand, &unified_input)?;
+                let unified_input = self.assert_type_unifies(input, &array, operator)?;
+                let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
             }
             Operator::Comparison(_) => unimplemented!(),
         }
     }
 
-    fn get_call_type(
-        &mut self,
-        input: &Expression,
-        operand: &Expression,
-    ) -> Result<Type, AnyError> {
+    fn get_call_type(&mut self, input_type: &Type, operand: &Expression) -> Result<Type, AnyError> {
         match operand {
             Expression::Composed(Composed::Cast(cast)) => {
-                self.is_castable_to(input, &cast.target_type)
+                self.is_castable_to(input_type, &cast.target_type)
             }
             Expression::Identifier(name) => {
                 let callable_type = self.get_identifier_type(name)?;
-                self.check_type_callable(input, operand, &callable_type)
+                self.check_type_callable(input_type, operand, &callable_type)
             }
             Expression::Chain(chain) => {
                 let callable_type = self.check_types_chain(chain)?;
-                self.check_type_callable(input, operand, &callable_type)
+                self.check_type_callable(input_type, operand, &callable_type)
             }
             Expression::Function(function) => {
                 let callable_type = self.check_type_function(function)?;
-                self.check_type_callable(input, operand, &callable_type)
+                self.check_type_callable(input_type, operand, &callable_type)
             }
             Expression::Nothing
             | Expression::Value(_)
@@ -314,7 +311,7 @@ impl<'a> Typer<'a> {
 
     fn check_type_callable(
         &mut self,
-        input: &Expression,
+        input_type: &Type,
         callable: &Expression,
         callable_type: &Type,
     ) -> Result<Type, AnyError> {
@@ -323,12 +320,11 @@ impl<'a> Typer<'a> {
             returned,
         } = callable_type
         {
-            self.assert_type_unifies(input, &parameter.type_)?;
+            self.assert_type_unifies(input_type, &parameter.type_, Operator::Call)?;
             Ok(returned.type_.clone())
         } else {
-            let input_type = self.get_type(input)?;
             let expected_prototype = Type::function(
-                TypedIdentifier::nameless(input_type),
+                TypedIdentifier::nameless(input_type.clone()),
                 TypedIdentifier::unknown(),
             );
             err(type_mismatch(callable, &callable_type, &expected_prototype))
@@ -337,19 +333,22 @@ impl<'a> Typer<'a> {
 
     fn is_castable_to(
         &mut self,
-        input: &Expression,
+        input_type: &Type,
         target_type: &TypedIdentifier,
     ) -> Result<Type, AnyError> {
-        let input_type = self.get_type(input)?;
         let unified = cast(&input_type, &target_type.type_);
         if let Some(unified) = unified {
             Ok(unified)
         } else {
-            err(type_mismatch(input, &input_type, &target_type.type_))
+            err(type_mismatch_op(
+                Operator::Call,
+                &input_type,
+                &target_type.type_,
+            ))
         }
     }
 
-    fn assert_type_unifies(
+    fn assert_expr_unifies(
         &mut self,
         actual_expression: &Expression,
         expected: &Type,
@@ -362,6 +361,19 @@ impl<'a> Typer<'a> {
             err(type_mismatch(actual_expression, &actual_type, expected))
         }
     }
+    fn assert_type_unifies(
+        &mut self,
+        actual: &Type,
+        expected: &Type,
+        operator: Operator,
+    ) -> Result<Type, AnyError> {
+        let unified = unify(expected, &actual);
+        if let Some(unified) = unified {
+            Ok(unified)
+        } else {
+            err(type_mismatch_op(operator, actual, expected))
+        }
+    }
 }
 
 fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type) -> String {
@@ -370,6 +382,14 @@ fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type)
         \n  actual:   {:?}\
         \n  expected: {:?}",
         actual_expression, actual, expected
+    )
+}
+fn type_mismatch_op(operator: Operator, actual: &Type, expected: &Type) -> String {
+    format!(
+        "Type mismatch before operator '{:?}':\
+        \n  actual:   {:?}\
+        \n  expected: {:?}",
+        operator, actual, expected
     )
 }
 
