@@ -319,10 +319,19 @@ impl<'a> Typer<'a> {
                     Ok(otherwise_type)
                 }
             }
-            Expression::Composed(Composed::Times(_)) => unimplemented!(),
+            Expression::Composed(Composed::Times(times)) => {
+                let elem = times.iteration_elem.type_.clone();
+                let unified_elem =
+                    self.assert_type_unifies(&builtin_types::I64, &elem, Operator::Call)?;
+                let unified_input =
+                    self.assert_type_unifies(input_type, &unified_elem, Operator::Call)?;
+                Ok(unified_input)
+            }
             Expression::Composed(Composed::TimesOr(times_or)) => {
-                let expected = times_or.iteration_elem.type_.clone();
-                self.assert_type_unifies(input_type, &expected, Operator::Call)?;
+                let elem = times_or.iteration_elem.type_.clone();
+                let unified_elem =
+                    self.assert_type_unifies(&builtin_types::I64, &elem, Operator::Call)?;
+                self.assert_type_unifies(input_type, &unified_elem, Operator::Call)?;
                 self.bind_typed_identifier(times_or.iteration_elem.clone());
                 let body_type = self.check_types_chain(&times_or.body)?;
                 self.unbind_identifier(&times_or.iteration_elem.name, 1)?;
@@ -552,5 +561,13 @@ mod tests {
     fn test_times_or() {
         assert_type_eq("2 |times_or(i) {i} {0}", "i64");
         assert_type_eq("2 |times_or(i) {} {0}", "i64");
+        assert_types_wrong("[] |times_or(i) {} {0}");
+        assert_types_wrong("3 |times_or(i :array) {} {0}");
+    }
+    #[test]
+    fn test_times() {
+        assert_type_eq("2 |times(i) {i}", "i64");
+        assert_types_wrong("[] |times(i) {i}");
+        assert_types_wrong("3 |times(i :array) {i}");
     }
 }
