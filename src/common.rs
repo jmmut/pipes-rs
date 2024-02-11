@@ -17,10 +17,33 @@ pub fn err<T, S: AsRef<str>>(error_message: S) -> Result<T, AnyError> {
 }
 
 #[track_caller]
-pub fn err_loc<T, S: AsRef<str>>(error_message: S, code: & SourceCode, span:Span) -> Result<T, AnyError> {
+pub fn err_loc<T, S: AsRef<str>>(error_message: S, code: &SourceCode) -> Result<T, AnyError> {
     // place your breakpoints here
     let caller_location = std::panic::Location::caller();
-    Err(format!("(from {})\n{}{}", caller_location, error_message.as_ref(), code.format_span(span)).into())
+    Err(format!(
+        "(from {})\n{}{}",
+        caller_location,
+        error_message.as_ref(),
+        code.format_current_location()
+    )
+    .into())
+}
+
+#[track_caller]
+pub fn err_span<T, S: AsRef<str>>(
+    error_message: S,
+    code: &SourceCode,
+    span: Span,
+) -> Result<T, AnyError> {
+    // place your breakpoints here
+    let caller_location = std::panic::Location::caller();
+    Err(format!(
+        "(from {})\n{}{}",
+        caller_location,
+        error_message.as_ref(),
+        code.format_span(span)
+    )
+    .into())
 }
 
 #[cfg(test)]

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::str::Bytes;
 
 use crate::common::{context, err, AnyError};
+use crate::frontend::lexer::{LocatedToken, Token};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Span {
@@ -85,6 +86,18 @@ impl SourceCode {
     }
     pub fn get_location(&self) -> Location {
         self.cursor
+    }
+    pub fn located_token(&self, token: Token) -> LocatedToken {
+        LocatedToken {
+            token,
+            span: self.span(),
+        }
+    }
+    pub fn span_token(&self, token: Token, since: Location) -> LocatedToken {
+        LocatedToken {
+            token,
+            span: self.span_since(since),
+        }
     }
 }
 
