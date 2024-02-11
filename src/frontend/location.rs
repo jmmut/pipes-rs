@@ -109,12 +109,55 @@ impl<S: AsRef<str>> From<S> for SourceCode {
 
 impl SourceCode {
     pub fn peek(&mut self) -> Option<u8> {
-        self.text.as_bytes().get(self.cursor.byte).cloned()
+        self.peek_at(self.cursor.byte)
+    }
+    pub fn peek_at(&mut self, index: usize) -> Option<u8> {
+        self.text.as_bytes().get(index).cloned()
     }
     pub fn next(&mut self) -> Option<u8> {
         if let Some(letter) = self.text.as_bytes().get(self.cursor.byte).cloned() {
             self.cursor.read(letter);
             Some(letter)
+        } else {
+            None
+        }
+    }
+    pub fn consume(&mut self, matching: &str) -> bool {
+        for i in 0..matching.len() {
+            if let Some(letter) = self.peek_at(self.cursor.byte + i) {
+                if letter != matching.as_bytes()[i] {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        for _ in 0..matching.len() {
+            self.next();
+        }
+        true
+    }
+    pub fn consume_if<F: Fn(u8, usize) -> bool>(&mut self, predicate: F) -> Option<String> {
+        let mut i = 0;
+        let mut accepted = false;
+        loop {
+            if let Some(letter) = self.peek_at(self.cursor.byte + i) {
+                if predicate(letter, i) {
+                    accepted = true;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+            i += 1;
+        }
+        if accepted {
+            let consumed = self.text[self.cursor.byte..(self.cursor.byte + i)].to_string();
+            for _ in 0..i {
+                self.next();
+            }
+            Some(consumed)
         } else {
             None
         }
@@ -442,5 +485,64 @@ qwer
 ----^
 "#
         );
+    }
+
+    #[test]
+    fn test_consume() {
+        let text = "0123456789".to_string();
+        let mut code = SourceCode::new_fileless(text.clone());
+        assert_eq!(code.consume("345"), false);
+        code.next();
+        code.next();
+        code.next();
+        assert_eq!(code.consume("345"), true);
+        assert_eq!(
+            code.cursor,
+            Location {
+                line: 1,
+                column: 7,
+                byte: 6,
+            }
+        );
+        assert_eq!(code.consume("6789"), true);
+        assert_eq!(code.consume("0"), false);
+        let mut code = SourceCode::new_fileless(text.clone());
+        assert_eq!(code.consume("01234567890"), false);
+    }
+    #[test]
+    fn test_consume_if() {
+        let text = "abc345cde".to_string();
+        let mut code = SourceCode::new_fileless(text.clone());
+        assert_eq!(
+            code.consume_if(|letter, _| letter >= b'0' && letter <= b'9'),
+            None
+        );
+        code.next();
+        code.next();
+        code.next();
+        assert_eq!(
+            code.consume_if(|letter, _| letter >= b'0' && letter <= b'9'),
+            Some("345".to_string())
+        );
+        assert_eq!(
+            code.cursor,
+            Location {
+                line: 1,
+                column: 7,
+                byte: 6,
+            }
+        );
+        assert_eq!(code.peek(), Some(b'c'));
+        assert_eq!(
+            code.consume_if(|letter, _| letter >= b'a' && letter <= b'z'),
+            Some("cde".to_string())
+        );
+        assert_eq!(
+            code.consume_if(|letter, _| letter >= b'a' && letter <= b'z'),
+            None
+        );
+
+        let mut code = SourceCode::new_fileless(text.clone());
+        assert_eq!(code.consume_if(|_, _| true), Some(text));
     }
 }

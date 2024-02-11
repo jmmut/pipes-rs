@@ -136,36 +136,6 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
         }
         previous_location = code.get_location();
     }
-    // while let Some(letter) = code.peek() {
-    //     if let Some(digit) = parse_digit(letter) {
-    //         let value = consume_number(digit, &mut code)?;
-    //         tokens.push(Token::Number(value));
-    //     } else if let Some(token) = parse_grouping(letter) {
-    //         tokens.push(token);
-    //         code.next();
-    //     } else if let Some(mut multichar_tokens) = consume_multichar_tokens(letter, &mut code) {
-    //         tokens.append(&mut multichar_tokens);
-    //     } else if let Some(operator) = parse_operator(letter) {
-    //         tokens.push(Token::Operator(operator));
-    //         code.next();
-    //     } else if let Some(letter) = parse_letter_start(letter) {
-    //         let name = consume_identifier(letter, &mut code)?;
-    //         tokens.push(name);
-    //     } else if let Some(string) = consume_string(letter, &mut code)? {
-    //         tokens.push(Token::String(string));
-    //         code.next();
-    //     } else if let Some(char) = consume_char(letter, &mut code)? {
-    //         tokens.push(Token::Number(char as i64));
-    //         code.next();
-    //     } else if is_space(letter) {
-    //         code.next();
-    //     } else {
-    //         return err(format!(
-    //             "unsupported expression starting with byte {} ('{}')",
-    //             letter, letter as char
-    //         ))?;
-    //     }
-    // }
 
     // if let Some(token) = tokens.last() {
     //     println!("debugging: {}", code.format_span(token.span));
