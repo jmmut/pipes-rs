@@ -12,9 +12,12 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
         return Some(second.clone());
     } else if second_name == BuiltinType::Any.name() {
         return Some(first.clone());
+    } else if let Some(unified) = try_or(first, second) {
+        return Some(unified);
     } else if first_name != second_name {
         return None;
     }
+
     match (first, second) {
         (Type::Simple { .. }, Type::Simple { .. }) => Some(second.clone()),
         #[rustfmt::skip]
@@ -32,6 +35,29 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
         }
         (_, _) => None,
     }
+}
+fn try_or(first: &Type, second: &Type) -> Option<Type> {
+    let (or_children, other) = if first.name() == BuiltinType::Or.name() {
+        if let Type::Nested { children, .. } = first {
+            (children, second)
+        } else {
+            panic!("Found a :or without inner types. Not sure if this should be allowed");
+        }
+    } else if second.name() == BuiltinType::Or.name() {
+        if let Type::Nested { children, .. } = second {
+            (children, first)
+        } else {
+            panic!("Found a :or without inner types. Not sure if this should be allowed");
+        }
+    } else {
+        return None;
+    };
+    for child in or_children {
+        if let Some(unified) = unify(&child.type_, other) {
+            return Some(unified);
+        }
+    }
+    None
 }
 
 fn unify_nested(
@@ -101,6 +127,7 @@ pub fn all_same_type<T: PartialEq>(types: &Vec<T>) -> bool {
 mod tests {
     use super::*;
     use crate::frontend::expression::{Type, TypedIdentifier};
+    use crate::frontend::parse_type;
     use crate::middleend::typing::builtin_types;
 
     #[test]
@@ -228,5 +255,12 @@ mod tests {
                 ],
             ))
         );
+    }
+
+    #[test]
+    fn test_or() {
+        let i64 = parse_type("i64");
+        let unified = unify(&i64, &parse_type("or(:i64 :nothing)"));
+        assert_eq!(unified, Some(i64));
     }
 }

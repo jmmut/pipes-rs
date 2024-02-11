@@ -53,6 +53,7 @@ impl Intrinsic {
 pub enum BuiltinType {
     Unknown,
     Any,
+    Or,
     Nothing,
     I64,
     Tuple, // maybe not needed, and any user defined type with children behaves the same
@@ -67,6 +68,7 @@ impl BuiltinType {
         match self {
             BuiltinType::Unknown => "unknown",
             BuiltinType::Any => "any",
+            BuiltinType::Or => "or",
             BuiltinType::Nothing => "nothing",
             BuiltinType::I64 => "i64",
             BuiltinType::Tuple => "tuple",
