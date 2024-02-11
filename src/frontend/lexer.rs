@@ -403,6 +403,43 @@ pub fn parse_letter_start(letter: u8) -> Option<u8> {
     }
 }
 
+pub fn consume_identifier(first_letter: u8, iter: &mut SourceCode) -> Result<Token, AnyError> {
+    let mut accumulated = vec![first_letter];
+    loop {
+        iter.next();
+        if let Some(letter) = iter.peek() {
+            if let Some(new_letter) = parse_alphanum(letter) {
+                accumulated.push(new_letter);
+                continue;
+            }
+        }
+        return Ok(keyword_or_identifier(String::from_utf8(accumulated)?));
+    }
+}
+
+pub fn parse_alphanum(letter: u8) -> Option<u8> {
+    parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
+}
+
+pub fn parse_letter(letter: u8) -> Option<u8> {
+    parse_letter_start(letter).or_else(|| {
+        if [b'/'].contains(&letter) {
+            Some(letter)
+        } else {
+            None
+        }
+    })
+}
+
+pub fn keyword_or_identifier(identifier: String) -> Token {
+    for k in Keyword::iter() {
+        if k.name() == identifier {
+            return Token::Keyword(k.clone());
+        }
+    }
+    Token::Identifier(identifier)
+}
+
 pub fn try_consume_string(iter: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
     let quote = iter.peek()?;
     let initial_location = iter.get_location();
@@ -419,9 +456,7 @@ pub fn try_consume_string(iter: &mut SourceCode) -> Option<Result<LocatedToken, 
                     Some(err("Unclosed double quote"))
                 }
             }
-            Err(e) => {
-                Some(Err(e))
-            }
+            Err(e) => Some(Err(e)),
         }
     } else {
         None
@@ -475,9 +510,8 @@ fn try_consume_char(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyErr
             code.next();
             Some(Ok(loc_token))
         }
-        Err(e) => {Some(Err(e))}
+        Err(e) => Some(Err(e)),
     }
-
 }
 pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyError> {
     if quote == b'\'' {
@@ -529,43 +563,6 @@ fn try_consume_space(code: &mut SourceCode) -> bool {
 
 fn is_space(letter: u8) -> bool {
     [b' ', b'\n', b'\t', b'\r'].contains(&letter)
-}
-
-pub fn parse_letter(letter: u8) -> Option<u8> {
-    parse_letter_start(letter).or_else(|| {
-        if [b'/'].contains(&letter) {
-            Some(letter)
-        } else {
-            None
-        }
-    })
-}
-
-pub fn parse_alphanum(letter: u8) -> Option<u8> {
-    parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
-}
-
-pub fn consume_identifier(first_letter: u8, iter: &mut SourceCode) -> Result<Token, AnyError> {
-    let mut accumulated = vec![first_letter];
-    loop {
-        iter.next();
-        if let Some(letter) = iter.peek() {
-            if let Some(new_letter) = parse_alphanum(letter) {
-                accumulated.push(new_letter);
-                continue;
-            }
-        }
-        return Ok(keyword_or_identifier(String::from_utf8(accumulated)?));
-    }
-}
-
-pub fn keyword_or_identifier(identifier: String) -> Token {
-    for k in Keyword::iter() {
-        if k.name() == identifier {
-            return Token::Keyword(k.clone());
-        }
-    }
-    Token::Identifier(identifier)
 }
 
 #[cfg(test)]
