@@ -1,14 +1,14 @@
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::common::{context, err};
-use crate::frontend::location::{Location, SourceCode};
+use crate::common::{context, err, err_loc};
+use crate::frontend::location::{Location, SourceCode, Span};
 use crate::AnyError;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct LocatedToken {
     token: Token,
-    location: Location,
+    span: Span,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -99,12 +99,12 @@ pub fn lex<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
     context("Lexer", try_lex(code.into()))
 }
 fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
-    let mut tokens = Vec::<Token>::new();
+    let mut tokens = Vec::<LocatedToken>::new();
     while !code.consumed() {
         let token = if let Some(token) = try_consume_number(&mut code) {
             token?
-        } else if let Some(token) = try_consume_grouping(code) {
-            token
+        // } else if let Some(token) = try_consume_grouping(code) {
+        //     token
         } else {
             return err(format!(
                 "unsupported expression starting with byte {} ('{}'){}",
@@ -147,15 +147,20 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     // }
 
     Ok(TokenizedSource {
-        tokens,
+        tokens: tokens.into_iter().map(|t| t.token).collect(),
         source_code: code,
     })
 }
 
-pub fn try_consume_number(code: &mut SourceCode) -> Option<Result<Token, AnyError>> {
+pub fn try_consume_number(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
     let digit = parse_digit(code.peek()?)?;
+    let initial_location = code.get_location();
     let number = consume_number(digit, code);
-    let token = number.map(|n| Token::Number(n));
+    let span = code.span_since(initial_location);
+    let token = number.map(|n| LocatedToken {
+        token: Token::Number(n),
+        span,
+    });
     Some(token)
 }
 
@@ -396,7 +401,7 @@ pub fn consume_number(first_digit: i64, iter: &mut SourceCode) -> Result<i64, An
         iter.next();
         if let Some(letter) = iter.peek() {
             if let Some(new_digit) = parse_digit(letter) {
-                accumulated = maybe_add_digit(accumulated, new_digit)?;
+                accumulated = maybe_add_digit(accumulated, new_digit, iter)?;
                 continue;
             }
         }
@@ -404,14 +409,14 @@ pub fn consume_number(first_digit: i64, iter: &mut SourceCode) -> Result<i64, An
     }
 }
 
-fn maybe_add_digit(mut accumulated: i64, new_digit: i64) -> Result<i64, AnyError> {
-    const OVERFLOW_MESSAGE: &'static str = "Cant' fit number in 64 bits";
+fn maybe_add_digit(mut accumulated: i64, new_digit: i64, code: &mut  SourceCode) -> Result<i64, AnyError> {
+    const OVERFLOW_MESSAGE: &'static str = "Can't fit number in 64 bits";
     return if i64::MAX / 10 < accumulated.abs() {
-        err(OVERFLOW_MESSAGE)?
+        err_loc(OVERFLOW_MESSAGE, code, code.span())?
     } else {
         accumulated *= 10;
         if i64::MAX - new_digit < accumulated {
-            err(OVERFLOW_MESSAGE)?
+            err_loc(OVERFLOW_MESSAGE, code, code.span())?
         } else {
             Ok(accumulated + new_digit)
         }
@@ -458,6 +463,7 @@ mod tests {
     }
     #[test]
     fn test_overflow_positive() {
+        lex("922337203685477580").unwrap();
         lex("9223372036854775808").expect_err("should have failed");
     }
 

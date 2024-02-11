@@ -109,6 +109,18 @@ impl SourceCode {
     pub fn consumed(&self) -> bool {
         self.cursor.byte == self.text.len()
     }
+    pub fn span_since(&self, start: Location) -> Span {
+        Span {
+            start,
+            end: self.get_location(),
+        }
+    }
+    pub fn span(&self) -> Span {
+        Span {
+            start: self.get_location(),
+            end: self.get_location(),
+        }
+    }
     pub fn format_current_location(&self) -> String {
         self.format_location(self.cursor)
     }
@@ -128,7 +140,11 @@ impl SourceCode {
             " ".repeat(location.byte - start)
         )
     }
-    pub fn format_span(&self, start: Location, end: Location) -> String {
+
+    pub fn format_span(&self, Span { start, end }: Span) -> String {
+        self.format_start_end(start, end)
+    }
+    pub fn format_start_end(&self, start: Location, end: Location) -> String {
         let maybe_file = if let Some(file) = &self.file {
             format!("{}:", file.to_string_lossy())
         } else {
@@ -285,7 +301,7 @@ mod tests {
         let start = code.get_location();
         let end = code.get_location();
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 1:1:
 asdf
 ^
@@ -295,7 +311,7 @@ asdf
         let end = code.get_location();
         let later_start = end;
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 1:1-2:
 asdf
 ^^
@@ -304,7 +320,7 @@ asdf
         code.next();
         let end = code.get_location();
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 1:1-3:
 asdf
 ^-^
@@ -313,14 +329,14 @@ asdf
         code.next();
         let end = code.get_location();
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 1:1-4:
 asdf
 ^--^
 "#
         );
         assert_eq!(
-            code.format_span(later_start, end),
+            code.format_start_end(later_start, end),
             r#" at 1:2-4:
 asdf
  ^-^
@@ -333,7 +349,7 @@ asdf
         code.next();
         let end = code.get_location();
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 2:2-3:
 qwer
  ^^
@@ -351,7 +367,7 @@ qwer
         }
         let end = code.get_location();
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 1:1-2:1:
 asdf
 ^---
@@ -368,7 +384,7 @@ qwer
         }
         let end = code.get_location();
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 1:3-2:3:
 asdf
   ^-
@@ -386,7 +402,7 @@ qwer
         }
         let end = code.get_location();
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 1:4-2:4:
 asdf
    ^
@@ -405,7 +421,7 @@ qwer
         }
         let end = code.get_location();
         assert_eq!(
-            code.format_span(start, end),
+            code.format_start_end(start, end),
             r#" at 1:5-2:5:
 asdf
     ^
