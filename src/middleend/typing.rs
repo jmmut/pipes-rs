@@ -316,14 +316,20 @@ impl<'a> Typer<'a> {
                 Ok(body_type)
             }
             Expression::Composed(Composed::LoopOr(loop_or)) => {
-                let expected = Type::from(
+                let expected_input = Type::from(
                     BuiltinType::Array.name(),
                     vec![loop_or.iteration_elem.clone()],
                 );
-                self.assert_type_unifies(input_type, &expected, Operator::Call)?;
-                self.bind_typed_identifier(loop_or.iteration_elem.clone());
+                let unified_input =
+                    self.assert_type_unifies(input_type, &expected_input, Operator::Call)?;
+
+                let inner_unified_type = unified_input.array_element()?;
+                let name_to_unbind = inner_unified_type.name.clone();
+
+                self.bind_typed_identifier(inner_unified_type);
                 let body_type = self.check_types_chain(&loop_or.body)?;
-                self.unbind_identifier(&loop_or.iteration_elem.name, 1)?;
+                self.unbind_identifier(&name_to_unbind, 1)?;
+
                 let otherwise_type = self.check_types_chain(&loop_or.otherwise)?;
                 if body_type != builtin_types::NOTHING {
                     let unified_output =
@@ -334,25 +340,30 @@ impl<'a> Typer<'a> {
                 }
             }
             Expression::Composed(Composed::Times(times)) => {
+                let unified_input =
+                    self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
                 let unified_elem = self.assert_type_unifies(
-                    &builtin_types::I64,
+                    &unified_input,
                     &times.iteration_elem.type_,
                     Operator::Call,
                 )?;
-                let unified_input =
-                    self.assert_type_unifies(input_type, &unified_elem, Operator::Call)?;
+                self.bind_identifier_type(times.iteration_elem.name.clone(), unified_elem);
+                self.check_types_chain(&times.body)?;
+                self.unbind_identifier(&times.iteration_elem.name, 1)?;
                 Ok(unified_input)
             }
             Expression::Composed(Composed::TimesOr(times_or)) => {
+                let unified_input =
+                    self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
                 let unified_elem = self.assert_type_unifies(
-                    &builtin_types::I64,
+                    &unified_input,
                     &times_or.iteration_elem.type_,
                     Operator::Call,
                 )?;
-                self.assert_type_unifies(input_type, &unified_elem, Operator::Call)?;
-                self.bind_typed_identifier(times_or.iteration_elem.clone());
+                self.bind_identifier_type(times_or.iteration_elem.name.clone(), unified_elem);
                 let body_type = self.check_types_chain(&times_or.body)?;
                 self.unbind_identifier(&times_or.iteration_elem.name, 1)?;
+
                 let otherwise_type = self.check_types_chain(&times_or.otherwise)?;
                 if body_type != builtin_types::NOTHING {
                     let unified_output =
@@ -580,12 +591,14 @@ mod tests {
     fn test_loop_or() {
         assert_type_eq("[1] |loop_or(e) {e} {0}", "i64");
         assert_type_eq("[1] |loop_or(e) {} {0}", "i64");
+        assert_types_wrong("[1] |loop_or(e) {e} {[]}");
     }
     #[test]
     fn test_times() {
         assert_type_eq("2 |times(i) {i}", "i64");
         assert_types_wrong("[] |times(i) {i}");
         assert_types_wrong("3 |times(i :array) {i}");
+        assert_types_wrong("3 |times(i) {i ++[]}");
     }
     #[test]
     fn test_times_or() {
@@ -593,5 +606,7 @@ mod tests {
         assert_type_eq("2 |times_or(i) {} {0}", "i64");
         assert_types_wrong("[] |times_or(i) {} {0}");
         assert_types_wrong("3 |times_or(i :array) {} {0}");
+        assert_types_wrong("3 |times_or(i) {i ++[]} {0}");
+        assert_types_wrong("3 |times_or(i) {i ++[]} {[]}");
     }
 }
