@@ -1,4 +1,4 @@
-use crate::common::AnyError;
+use crate::common::{err, AnyError};
 use crate::frontend::lexer::Operator;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
@@ -219,6 +219,20 @@ impl Type {
         } else {
             Ok(None)
         }
+    }
+    pub fn array_element(&self) -> Result<TypedIdentifier, AnyError> {
+        if let Type::Nested {
+            type_name,
+            children,
+        } = self
+        {
+            if type_name.name() == BuiltinType::Array.name() && children.len() == 1 {
+                if let Some(elem) = children.last() {
+                    return Ok(elem.clone());
+                }
+            }
+        }
+        err(format!("Bug: expected type to be an array: {:?}", self))
     }
 }
 

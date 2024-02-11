@@ -307,30 +307,13 @@ impl<'a> Typer<'a> {
                 let unified_input =
                     self.assert_type_unifies(input_type, &expected_input, Operator::Call)?;
 
-                if let Type::Nested {
-                    type_name,
-                    mut children,
-                } = unified_input
-                {
-                    if type_name.name() == BuiltinType::Array.name() {
-                        if let Some(inner_unified_type) = children.pop() {
-                            let name_to_unbind = inner_unified_type.name.clone();
-                            self.bind_typed_identifier(inner_unified_type);
-                            let body_type = self.check_types_chain(&loop_.body)?;
-                            self.unbind_identifier(&name_to_unbind, 1)?;
-                            return Ok(body_type);
-                        }
-                    }
-                    return err(format!(
-                        "Bug: expected unified array, but was {:?} {:?}",
-                        type_name, children
-                    ));
-                } else {
-                    err(format!(
-                        "Bug: expected unified array, but was {:?}",
-                        unified_input
-                    ))
-                }
+                let inner_unified_type = unified_input.array_element()?;
+                let name_to_unbind = inner_unified_type.name.clone();
+
+                self.bind_typed_identifier(inner_unified_type);
+                let body_type = self.check_types_chain(&loop_.body)?;
+                self.unbind_identifier(&name_to_unbind, 1)?;
+                Ok(body_type)
             }
             Expression::Composed(Composed::LoopOr(loop_or)) => {
                 let expected = Type::from(
