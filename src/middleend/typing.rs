@@ -4,7 +4,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Chain, Composed, Expression, Expressions, Function, Transformation, Type, TypedIdentifier,
+    Chain, Composed, Expression, Expressions, Function, Map, Replace, Transformation, Type,
+    TypedIdentifier,
 };
 use crate::frontend::lexer::Operator;
 use crate::frontend::parse_type;
@@ -102,7 +103,7 @@ impl<'a> Typer<'a> {
                     .map(|e| e.to_string())
                     .reduce(|accum, e| accum + "\n" + &e)
                     .unwrap();
-                return err(format!("{}:{}", error_intro, error_messages));
+                return err(format!("{}: {}", error_intro, error_messages));
             }
             identifiers_vec = failed;
         }
@@ -281,11 +282,11 @@ impl<'a> Typer<'a> {
                 let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
             }
-            Operator::Comparison(comparison) => {
+            Operator::Comparison(_) => {
                 let i64 = builtin_types::I64;
                 let unified_input = self.assert_type_unifies(input, &i64, operator)?;
-                let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
-                Ok(i64) // really should be bool
+                self.assert_expr_unifies(operand, &unified_input)?;
+                Ok(i64) // TODO: really should be bool
             }
         }
     }
@@ -347,8 +348,30 @@ impl<'a> Typer<'a> {
                 let body_type = self.check_types_scope(unified_elem, &times_or.body)?;
                 self.assert_same_unless_nothing(&body_type, &times_or.otherwise)
             }
-            Expression::Composed(Composed::Replace(_)) => unimplemented!(),
-            Expression::Composed(Composed::Map(_)) => unimplemented!(),
+            Expression::Composed(Composed::Replace(Replace {
+                iteration_elem,
+                body,
+            })) => {
+                let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem)?;
+                let body_type = self.check_types_scope(unified_elem.clone(), &body)?;
+                let unified_result_elem =
+                    self.assert_type_unifies(&unified_elem.type_, &body_type, Operator::Call)?;
+                Ok(Type::from(
+                    BuiltinType::Array.name(),
+                    vec![TypedIdentifier::nameless(unified_result_elem)],
+                ))
+            }
+            Expression::Composed(Composed::Map(Map {
+                iteration_elem,
+                body,
+            })) => {
+                let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem)?;
+                let body_type = self.check_types_scope(unified_elem, &body)?;
+                Ok(Type::from(
+                    BuiltinType::Array.name(),
+                    vec![TypedIdentifier::nameless(body_type)],
+                ))
+            }
             Expression::Composed(Composed::Branch(branch)) => {
                 self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
                 let yes_type = self.check_types_chain(&branch.yes)?;
@@ -654,5 +677,15 @@ mod tests {
     fn test_comparison() {
         assert_type_eq("5 =?2", "i64");
         assert_types_wrong("5 =?[]");
+    }
+    #[test]
+    fn test_map() {
+        assert_type_eq("[1] |map(e) {e +10}", "array(:i64)");
+        assert_type_eq("[1] |map(e) {[1]}", "array(:array(:i64))");
+    }
+    #[test]
+    fn test_replace() {
+        assert_type_eq("[1] |replace(e) {e +10}", "array(:i64)");
+        assert_types_wrong("[1] |replace(e) {[1]}");
     }
 }
