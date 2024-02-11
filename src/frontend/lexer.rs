@@ -100,58 +100,71 @@ pub fn lex<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
 }
 fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     let mut tokens = Vec::<Token>::new();
-    // while !code.consumed() {
-    //     if let Some(token) = try_consume_number(&mut code) {
-    //         token
-    //     } else if let Some(token) = try_consume_grouping(code) {
-    //         token
-    //     } else {
-    //         return err(format!(
-    //             "unsupported expression starting with byte {} ('{}'){}",
-    //             code.peek(), code.peek() as char, code.format_location()
-    //         ))?;
-    //     }
-    //
-    // }
-    while let Some(letter) = code.peek() {
-        if let Some(digit) = parse_digit(letter) {
-            let value = consume_number(digit, &mut code)?;
-            tokens.push(Token::Number(value));
-        } else if let Some(token) = parse_grouping(letter) {
-            tokens.push(token);
-            code.next();
-        } else if let Some(mut multichar_tokens) = consume_multichar_tokens(letter, &mut code) {
-            tokens.append(&mut multichar_tokens);
-        } else if let Some(operator) = parse_operator(letter) {
-            tokens.push(Token::Operator(operator));
-            code.next();
-        } else if let Some(letter) = parse_letter_start(letter) {
-            let name = consume_identifier(letter, &mut code)?;
-            tokens.push(name);
-        } else if let Some(string) = consume_string(letter, &mut code)? {
-            tokens.push(Token::String(string));
-            code.next();
-        } else if let Some(char) = consume_char(letter, &mut code)? {
-            tokens.push(Token::Number(char as i64));
-            code.next();
-        } else if is_space(letter) {
-            code.next();
+    while !code.consumed() {
+        let token = if let Some(token) = try_consume_number(&mut code)? {
+            token
+        // } else if let Some(token) = try_consume_grouping(code) {
+        //     token
         } else {
             return err(format!(
-                "unsupported expression starting with byte {} ('{}')",
-                letter, letter as char
-            ))?;
-        }
+                "unsupported expression starting with byte {} ('{}'){}",
+                code.peek().unwrap(),
+                code.peek().unwrap() as char,
+                code.format_current_location()
+            ));
+        };
+        tokens.push(token);
     }
+    // while let Some(letter) = code.peek() {
+    //     if let Some(digit) = parse_digit(letter) {
+    //         let value = consume_number(digit, &mut code)?;
+    //         tokens.push(Token::Number(value));
+    //     } else if let Some(token) = parse_grouping(letter) {
+    //         tokens.push(token);
+    //         code.next();
+    //     } else if let Some(mut multichar_tokens) = consume_multichar_tokens(letter, &mut code) {
+    //         tokens.append(&mut multichar_tokens);
+    //     } else if let Some(operator) = parse_operator(letter) {
+    //         tokens.push(Token::Operator(operator));
+    //         code.next();
+    //     } else if let Some(letter) = parse_letter_start(letter) {
+    //         let name = consume_identifier(letter, &mut code)?;
+    //         tokens.push(name);
+    //     } else if let Some(string) = consume_string(letter, &mut code)? {
+    //         tokens.push(Token::String(string));
+    //         code.next();
+    //     } else if let Some(char) = consume_char(letter, &mut code)? {
+    //         tokens.push(Token::Number(char as i64));
+    //         code.next();
+    //     } else if is_space(letter) {
+    //         code.next();
+    //     } else {
+    //         return err(format!(
+    //             "unsupported expression starting with byte {} ('{}')",
+    //             letter, letter as char
+    //         ))?;
+    //     }
+    // }
 
     Ok(TokenizedSource {
         tokens,
         source_code: code,
     })
 }
-// pub fn try_consume_number(code :&mut SourceCode) -> Token {
-//
-// }
+
+pub fn try_consume_number(code: &mut SourceCode) -> Result<Option<Token>, AnyError> {
+    if let Some(letter) = code.peek() {
+        if let Some(digit) = parse_digit(letter) {
+            let number = consume_number(digit, code)?;
+            Ok(Some(Token::Number(number)))
+        } else {
+            Ok(None)
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 pub fn parse_digit(letter: u8) -> Option<i64> {
     if is_digit(letter) {
         return Some((letter - b'0') as i64);
