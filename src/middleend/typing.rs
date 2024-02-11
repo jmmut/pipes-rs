@@ -281,7 +281,12 @@ impl<'a> Typer<'a> {
                 let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
             }
-            Operator::Comparison(_) => unimplemented!(),
+            Operator::Comparison(comparison) => {
+                let i64 = builtin_types::I64;
+                let unified_input = self.assert_type_unifies(input, &i64, operator)?;
+                let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
+                Ok(i64) // really should be bool
+            }
         }
     }
 
@@ -351,7 +356,10 @@ impl<'a> Typer<'a> {
                 if let Some(same) = unify(&yes_type, &no_type) {
                     Ok(same)
                 } else {
-                    Ok(Type::from_nameless(BuiltinType::Or.name(), vec![yes_type, no_type]))
+                    Ok(Type::from_nameless(
+                        BuiltinType::Or.name(),
+                        vec![yes_type, no_type],
+                    ))
                 }
             }
             Expression::Composed(Composed::Something(_)) => unimplemented!(),
@@ -640,5 +648,11 @@ mod tests {
         assert_type_eq("1 |branch {[]} {0}", "or(:array(:any) :i64)");
         assert_type_eq("1 |branch {[0]} {0}", "or(:array(:i64) :i64)");
         assert_type_eq("1 |branch {} {0}", "or(:nothing :i64)");
+    }
+
+    #[test]
+    fn test_comparison() {
+        assert_type_eq("5 =?2", "i64");
+        assert_types_wrong("5 =?[]");
     }
 }
