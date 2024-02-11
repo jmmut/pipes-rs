@@ -24,7 +24,6 @@ pub enum PartialExpression {
     Keyword(Keyword),
     ChildrenTypes(TypedIdentifiers),
     TypedIdentifier(TypedIdentifier),
-    Transformation(Transformation),
 }
 pub fn ast_deserialize(s: &str) -> Result<Program, AnyError> {
     let tokens = lex(s).unwrap();
@@ -190,7 +189,7 @@ pub fn construct_function_from_chain(
             match elem {
                 Some(PartialExpression::Keyword(Keyword::Function)) => {
                     // TODO: accept typed parameter definition
-                    let parameter = TypedIdentifier::unknown_type(param);
+                    let parameter = TypedIdentifier::any(param);
                     Ok(Function { parameter, body })
                 }
                 _ => {
@@ -253,7 +252,7 @@ pub fn construct_loop_from_chain(
             match elem {
                 Some(PartialExpression::Keyword(Keyword::Loop)) => {
                     // TODO: accept typed parameter definition
-                    let iteration_elem = TypedIdentifier::unknown_type(param);
+                    let iteration_elem = TypedIdentifier::any(param);
                     Ok(Loop {
                         iteration_elem,
                         body,
@@ -345,9 +344,9 @@ fn construct_unnamed_type(accumulated: &mut Vec<PartialExpression>) -> Result<()
 fn construct_name_untyped(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
     if let Some(PartialExpression::Expression(Expression::Identifier(name))) = elem {
-        accumulated.push(PartialExpression::TypedIdentifier(
-            TypedIdentifier::unknown_type(name),
-        ));
+        accumulated.push(PartialExpression::TypedIdentifier(TypedIdentifier::any(
+            name,
+        )));
         Ok(())
     } else {
         error_expected("child type name", elem)

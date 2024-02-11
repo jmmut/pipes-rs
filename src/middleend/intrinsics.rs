@@ -31,24 +31,20 @@ impl Intrinsic {
 
     pub fn type_(&self) -> Type {
         match self {
-            Intrinsic::PrintChar => {
-                parse_type("function(char_to_print :i64) (same_char :i64)").unwrap()
-            }
-            Intrinsic::ReadChar => parse_type("function(reserved :i64) (char :i64)").unwrap(),
+            Intrinsic::PrintChar => parse_type("function(char_to_print :i64) (same_char :i64)"),
+            Intrinsic::ReadChar => parse_type("function(reserved :i64) (char :i64)"),
             Intrinsic::Print => {
                 parse_type("function(str :array(letter :i64)) (same_input :array(letter :i64))")
-                    .unwrap()
             }
             Intrinsic::ReadLines => {
                 parse_type("function(reserved :i64) (lines :array(line :array(letter :i64)))")
-                    .unwrap()
             }
             Intrinsic::ToStr => {
-                parse_type("function(number :i64) (number_str :array(digit_char :i64))").unwrap()
+                parse_type("function(number :i64) (number_str :array(digit_char :i64))")
             }
-            Intrinsic::NewArray => parse_type("function(size :i64) (:array)").unwrap(),
-            Intrinsic::Size => parse_type("function(:array) (:i64)").unwrap(),
-            Intrinsic::Breakpoint => parse_type("function(t) (t)").unwrap(),
+            Intrinsic::NewArray => parse_type("function(size :i64) (:array)"),
+            Intrinsic::Size => parse_type("function(:array) (:i64)"),
+            Intrinsic::Breakpoint => parse_type("function(t) (t)"),
         }
     }
 }

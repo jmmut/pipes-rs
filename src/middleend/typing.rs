@@ -7,6 +7,7 @@ use crate::frontend::expression::{
     Chain, Composed, Expression, Expressions, Function, Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::Operator;
+use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
@@ -241,8 +242,7 @@ impl<'a> Typer<'a> {
                 return self.get_call_type(input, operand);
             }
             Operator::Get => {
-                let array =
-                    Type::from_nameless(BuiltinType::Array.name(), vec![builtin_types::ANY]);
+                let array = parse_type("array(:any)");
                 let unified_input = self.assert_type_unifies(&input, &array, operator)?;
                 self.assert_expr_unifies(operand, &builtin_types::I64)?;
                 if let Type::Nested { children, .. } = unified_input {
@@ -263,8 +263,7 @@ impl<'a> Typer<'a> {
             }
             Operator::Assignment | Operator::Overwrite => Ok(input.clone()),
             Operator::Concatenate => {
-                let array =
-                    Type::from_nameless(BuiltinType::Array.name(), vec![builtin_types::ANY]);
+                let array = parse_type("array(:any)");
                 let unified_input = self.assert_type_unifies(input, &array, operator)?;
                 let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
@@ -275,9 +274,6 @@ impl<'a> Typer<'a> {
 
     fn get_call_type(&mut self, input_type: &Type, operand: &Expression) -> Result<Type, AnyError> {
         match operand {
-            Expression::Composed(Composed::Cast(cast)) => {
-                self.is_castable_to(input_type, &cast.target_type)
-            }
             Expression::Identifier(name) => {
                 let callable_type = self.get_identifier_type(name)?;
                 self.check_type_callable(input_type, operand, &callable_type)
@@ -297,8 +293,27 @@ impl<'a> Typer<'a> {
                 "Can not call this type of expression: {:?}",
                 operand
             )),
+            Expression::Composed(Composed::Cast(cast)) => {
+                self.is_castable_to(input_type, &cast.target_type)
+            }
             Expression::Composed(Composed::Loop(_)) => unimplemented!(),
-            Expression::Composed(Composed::LoopOr(_)) => unimplemented!(),
+            Expression::Composed(Composed::LoopOr(loop_or)) => {
+                let expected = Type::from(
+                    BuiltinType::Array.name(),
+                    vec![loop_or.iteration_elem.clone()],
+                );
+                self.assert_type_unifies(input_type, &expected, Operator::Call)?;
+                self.bind_identifier_type(
+                    loop_or.iteration_elem.name.clone(),
+                    loop_or.iteration_elem.type_.clone(),
+                );
+                let body_type = self.check_types_chain(&loop_or.body)?;
+                self.unbind_identifier(&loop_or.iteration_elem.name, 1)?;
+                let otherwise_type = self.check_types_chain(&loop_or.otherwise)?;
+                let unified_output =
+                    self.assert_type_unifies(&body_type, &otherwise_type, Operator::Call)?;
+                Ok(unified_output)
+            }
             Expression::Composed(Composed::Times(_)) => unimplemented!(),
             Expression::Composed(Composed::TimesOr(_)) => unimplemented!(),
             Expression::Composed(Composed::Replace(_)) => unimplemented!(),
@@ -421,8 +436,8 @@ mod tests {
     }
     fn assert_type_eq(code: &str, expected: &str) {
         let program = &parse(code);
-        let expected_type = parse_type(expected).unwrap();
-        let type_ = get_type(program).unwrap();
+        let expected_type = parse_type(expected);
+        let type_ = unwrap_display(get_type(program));
         assert_eq!(type_, expected_type);
     }
     fn assert_types_wrong(code: &str) {
@@ -501,7 +516,7 @@ mod tests {
         let mut main = lex_and_parse_with_identifiers("increment", lib).unwrap();
         main.identifiers = identifiers;
         let type_ = get_type(&main).unwrap();
-        assert_eq!(type_, parse_type("function(:i64) (:i64)").unwrap());
+        assert_eq!(type_, parse_type("function(:i64) (:i64)"));
     }
 
     #[test]

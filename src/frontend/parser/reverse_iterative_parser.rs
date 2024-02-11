@@ -15,6 +15,10 @@ use crate::frontend::program::{IncompleteProgram, Program};
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
 }
+pub fn parse_type(tokens: TokenizedSource) -> Result<Type, AnyError> {
+    context("Reverse type parser", Parser::parse_type(tokens))
+}
+
 pub fn parse_tokens_cached(tokens: Tokens, ast: Parser) -> Result<Program, AnyError> {
     Ok(parse_tokens_cached_inner(tokens, ast)?.into())
 }
@@ -23,6 +27,11 @@ pub fn parse_tokens_cached_inner(
     tokens: Tokens,
     mut ast: Parser,
 ) -> Result<IncompleteProgram, AnyError> {
+    ast = raw_parse_tokens(tokens, ast)?;
+    finish_construction(ast)
+}
+
+pub fn raw_parse_tokens(tokens: Tokens, mut ast: Parser) -> Result<Parser, AnyError> {
     for token in tokens.into_iter().rev() {
         match token {
             Token::Number(n) => ast.push(Expression::Value(n)),
@@ -44,7 +53,7 @@ pub fn parse_tokens_cached_inner(
             Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
         };
     }
-    finish_construction(ast)
+    Ok(ast)
 }
 
 pub struct Parser {
@@ -79,6 +88,30 @@ impl Parser {
     fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
         let parser = Parser::new(tokens.source_code.file);
         parse_tokens_cached(tokens.tokens, parser)
+    }
+
+    fn parse_type(mut tokens: TokenizedSource) -> Result<Type, AnyError> {
+        let parser = Parser::new(tokens.source_code.file);
+        tokens.tokens.insert(0, Token::Operator(Operator::Type));
+        let mut parser = raw_parse_tokens(tokens.tokens, parser)?;
+        let expression = parser.accumulated.pop_front();
+        if !parser.accumulated.is_empty() {
+            err(format!(
+                "Could not parse as a type because there are extra unused expressions: {:?}",
+                parser.accumulated
+            ))
+        } else if let Some(PartialExpression::Operation(Transformation {
+            operator: Operator::Type,
+            operand: Expression::Type(type_),
+        })) = expression
+        {
+            Ok(type_)
+        } else {
+            err(format!(
+                "Could not parse as a type because resulting expression is not a type: {:?}",
+                expression
+            ))
+        }
     }
 
     fn push_f(
@@ -142,7 +175,7 @@ fn construct_transformation(
             error_expected("operand after operator", elem_operand)?
         }
     };
-    Ok(PartialExpression::Transformation(transformation))
+    Ok(PartialExpression::Operation(transformation))
 }
 
 fn get_type_maybe_pop_children(
@@ -329,7 +362,7 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
     let elem = parser.accumulated.pop_front();
     if let Some(PartialExpression::Expression(expr)) = elem {
         let elem = parser.accumulated.pop_front();
-        if let Some(PartialExpression::Transformation(Transformation {
+        if let Some(PartialExpression::Operation(Transformation {
             operator: Operator::Assignment,
             operand: Expression::Identifier(name),
         })) = elem
@@ -395,7 +428,7 @@ fn construct_chain_transformations(
             Some(PartialExpression::CloseBrace) => {
                 return Ok(Expression::chain(Box::new(initial), transformations))
             }
-            Some(PartialExpression::Transformation(transformation)) => {
+            Some(PartialExpression::Operation(transformation)) => {
                 transformations.push(transformation);
             }
             _ => error_expected("operator or closing brace", elem_operator)?,
@@ -426,11 +459,11 @@ fn construct_children_types(
         match elem {
             Some(PartialExpression::Expression(Expression::Identifier(name))) => {
                 if let Some(previous_name) = name_opt {
-                    types.push(TypedIdentifier::unknown_type(previous_name));
+                    types.push(TypedIdentifier::any(previous_name));
                 }
                 name_opt = Some(name)
             }
-            Some(PartialExpression::Transformation(Transformation {
+            Some(PartialExpression::Operation(Transformation {
                 operator: Operator::Type,
                 operand: Expression::Type(type_),
             })) => {
@@ -447,7 +480,7 @@ fn construct_children_types(
             }
             Some(PartialExpression::CloseParenthesis) => {
                 if let Some(previous_name) = name_opt {
-                    types.push(TypedIdentifier::unknown_type(previous_name));
+                    types.push(TypedIdentifier::any(previous_name));
                 }
                 return Ok(PartialExpression::ChildrenTypes(types));
             }

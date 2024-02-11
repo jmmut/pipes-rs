@@ -325,6 +325,12 @@ impl TypedIdentifier {
             type_: builtin_types::UNKNOWN,
         }
     }
+    pub fn any(name: String) -> Self {
+        Self {
+            name,
+            type_: builtin_types::ANY,
+        }
+    }
     pub fn nameless(type_: Type) -> Self {
         Self {
             name: "".to_string(),

@@ -1,9 +1,11 @@
-use crate::common::err;
+use crate::common::{err, unwrap_display};
 use crate::frontend::expression::{Expression, Type};
 use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
-use crate::frontend::parser::parse_tokens;
-use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
+use crate::frontend::parser::reverse_iterative_parser::{
+    parse_tokens_cached, raw_parse_tokens, Parser,
+};
+use crate::frontend::parser::{parse_tokens, reverse_iterative_parser};
 use crate::frontend::program::Program;
 use crate::AnyError;
 use std::collections::HashSet;
@@ -37,15 +39,7 @@ pub fn lex_and_parse_with_identifiers<S: Into<SourceCode>>(
     expression
 }
 
-pub fn parse_type(code_text: &str) -> Result<Type, AnyError> {
-    let source = ":".to_string() + code_text;
-    let program = lex_and_parse(source)?;
-    if let Expression::Type(type_) = program.main {
-        Ok(type_)
-    } else {
-        err(format!(
-            "Could not parse expression as a type: {:?}",
-            program.main
-        ))
-    }
+pub fn parse_type(code: &str) -> Type {
+    let tokens = unwrap_display(lex(code));
+    unwrap_display(reverse_iterative_parser::parse_type(tokens))
 }
