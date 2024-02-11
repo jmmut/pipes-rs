@@ -100,6 +100,19 @@ pub fn lex<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
 }
 fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     let mut tokens = Vec::<Token>::new();
+    // while !code.consumed() {
+    //     if let Some(token) = try_consume_number(&mut code) {
+    //         token
+    //     } else if let Some(token) = try_consume_grouping(code) {
+    //         token
+    //     } else {
+    //         return err(format!(
+    //             "unsupported expression starting with byte {} ('{}'){}",
+    //             code.peek(), code.peek() as char, code.format_location()
+    //         ))?;
+    //     }
+    //
+    // }
     while let Some(letter) = code.peek() {
         if let Some(digit) = parse_digit(letter) {
             let value = consume_number(digit, &mut code)?;
@@ -136,7 +149,9 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
         source_code: code,
     })
 }
-
+// pub fn try_consume_number(code :&mut SourceCode) -> Token {
+//
+// }
 pub fn parse_digit(letter: u8) -> Option<i64> {
     if is_digit(letter) {
         return Some((letter - b'0') as i64);
