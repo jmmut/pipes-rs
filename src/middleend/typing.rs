@@ -9,6 +9,7 @@ use crate::frontend::expression::{
 use crate::frontend::lexer::Operator;
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
+use crate::middleend::intrinsics::builtin_types::NOTHING;
 use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{all_same_type, unify};
@@ -108,6 +109,9 @@ impl<'a> Typer<'a> {
         }
     }
 
+    fn bind_typed_identifier(&mut self, TypedIdentifier { name, type_ }: TypedIdentifier) {
+        self.bind_identifier_type(name, type_);
+    }
     fn bind_identifier_type(&mut self, identifier: String, type_: Type) {
         self.identifier_types
             .entry(identifier)
@@ -303,19 +307,34 @@ impl<'a> Typer<'a> {
                     vec![loop_or.iteration_elem.clone()],
                 );
                 self.assert_type_unifies(input_type, &expected, Operator::Call)?;
-                self.bind_identifier_type(
-                    loop_or.iteration_elem.name.clone(),
-                    loop_or.iteration_elem.type_.clone(),
-                );
+                self.bind_typed_identifier(loop_or.iteration_elem.clone());
                 let body_type = self.check_types_chain(&loop_or.body)?;
                 self.unbind_identifier(&loop_or.iteration_elem.name, 1)?;
                 let otherwise_type = self.check_types_chain(&loop_or.otherwise)?;
-                let unified_output =
-                    self.assert_type_unifies(&body_type, &otherwise_type, Operator::Call)?;
-                Ok(unified_output)
+                if body_type != builtin_types::NOTHING {
+                    let unified_output =
+                        self.assert_type_unifies(&body_type, &otherwise_type, Operator::Call)?;
+                    Ok(unified_output)
+                } else {
+                    Ok(otherwise_type)
+                }
             }
             Expression::Composed(Composed::Times(_)) => unimplemented!(),
-            Expression::Composed(Composed::TimesOr(_)) => unimplemented!(),
+            Expression::Composed(Composed::TimesOr(times_or)) => {
+                let expected = times_or.iteration_elem.type_.clone();
+                self.assert_type_unifies(input_type, &expected, Operator::Call)?;
+                self.bind_typed_identifier(times_or.iteration_elem.clone());
+                let body_type = self.check_types_chain(&times_or.body)?;
+                self.unbind_identifier(&times_or.iteration_elem.name, 1)?;
+                let otherwise_type = self.check_types_chain(&times_or.otherwise)?;
+                if body_type != builtin_types::NOTHING {
+                    let unified_output =
+                        self.assert_type_unifies(&body_type, &otherwise_type, Operator::Call)?;
+                    Ok(unified_output)
+                } else {
+                    Ok(otherwise_type)
+                }
+            }
             Expression::Composed(Composed::Replace(_)) => unimplemented!(),
             Expression::Composed(Composed::Map(_)) => unimplemented!(),
             Expression::Composed(Composed::Branch(_)) => unimplemented!(),
@@ -527,5 +546,11 @@ mod tests {
     #[test]
     fn test_loop_or() {
         assert_type_eq("[1] |loop_or(e) {e} {0}", "i64");
+        assert_type_eq("[1] |loop_or(e) {} {0}", "i64");
+    }
+    #[test]
+    fn test_times_or() {
+        assert_type_eq("2 |times_or(i) {i} {0}", "i64");
+        assert_type_eq("2 |times_or(i) {} {0}", "i64");
     }
 }
