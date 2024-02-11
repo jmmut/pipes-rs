@@ -344,7 +344,16 @@ impl<'a> Typer<'a> {
             }
             Expression::Composed(Composed::Replace(_)) => unimplemented!(),
             Expression::Composed(Composed::Map(_)) => unimplemented!(),
-            Expression::Composed(Composed::Branch(_)) => unimplemented!(),
+            Expression::Composed(Composed::Branch(branch)) => {
+                self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
+                let yes_type = self.check_types_chain(&branch.yes)?;
+                let no_type = self.check_types_chain(&branch.no)?;
+                if let Some(same) = unify(&yes_type, &no_type) {
+                    Ok(same)
+                } else {
+                    Ok(Type::from_nameless(BuiltinType::Or.name(), vec![yes_type, no_type]))
+                }
+            }
             Expression::Composed(Composed::Something(_)) => unimplemented!(),
             Expression::Composed(Composed::Inspect(_)) => unimplemented!(),
         }
@@ -624,5 +633,12 @@ mod tests {
         assert_types_wrong("3 |times_or(i :array) {} {0}");
         assert_types_wrong("3 |times_or(i) {i ++[]} {0}");
         assert_types_wrong("3 |times_or(i) {i ++[]} {[]}");
+    }
+    #[test]
+    fn test_branch() {
+        assert_type_eq("1 |branch {1} {0}", "i64");
+        assert_type_eq("1 |branch {[]} {0}", "or(:array(:any) :i64)");
+        assert_type_eq("1 |branch {[0]} {0}", "or(:array(:i64) :i64)");
+        assert_type_eq("1 |branch {} {0}", "or(:nothing :i64)");
     }
 }
