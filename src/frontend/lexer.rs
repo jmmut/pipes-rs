@@ -116,6 +116,8 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
             tokens.push(token?);
         } else if let Some(token) = try_consume_string(&mut code) {
             tokens.push(token?);
+        } else if let Some(token) = try_consume_char(&mut code) {
+            tokens.push(token?);
         } else if try_consume_space(&mut code) {
         } else {
             return err_loc(
@@ -462,6 +464,56 @@ pub fn consume_escaped_until_not_including(
         }
     }
 }
+
+fn try_consume_char(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
+    let quote = code.peek()?;
+    let initial_location = code.get_location();
+    match consume_char(quote, code) {
+        Ok(maybe_char) => {
+            let token = Token::Number(maybe_char? as i64);
+            let loc_token = code.span_token(token, initial_location);
+            code.next();
+            Some(Ok(loc_token))
+        }
+        Err(e) => {Some(Err(e))}
+    }
+
+}
+pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyError> {
+    if quote == b'\'' {
+        iter.next();
+        let letter = iter.peek();
+        let character = match letter {
+            Some(b'\\') => {
+                iter.next();
+                match iter.peek() {
+                    Some(b'\'') => Some(b'\''),
+                    Some(b'n') => Some(b'\n'),
+                    Some(b'0') => Some(b'\0'),
+                    Some(b'\\') => Some(b'\\'),
+                    None => return err("Incomplete escaped character")?,
+                    Some(other) => {
+                        return err(format!(
+                            "Unknown escaped character with code {} ({})",
+                            other, other as char
+                        ));
+                    }
+                }
+            }
+            Some(regular_letter) => Some(regular_letter),
+            None => return err_loc("Unclosed single quote", iter),
+        };
+        iter.next();
+        if let Some(b'\'') = iter.peek() {
+            Ok(character)
+        } else {
+            err_loc("Unclosed single quote", iter)
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 fn try_consume_space(code: &mut SourceCode) -> bool {
     if let Some(letter) = code.peek() {
         if is_space(letter) {
@@ -491,41 +543,6 @@ pub fn parse_letter(letter: u8) -> Option<u8> {
 
 pub fn parse_alphanum(letter: u8) -> Option<u8> {
     parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
-}
-
-pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyError> {
-    if quote == b'\'' {
-        iter.next();
-        let letter = iter.peek();
-        let character = match letter {
-            Some(b'\\') => {
-                iter.next();
-                match iter.peek() {
-                    Some(b'\'') => Some(b'\''),
-                    Some(b'n') => Some(b'\n'),
-                    Some(b'0') => Some(b'\0'),
-                    Some(b'\\') => Some(b'\\'),
-                    None => return err("Incomplete escaped character")?,
-                    Some(other) => {
-                        return err(format!(
-                            "Unknown escaped character with code {} ({})",
-                            other, other as char
-                        ));
-                    }
-                }
-            }
-            Some(regular_letter) => Some(regular_letter),
-            None => return err("Unclosed single quote"),
-        };
-        iter.next();
-        if let Some(b'\'') = iter.peek() {
-            Ok(character)
-        } else {
-            err("Unclosed single quote")
-        }
-    } else {
-        Ok(None)
-    }
 }
 
 pub fn consume_identifier(first_letter: u8, iter: &mut SourceCode) -> Result<Token, AnyError> {
