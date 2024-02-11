@@ -37,8 +37,9 @@ pub fn lex_and_parse_with_identifiers<S: Into<SourceCode>>(
     expression
 }
 
-pub fn parse_type<S: Into<SourceCode>>(code_text: S) -> Result<Type, AnyError> {
-    let program = lex_and_parse(code_text)?;
+pub fn parse_type(code_text: &str) -> Result<Type, AnyError> {
+    let source = ":".to_string() + code_text;
+    let program = lex_and_parse(source)?;
     if let Expression::Type(type_) = program.main {
         Ok(type_)
     } else {

@@ -399,7 +399,7 @@ mod tests {
     use std::collections::HashSet;
 
     use crate::evaluate::Runtime;
-    use crate::frontend::{lex_and_parse, lex_and_parse_with_identifiers};
+    use crate::frontend::{lex_and_parse, lex_and_parse_with_identifiers, parse_type};
 
     use super::*;
 
@@ -418,6 +418,12 @@ mod tests {
     fn assert_types_ok(code: &str) {
         let program = &parse(code);
         assert_ok(check_types(program))
+    }
+    fn assert_type_eq(code: &str, expected: &str) {
+        let program = &parse(code);
+        let expected_type = parse_type(expected).unwrap();
+        let type_ = get_type(program).unwrap();
+        assert_eq!(type_, expected_type);
     }
     fn assert_types_wrong(code: &str) {
         let program = &parse(code);
@@ -475,7 +481,7 @@ mod tests {
 
     #[test]
     fn test_chain_inside_array() {
-        assert_types_ok("[{5 + 4}]");
+        assert_type_eq("[{5 + 4}]", "array(:i64)");
     }
 
     #[test]
@@ -494,13 +500,17 @@ mod tests {
 
         let mut main = lex_and_parse_with_identifiers("increment", lib).unwrap();
         main.identifiers = identifiers;
-        let type_ = Typer::new(&main).unwrap().get_type(&main.main).unwrap();
-        let i64 = TypedIdentifier::nameless(builtin_types::I64);
-        assert_eq!(type_, Type::function(i64.clone(), i64))
+        let type_ = get_type(&main).unwrap();
+        assert_eq!(type_, parse_type("function(:i64) (:i64)").unwrap());
     }
 
     #[test]
     fn test_chain() {
         assert_types_ok("[1] ++[2] #0 :i64 =n +1 =>n");
+    }
+
+    #[test]
+    fn test_loop_or() {
+        assert_type_eq("[1] |loop_or(e) {e} {0}", "i64");
     }
 }
