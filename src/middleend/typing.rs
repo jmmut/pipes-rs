@@ -299,7 +299,39 @@ impl<'a> Typer<'a> {
             Expression::Composed(Composed::Cast(cast)) => {
                 self.is_castable_to(input_type, &cast.target_type)
             }
-            Expression::Composed(Composed::Loop(_)) => unimplemented!(),
+            Expression::Composed(Composed::Loop(loop_)) => {
+                let expected_input = Type::from(
+                    BuiltinType::Array.name(),
+                    vec![loop_.iteration_elem.clone()],
+                );
+                let unified_input =
+                    self.assert_type_unifies(input_type, &expected_input, Operator::Call)?;
+
+                if let Type::Nested {
+                    type_name,
+                    mut children,
+                } = unified_input
+                {
+                    if type_name.name() == BuiltinType::Array.name() {
+                        if let Some(inner_unified_type) = children.pop() {
+                            let name_to_unbind = inner_unified_type.name.clone();
+                            self.bind_typed_identifier(inner_unified_type);
+                            let body_type = self.check_types_chain(&loop_.body)?;
+                            self.unbind_identifier(&name_to_unbind, 1)?;
+                            return Ok(body_type);
+                        }
+                    }
+                    return err(format!(
+                        "Bug: expected unified array, but was {:?} {:?}",
+                        type_name, children
+                    ));
+                } else {
+                    err(format!(
+                        "Bug: expected unified array, but was {:?}",
+                        unified_input
+                    ))
+                }
+            }
             Expression::Composed(Composed::LoopOr(loop_or)) => {
                 let expected = Type::from(
                     BuiltinType::Array.name(),
@@ -556,9 +588,21 @@ mod tests {
     }
 
     #[test]
+    fn test_loop() {
+        assert_type_eq("[1] |loop(e) {e}", "i64");
+        assert_type_eq("[1] |loop(e) {}", "nothing");
+        assert_types_wrong("1 |loop(e) {e}");
+    }
+    #[test]
     fn test_loop_or() {
         assert_type_eq("[1] |loop_or(e) {e} {0}", "i64");
         assert_type_eq("[1] |loop_or(e) {} {0}", "i64");
+    }
+    #[test]
+    fn test_times() {
+        assert_type_eq("2 |times(i) {i}", "i64");
+        assert_types_wrong("[] |times(i) {i}");
+        assert_types_wrong("3 |times(i :array) {i}");
     }
     #[test]
     fn test_times_or() {
@@ -566,11 +610,5 @@ mod tests {
         assert_type_eq("2 |times_or(i) {} {0}", "i64");
         assert_types_wrong("[] |times_or(i) {} {0}");
         assert_types_wrong("3 |times_or(i :array) {} {0}");
-    }
-    #[test]
-    fn test_times() {
-        assert_type_eq("2 |times(i) {i}", "i64");
-        assert_types_wrong("[] |times(i) {i}");
-        assert_types_wrong("3 |times(i :array) {i}");
     }
 }
