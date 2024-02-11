@@ -11,7 +11,7 @@ use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
-use crate::middleend::typing::unify::{all_same_type, unify};
+use crate::middleend::typing::unify::{all_same_type, unify, unify_typed_identifier};
 
 pub mod cast;
 pub mod unify;
@@ -198,11 +198,21 @@ impl<'a> Typer<'a> {
 
     fn check_type_function(&mut self, function: &Function) -> Result<Type, AnyError> {
         let Function { parameter, body } = function;
-        self.bind_identifier_type(parameter.name.clone(), parameter.type_.clone());
-        let chain_type = self.check_types_chain(body);
-        self.unbind_identifier(&parameter.name, 1)?;
-        let function = Type::function(parameter.clone(), TypedIdentifier::nameless(chain_type?));
+        let chain_type = self.check_types_scope(parameter.clone(), body)?;
+        let function = Type::function(parameter.clone(), TypedIdentifier::nameless(chain_type));
         Ok(function)
+    }
+
+    fn check_types_scope(
+        &mut self,
+        parameter: TypedIdentifier,
+        body: &Chain,
+    ) -> Result<Type, AnyError> {
+        let to_unbind = parameter.name.clone();
+        self.bind_typed_identifier(parameter);
+        let chain_type = self.check_types_chain(body);
+        self.unbind_identifier(&to_unbind, 1)?;
+        chain_type
     }
 
     fn check_types_list(&mut self, elements: &Expressions) -> Result<Type, AnyError> {
@@ -300,78 +310,37 @@ impl<'a> Typer<'a> {
                 self.is_castable_to(input_type, &cast.target_type)
             }
             Expression::Composed(Composed::Loop(loop_)) => {
-                let expected_input = Type::from(
-                    BuiltinType::Array.name(),
-                    vec![loop_.iteration_elem.clone()],
-                );
-                let unified_input =
-                    self.assert_type_unifies(input_type, &expected_input, Operator::Call)?;
-
-                let inner_unified_type = unified_input.array_element()?;
-                let name_to_unbind = inner_unified_type.name.clone();
-
-                self.bind_typed_identifier(inner_unified_type);
-                let body_type = self.check_types_chain(&loop_.body)?;
-                self.unbind_identifier(&name_to_unbind, 1)?;
+                let unified_elem = self.assert_iterates_elems(input_type, &loop_.iteration_elem)?;
+                let body_type = self.check_types_scope(unified_elem, &loop_.body)?;
                 Ok(body_type)
             }
             Expression::Composed(Composed::LoopOr(loop_or)) => {
-                let expected_input = Type::from(
-                    BuiltinType::Array.name(),
-                    vec![loop_or.iteration_elem.clone()],
-                );
-                let unified_input =
-                    self.assert_type_unifies(input_type, &expected_input, Operator::Call)?;
-
-                let inner_unified_type = unified_input.array_element()?;
-                let name_to_unbind = inner_unified_type.name.clone();
-
-                self.bind_typed_identifier(inner_unified_type);
-                let body_type = self.check_types_chain(&loop_or.body)?;
-                self.unbind_identifier(&name_to_unbind, 1)?;
-
-                let otherwise_type = self.check_types_chain(&loop_or.otherwise)?;
-                if body_type != builtin_types::NOTHING {
-                    let unified_output =
-                        self.assert_type_unifies(&body_type, &otherwise_type, Operator::Call)?;
-                    Ok(unified_output)
-                } else {
-                    Ok(otherwise_type)
-                }
+                let unified_elem =
+                    self.assert_iterates_elems(input_type, &loop_or.iteration_elem)?;
+                let body_type = self.check_types_scope(unified_elem, &loop_or.body)?;
+                self.assert_same_unless_nothing(&body_type, &loop_or.otherwise)
             }
             Expression::Composed(Composed::Times(times)) => {
                 let unified_input =
                     self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
-                let unified_elem = self.assert_type_unifies(
-                    &unified_input,
-                    &times.iteration_elem.type_,
+                let unified_elem = self.assert_typed_identifier_unifies(
+                    &TypedIdentifier::nameless(unified_input.clone()),
+                    &times.iteration_elem,
                     Operator::Call,
                 )?;
-                self.bind_identifier_type(times.iteration_elem.name.clone(), unified_elem);
-                self.check_types_chain(&times.body)?;
-                self.unbind_identifier(&times.iteration_elem.name, 1)?;
+                self.check_types_scope(unified_elem, &times.body)?;
                 Ok(unified_input)
             }
             Expression::Composed(Composed::TimesOr(times_or)) => {
                 let unified_input =
                     self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
-                let unified_elem = self.assert_type_unifies(
-                    &unified_input,
-                    &times_or.iteration_elem.type_,
+                let unified_elem = self.assert_typed_identifier_unifies(
+                    &TypedIdentifier::nameless(unified_input.clone()),
+                    &times_or.iteration_elem,
                     Operator::Call,
                 )?;
-                self.bind_identifier_type(times_or.iteration_elem.name.clone(), unified_elem);
-                let body_type = self.check_types_chain(&times_or.body)?;
-                self.unbind_identifier(&times_or.iteration_elem.name, 1)?;
-
-                let otherwise_type = self.check_types_chain(&times_or.otherwise)?;
-                if body_type != builtin_types::NOTHING {
-                    let unified_output =
-                        self.assert_type_unifies(&body_type, &otherwise_type, Operator::Call)?;
-                    Ok(unified_output)
-                } else {
-                    Ok(otherwise_type)
-                }
+                let body_type = self.check_types_scope(unified_elem, &times_or.body)?;
+                self.assert_same_unless_nothing(&body_type, &times_or.otherwise)
             }
             Expression::Composed(Composed::Replace(_)) => unimplemented!(),
             Expression::Composed(Composed::Map(_)) => unimplemented!(),
@@ -381,6 +350,40 @@ impl<'a> Typer<'a> {
         }
     }
 
+    fn assert_iterates_elems(
+        &mut self,
+        input_type: &Type,
+        iteration_elem: &TypedIdentifier,
+    ) -> Result<TypedIdentifier, AnyError> {
+        let expected_input = Type::from(
+            BuiltinType::Array.name(),
+            vec![TypedIdentifier::nameless(builtin_types::ANY)],
+        );
+        let unified_input =
+            self.assert_type_unifies(input_type, &expected_input, Operator::Call)?;
+        let inner_input_type = unified_input.array_element()?;
+        let unified_elem = self.assert_typed_identifier_unifies(
+            &iteration_elem,
+            &inner_input_type,
+            Operator::Call,
+        )?;
+        Ok(unified_elem)
+    }
+
+    fn assert_same_unless_nothing(
+        &mut self,
+        expected: &Type,
+        chain: &Chain,
+    ) -> Result<Type, AnyError> {
+        let chain_type = self.check_types_chain(chain)?;
+        if *expected != builtin_types::NOTHING {
+            let unified_output =
+                self.assert_type_unifies(&expected, &chain_type, Operator::Call)?;
+            Ok(unified_output)
+        } else {
+            Ok(chain_type)
+        }
+    }
     fn check_type_callable(
         &mut self,
         input_type: &Type,
@@ -444,6 +447,19 @@ impl<'a> Typer<'a> {
             Ok(unified)
         } else {
             err(type_mismatch_op(operator, actual, expected))
+        }
+    }
+    fn assert_typed_identifier_unifies(
+        &mut self,
+        actual: &TypedIdentifier,
+        expected: &TypedIdentifier,
+        operator: Operator,
+    ) -> Result<TypedIdentifier, AnyError> {
+        let unified = unify_typed_identifier(expected, &actual);
+        if let Some(unified) = unified {
+            Ok(unified)
+        } else {
+            err(type_mismatch_op(operator, &actual.type_, &expected.type_))
         }
     }
 }

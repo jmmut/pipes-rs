@@ -72,7 +72,7 @@ fn unify_nested(
     }
 }
 
-fn unify_typed_identifier(
+pub fn unify_typed_identifier(
     first: &TypedIdentifier,
     second: &TypedIdentifier,
 ) -> Option<TypedIdentifier> {
