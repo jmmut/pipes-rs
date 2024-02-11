@@ -6,10 +6,14 @@ use crate::frontend::expression::{
     Branch, Chain, Composed, Expression, Function, Loop, Transformation, Type, TypedIdentifier,
     TypedIdentifiers,
 };
-use crate::frontend::lexer::{lex, Keyword, Operator, Token, TokenizedSource};
-use crate::frontend::location::SourceCode;
+use crate::frontend::lexer::{lex, Keyword, LocatedToken, Operator, Token, TokenizedSource};
+use crate::frontend::location::{Location, SourceCode};
 use crate::frontend::program::Program;
 
+// pub struct PartialLocatedExpresion {
+//     pe: PartialExpression,
+//     pub location: Location,
+// }
 #[derive(Debug)]
 pub enum PartialExpression {
     OpenBracket,
@@ -34,6 +38,7 @@ pub fn ast_deserialize_source(s: &SourceCode) -> Result<Program, AnyError> {
 }
 pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     let mut accumulated = Vec::new();
+    // for LocatedToken {token, location} in tokens.tokens {
     for token in tokens.tokens {
         match token {
             Token::OpenBracket => accumulated.push(PartialExpression::OpenBracket),

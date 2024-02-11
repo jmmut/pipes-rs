@@ -1,41 +1,41 @@
+use std::iter::Peekable;
 use std::path::PathBuf;
+use std::str::Bytes;
 
 use crate::common::{context, err, AnyError};
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct Location {
     pub file: Option<PathBuf>,
-    pub line: i32,
-    pub column: i32,
-    pub line_end: i32,
-    pub column_end: i32,
+    pub start: LineColumn,
+    pub end: LineColumn,
 }
 
-// impl Location {
-//     pub fn new(file: PathBuf, line: i32, column: i32, line_end: i32, column_end: i32) -> Self {
-//         Self {
-//             file: Some(file),
-//             line,
-//             column,
-//             line_end,
-//             column_end,
-//         }
-//     }
-//     pub fn new_fileless(line: i32, column: i32, line_end: i32, column_end: i32) -> Self {
-//         Self {
-//             file: None,
-//             line,
-//             column,
-//             line_end,
-//             column_end,
-//         }
-//     }
-// }
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct LineColumn {
+    line: i32,
+    column: i32,
+}
+
+impl LineColumn {
+    pub fn new() -> Self {
+        Self { line: 1, column: 1 }
+    }
+    pub fn read(&mut self, letter: u8) {
+        if letter == b'\n' {
+            self.line += 1;
+            self.column = 1;
+        } else {
+            self.column += 1;
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SourceCode {
     pub text: String,
-    pub lines_read: i32,
-    pub bytes_read: i64,
+    pub cursor_byte: usize,
+    pub cursor: LineColumn,
     pub file: Option<PathBuf>,
 }
 
@@ -62,23 +62,36 @@ impl SourceCode {
         )?;
         Ok(Self {
             text,
-            lines_read: 0,
-            bytes_read: 0,
+            cursor_byte: 0,
+            cursor: LineColumn::new(),
             file: Some(file),
         })
     }
     pub fn new_fileless(text: String) -> Self {
         Self {
             text,
-            lines_read: 0,
-            bytes_read: 0,
+            cursor_byte: 0,
+            cursor: LineColumn::new(),
             file: None,
         }
+    }
+    pub fn get_line_column(&self) -> LineColumn {
+        self.cursor
     }
 }
 
 impl<S: AsRef<str>> From<S> for SourceCode {
     fn from(text: S) -> Self {
         SourceCode::new_fileless(text.as_ref().to_string())
+    }
+}
+
+impl SourceCode {
+    pub fn peek(&mut self) -> Option<u8> {
+        self.text.as_bytes().get(self.cursor_byte).cloned()
+    }
+    pub fn next(&mut self) -> Option<u8> {
+        self.cursor_byte += 1;
+        self.text.as_bytes().get(self.cursor_byte - 1).cloned()
     }
 }

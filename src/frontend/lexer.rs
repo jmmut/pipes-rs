@@ -1,11 +1,15 @@
-use std::iter::Peekable;
-use std::str::Bytes;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::common::{context, err};
-use crate::frontend::location::SourceCode;
+use crate::frontend::location::{Location, SourceCode};
 use crate::AnyError;
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct LocatedToken {
+    token: Token,
+    location: Location,
+}
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {
@@ -86,6 +90,7 @@ impl Keyword {
 #[derive(Debug, Clone)]
 pub struct TokenizedSource {
     pub tokens: Vec<Token>,
+    // pub tokens: Vec<LocatedToken>,
     pub source_code: SourceCode,
 }
 pub type Tokens = Vec<Token>;
@@ -93,33 +98,31 @@ pub type Tokens = Vec<Token>;
 pub fn lex<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
     context("Lexer", try_lex(code.into()))
 }
-fn try_lex(code: SourceCode) -> Result<TokenizedSource, AnyError> {
+fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     let mut tokens = Vec::<Token>::new();
-    let mut bytes = code.text.bytes().peekable();
-    while let Some(letter) = bytes.peek() {
-        let letter = *letter;
+    while let Some(letter) = code.peek() {
         if let Some(digit) = parse_digit(letter) {
-            let value = consume_number(digit, &mut bytes)?;
+            let value = consume_number(digit, &mut code)?;
             tokens.push(Token::Number(value));
         } else if let Some(token) = parse_grouping(letter) {
             tokens.push(token);
-            bytes.next();
-        } else if let Some(mut multichar_tokens) = consume_multichar_tokens(letter, &mut bytes) {
+            code.next();
+        } else if let Some(mut multichar_tokens) = consume_multichar_tokens(letter, &mut code) {
             tokens.append(&mut multichar_tokens);
         } else if let Some(operator) = parse_operator(letter) {
             tokens.push(Token::Operator(operator));
-            bytes.next();
+            code.next();
         } else if let Some(letter) = parse_letter_start(letter) {
-            let name = consume_identifier(letter, &mut bytes)?;
+            let name = consume_identifier(letter, &mut code)?;
             tokens.push(name);
-        } else if let Some(string) = consume_string(letter, &mut bytes)? {
+        } else if let Some(string) = consume_string(letter, &mut code)? {
             tokens.push(Token::String(string));
-            bytes.next();
-        } else if let Some(char) = consume_char(letter, &mut bytes)? {
+            code.next();
+        } else if let Some(char) = consume_char(letter, &mut code)? {
             tokens.push(Token::Number(char as i64));
-            bytes.next();
+            code.next();
         } else if is_space(letter) {
-            bytes.next();
+            code.next();
         } else {
             return err(format!(
                 "unsupported expression starting with byte {} ('{}')",
@@ -173,7 +176,7 @@ pub fn parse_alphanum(letter: u8) -> Option<u8> {
     parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
 }
 
-pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Option<Tokens> {
+pub fn consume_multichar_tokens(letter: u8, iter: &mut SourceCode) -> Option<Tokens> {
     use Comparison::*;
     use Operator::Comparison as OpComp;
     match letter {
@@ -223,14 +226,10 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut Peekable<Bytes>) -> Optio
     }
 }
 
-fn if_nexts_or(
-    nexts: &[(u8, Operator)],
-    or: Operator,
-    iter: &mut Peekable<Bytes>,
-) -> Option<Tokens> {
+fn if_nexts_or(nexts: &[(u8, Operator)], or: Operator, iter: &mut SourceCode) -> Option<Tokens> {
     for (next, then) in nexts {
         if let Some(next_letter) = iter.peek() {
-            if *next_letter == *next {
+            if next_letter == *next {
                 iter.next();
                 return Some(vec![Token::Operator(*then)]);
             }
@@ -239,14 +238,9 @@ fn if_nexts_or(
     Some(vec![Token::Operator(or)])
 }
 
-fn if_next_or(
-    next: u8,
-    then: Operator,
-    or: Operator,
-    iter: &mut Peekable<Bytes>,
-) -> Option<Tokens> {
+fn if_next_or(next: u8, then: Operator, or: Operator, iter: &mut SourceCode) -> Option<Tokens> {
     if let Some(next_letter) = iter.peek() {
-        if *next_letter == next {
+        if next_letter == next {
             iter.next();
             return Some(vec![Token::Operator(then)]);
         }
@@ -254,10 +248,10 @@ fn if_next_or(
     Some(vec![Token::Operator(or)])
 }
 
-pub fn ignore_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) {
+pub fn ignore_until_not_including(end_letter: u8, iter: &mut SourceCode) {
     loop {
         match iter.peek() {
-            Some(letter) if *letter == end_letter => return,
+            Some(letter) if letter == end_letter => return,
             None => return,
             Some(_) => {
                 iter.next();
@@ -268,15 +262,15 @@ pub fn ignore_until_not_including(end_letter: u8, iter: &mut Peekable<Bytes>) {
 
 pub fn consume_escaped_until_not_including(
     end_letter: u8,
-    iter: &mut Peekable<Bytes>,
+    iter: &mut SourceCode,
 ) -> Result<Vec<u8>, AnyError> {
     let mut consumed = Vec::new();
     loop {
         match iter.peek() {
             Some(letter) => {
-                if *letter == end_letter {
+                if letter == end_letter {
                     return Ok(consumed);
-                } else if *letter == b'\\' {
+                } else if letter == b'\\' {
                     iter.next();
                     match iter.peek() {
                         Some(b'"') => consumed.push(b'"'),
@@ -287,13 +281,13 @@ pub fn consume_escaped_until_not_including(
                         Some(other) => {
                             return err(format!(
                                 "Unknown escaped character with code {} ({})",
-                                *other, *other as char
+                                other, other as char
                             ))
                         }
                     }
                     iter.next();
                 } else {
-                    consumed.push(*letter);
+                    consumed.push(letter);
                     iter.next();
                 }
             }
@@ -302,7 +296,7 @@ pub fn consume_escaped_until_not_including(
     }
 }
 
-pub fn consume_string(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<Vec<u8>>, AnyError> {
+pub fn consume_string(quote: u8, iter: &mut SourceCode) -> Result<Option<Vec<u8>>, AnyError> {
     if quote == b'"' {
         iter.next();
         let inner_string = consume_escaped_until_not_including(b'"', iter)?;
@@ -316,7 +310,7 @@ pub fn consume_string(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<Ve
     }
 }
 
-pub fn consume_char(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<u8>, AnyError> {
+pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyError> {
     if quote == b'\'' {
         iter.next();
         let letter = iter.peek();
@@ -332,12 +326,12 @@ pub fn consume_char(quote: u8, iter: &mut Peekable<Bytes>) -> Result<Option<u8>,
                     Some(other) => {
                         return err(format!(
                             "Unknown escaped character with code {} ({})",
-                            *other, *other as char
+                            other, other as char
                         ));
                     }
                 }
             }
-            Some(regular_letter) => Some(*regular_letter),
+            Some(regular_letter) => Some(regular_letter),
             None => return err("Unclosed single quote"),
         };
         iter.next();
@@ -374,12 +368,12 @@ pub fn parse_grouping(letter: u8) -> Option<Token> {
     }
 }
 
-pub fn consume_number(first_digit: i64, iter: &mut Peekable<Bytes>) -> Result<i64, AnyError> {
+pub fn consume_number(first_digit: i64, iter: &mut SourceCode) -> Result<i64, AnyError> {
     let mut accumulated: i64 = first_digit;
     loop {
         iter.next();
         if let Some(letter) = iter.peek() {
-            if let Some(new_digit) = parse_digit(*letter) {
+            if let Some(new_digit) = parse_digit(letter) {
                 accumulated = maybe_add_digit(accumulated, new_digit)?;
                 continue;
             }
@@ -402,12 +396,12 @@ fn maybe_add_digit(mut accumulated: i64, new_digit: i64) -> Result<i64, AnyError
     };
 }
 
-pub fn consume_identifier(first_letter: u8, iter: &mut Peekable<Bytes>) -> Result<Token, AnyError> {
+pub fn consume_identifier(first_letter: u8, iter: &mut SourceCode) -> Result<Token, AnyError> {
     let mut accumulated = vec![first_letter];
     loop {
         iter.next();
         if let Some(letter) = iter.peek() {
-            if let Some(new_letter) = parse_alphanum(*letter) {
+            if let Some(new_letter) = parse_alphanum(letter) {
                 accumulated.push(new_letter);
                 continue;
             }
