@@ -101,10 +101,10 @@ pub fn lex<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
 fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     let mut tokens = Vec::<Token>::new();
     while !code.consumed() {
-        let token = if let Some(token) = try_consume_number(&mut code)? {
+        let token = if let Some(token) = try_consume_number(&mut code) {
+            token?
+        } else if let Some(token) = try_consume_grouping(code) {
             token
-        // } else if let Some(token) = try_consume_grouping(code) {
-        //     token
         } else {
             return err(format!(
                 "unsupported expression starting with byte {} ('{}'){}",
@@ -152,17 +152,11 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     })
 }
 
-pub fn try_consume_number(code: &mut SourceCode) -> Result<Option<Token>, AnyError> {
-    if let Some(letter) = code.peek() {
-        if let Some(digit) = parse_digit(letter) {
-            let number = consume_number(digit, code)?;
-            Ok(Some(Token::Number(number)))
-        } else {
-            Ok(None)
-        }
-    } else {
-        Ok(None)
-    }
+pub fn try_consume_number(code: &mut SourceCode) -> Option<Result<Token, AnyError>> {
+    let digit = parse_digit(code.peek()?)?;
+    let number = consume_number(digit, code);
+    let token = number.map(|n| Token::Number(n));
+    Some(token)
 }
 
 pub fn parse_digit(letter: u8) -> Option<i64> {
