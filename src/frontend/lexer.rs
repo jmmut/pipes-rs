@@ -2,7 +2,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::common::{context, err, err_loc};
-use crate::frontend::location::{SourceCode, Span};
+use crate::frontend::location::{Location, SourceCode, Span};
 use crate::AnyError;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -103,14 +103,17 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     let mut tokens = Vec::<LocatedToken>::new();
     let mut previous_location = code.get_location();
     while !code.consumed() {
+        let current_letter = code.peek().unwrap();
         if let Some(token) = try_consume_number(&mut code) {
             tokens.push(token?);
         } else if let Some(token) = try_consume_grouping(&mut code) {
             tokens.push(token);
         } else if let Some(mut multichars) = try_consume_multichar_tokens(&mut code) {
             tokens.append(&mut multichars);
+        } else if let Some(operator) = try_consume_operator(&mut code) {
+            tokens.push(operator);
+        } else if try_consume_space(&mut code) {
         } else {
-            let current_letter = code.peek().unwrap();
             return err_loc(
                 format!(
                     "unsupported expression starting with byte {} ('{}')",
@@ -120,7 +123,10 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
             );
         };
         if previous_location == code.get_location() {
-            panic!("infinite loop! when parsing{}", code.format_current_location());
+            panic!(
+                "infinite loop! when parsing{}",
+                code.format_current_location()
+            );
         }
         previous_location = code.get_location();
     }
@@ -218,8 +224,7 @@ fn maybe_add_digit(
 }
 
 fn try_consume_grouping(code: &mut SourceCode) -> Option<LocatedToken> {
-    let letter = code.peek()?;
-    let token = parse_grouping(letter)?;
+    let token = parse_grouping(code.peek()?)?;
     let located_token = code.located_token(token);
     code.next();
     Some(located_token)
@@ -241,13 +246,14 @@ pub fn parse_grouping(letter: u8) -> Option<Token> {
 fn try_consume_multichar_tokens(code: &mut SourceCode) -> Option<LocatedTokens> {
     let letter = code.peek()?;
     let multichars = consume_multichar_tokens(letter, code)?;
-    let tokens = multichars.into_iter().map(|t|code.located_token(t)).collect();
-    Some(tokens)
+    Some(multichars)
 }
 
-pub fn consume_multichar_tokens(letter: u8, iter: &mut SourceCode) -> Option<Tokens> {
+pub fn consume_multichar_tokens(letter: u8, iter: &mut SourceCode) -> Option<LocatedTokens> {
     use Comparison::*;
     use Operator::Comparison as OpComp;
+
+    let initial_location = iter.get_location();
     match letter {
         b'/' => {
             iter.next();
@@ -265,30 +271,30 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut SourceCode) -> Option<Tok
         }
         b'+' => {
             iter.next();
-            if_next_or(b'+', Operator::Concatenate, Operator::Add, iter)
+            if_next_or(b'+', Operator::Concatenate, Operator::Add, iter, initial_location)
         }
         b'=' => {
             iter.next();
             if_nexts_or(
                 &[(b'?', OpComp(Equals)), (b'>', Operator::Overwrite)],
                 Operator::Assignment,
-                iter,
+                iter, initial_location,
             )
         }
         b'<' => {
             iter.next();
-            if_next_or(b'=', OpComp(LessThanEquals), OpComp(LessThan), iter)
+            if_next_or(b'=', OpComp(LessThanEquals), OpComp(LessThan), iter, initial_location)
         }
         b'>' => {
             iter.next();
-            if_next_or(b'=', OpComp(GreaterThanEquals), OpComp(GreaterThan), iter)
+            if_next_or(b'=', OpComp(GreaterThanEquals), OpComp(GreaterThan), iter, initial_location)
         }
         b'|' => {
             iter.next();
             if_nexts_or(
                 &[(b'*', Operator::Multiply), (b'/', Operator::Divide)],
                 Operator::Call,
-                iter,
+                iter, initial_location,
             )
         }
         _ => None,
@@ -305,28 +311,55 @@ pub fn ignore_until_not_including(end_letter: u8, iter: &mut SourceCode) {
         }
     }
 }
-fn if_next_or(next: u8, then: Operator, or: Operator, iter: &mut SourceCode) -> Option<Tokens> {
-    if let Some(next_letter) = iter.peek() {
-        if next_letter == next {
-            iter.next();
-            return Some(vec![Token::Operator(then)]);
-        }
-    }
-    Some(vec![Token::Operator(or)])
+
+fn if_next_or(next: u8, then: Operator, or: Operator, iter: &mut SourceCode, initial: Location) -> Option<LocatedTokens> {
+    if_nexts_or(&[(next, then)], or, iter, initial)
 }
 
-fn if_nexts_or(nexts: &[(u8, Operator)], or: Operator, iter: &mut SourceCode) -> Option<Tokens> {
+fn if_nexts_or(nexts: &[(u8, Operator)], or: Operator, iter: &mut SourceCode, initial: Location) -> Option<LocatedTokens> {
     for (next, then) in nexts {
         if let Some(next_letter) = iter.peek() {
             if next_letter == *next {
                 iter.next();
-                return Some(vec![Token::Operator(*then)]);
+                let located_token = iter.span_token(Token::Operator(*then), initial);
+                return Some(vec![located_token]);
             }
         }
     }
-    Some(vec![Token::Operator(or)])
+    let located_token = iter.span_token(Token::Operator(or), initial);
+    Some(vec![located_token])
 }
 
+fn try_consume_operator(code: &mut SourceCode) -> Option<LocatedToken> {
+    let operator = parse_operator(code.peek()?)?;
+    let token = code.located_token(Token::Operator(operator));
+    code.next();
+    Some(token)
+}
+
+pub fn parse_operator(letter: u8) -> Option<Operator> {
+    match letter {
+        b'-' => Some(Operator::Substract),
+        b';' => Some(Operator::Ignore),
+        b'#' => Some(Operator::Get),
+        b':' => Some(Operator::Type),
+        b'%' => Some(Operator::Modulo),
+        _ => None,
+    }
+}
+
+fn try_consume_space(code: &mut SourceCode) -> bool {
+    if let Some(letter) = code.peek() {
+        if is_space(letter) {
+            code.next();
+            return true
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
 fn is_space(letter: u8) -> bool {
     [b' ', b'\n', b'\t', b'\r'].contains(&letter)
 }
@@ -405,7 +438,6 @@ pub fn consume_string(quote: u8, iter: &mut SourceCode) -> Result<Option<Vec<u8>
         Ok(None)
     }
 }
-
 pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyError> {
     if quote == b'\'' {
         iter.next();
@@ -438,16 +470,6 @@ pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyE
         }
     } else {
         Ok(None)
-    }
-}
-pub fn parse_operator(letter: u8) -> Option<Operator> {
-    match letter {
-        b'-' => Some(Operator::Substract),
-        b';' => Some(Operator::Ignore),
-        b'#' => Some(Operator::Get),
-        b':' => Some(Operator::Type),
-        b'%' => Some(Operator::Modulo),
-        _ => None,
     }
 }
 
