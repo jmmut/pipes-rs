@@ -147,11 +147,24 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
 }
 
 pub fn try_consume_number(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
-    let digit = parse_digit(code.peek()?)?;
     let initial_location = code.get_location();
-    let number = consume_number(digit, code);
-    let token = number.map(|n| code.span_token(Token::Number(n), initial_location));
+    let number_str = code.consume_if(|letter, _| is_digit(letter))?;
+    let digits = number_str
+        .as_bytes()
+        .iter()
+        .map(|digit_str| parse_digit(*digit_str).unwrap())
+        .collect::<Vec<_>>();
+    let accumulated = accumulate_number(code, digits);
+    let token = accumulated.map(|n| code.span_token(Token::Number(n), initial_location));
     Some(token)
+}
+
+fn accumulate_number(code: &mut SourceCode, digits: Vec<i64>) -> Result<i64, AnyError> {
+    let mut accumulated = 0;
+    for digit in digits {
+        accumulated = maybe_add_digit(accumulated, digit, code)?;
+    }
+    Ok(accumulated)
 }
 
 pub fn parse_digit(letter: u8) -> Option<i64> {
@@ -164,20 +177,6 @@ pub fn parse_digit(letter: u8) -> Option<i64> {
 
 fn is_digit(letter: u8) -> bool {
     letter >= b'0' && letter <= b'9'
-}
-
-pub fn consume_number(first_digit: i64, iter: &mut SourceCode) -> Result<i64, AnyError> {
-    let mut accumulated: i64 = first_digit;
-    loop {
-        iter.next();
-        if let Some(letter) = iter.peek() {
-            if let Some(new_digit) = parse_digit(letter) {
-                accumulated = maybe_add_digit(accumulated, new_digit, iter)?;
-                continue;
-            }
-        }
-        return Ok(accumulated);
-    }
 }
 
 fn maybe_add_digit(
