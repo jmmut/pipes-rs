@@ -1,14 +1,13 @@
-use crate::common::{err, unwrap_display};
-use crate::frontend::expression::{Expression, Type};
+use std::collections::HashSet;
+
+use crate::common::unwrap_display;
+use crate::frontend::expression::Type;
 use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
-use crate::frontend::parser::reverse_iterative_parser::{
-    parse_tokens_cached, raw_parse_tokens, Parser,
-};
+use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
 use crate::frontend::parser::{parse_tokens, reverse_iterative_parser};
 use crate::frontend::program::Program;
 use crate::AnyError;
-use std::collections::HashSet;
 
 pub mod ast;
 pub mod expression;

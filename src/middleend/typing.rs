@@ -9,7 +9,6 @@ use crate::frontend::expression::{
 use crate::frontend::lexer::Operator;
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
-use crate::middleend::intrinsics::builtin_types::NOTHING;
 use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{all_same_type, unify};
@@ -320,17 +319,21 @@ impl<'a> Typer<'a> {
                 }
             }
             Expression::Composed(Composed::Times(times)) => {
-                let elem = times.iteration_elem.type_.clone();
-                let unified_elem =
-                    self.assert_type_unifies(&builtin_types::I64, &elem, Operator::Call)?;
+                let unified_elem = self.assert_type_unifies(
+                    &builtin_types::I64,
+                    &times.iteration_elem.type_,
+                    Operator::Call,
+                )?;
                 let unified_input =
                     self.assert_type_unifies(input_type, &unified_elem, Operator::Call)?;
                 Ok(unified_input)
             }
             Expression::Composed(Composed::TimesOr(times_or)) => {
-                let elem = times_or.iteration_elem.type_.clone();
-                let unified_elem =
-                    self.assert_type_unifies(&builtin_types::I64, &elem, Operator::Call)?;
+                let unified_elem = self.assert_type_unifies(
+                    &builtin_types::I64,
+                    &times_or.iteration_elem.type_,
+                    Operator::Call,
+                )?;
                 self.assert_type_unifies(input_type, &unified_elem, Operator::Call)?;
                 self.bind_typed_identifier(times_or.iteration_elem.clone());
                 let body_type = self.check_types_chain(&times_or.body)?;
@@ -438,9 +441,9 @@ fn type_mismatch_op(operator: Operator, actual: &Type, expected: &Type) -> Strin
 
 #[cfg(test)]
 mod tests {
-    use crate::common::unwrap_display;
     use std::collections::HashSet;
 
+    use crate::common::unwrap_display;
     use crate::evaluate::Runtime;
     use crate::frontend::{lex_and_parse, lex_and_parse_with_identifiers, parse_type};
 
