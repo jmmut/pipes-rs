@@ -104,8 +104,8 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     let mut previous_location = code.get_location();
     while !code.consumed() {
         let current_letter = code.peek().unwrap();
-        if let Some(token) = try_consume_number(&mut code) {
-            tokens.push(token?);
+        if let Some(token) = try_consume_number(&mut code)? {
+            tokens.push(token);
         } else if let Some(token) = try_consume_grouping(&mut code) {
             tokens.push(token);
         } else if let Some(mut multichars) = try_consume_multichar_tokens(&mut code) {
@@ -146,25 +146,23 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     })
 }
 
-pub fn try_consume_number(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
+pub fn try_consume_number(code: &mut SourceCode) -> Result<Option<LocatedToken>, AnyError> {
     let initial_location = code.get_location();
-    let number_str = code.consume_if(|letter, _| is_digit(letter))?;
-    let digits = number_str
-        .as_bytes()
-        .iter()
-        .map(|digit_str| parse_digit(*digit_str).unwrap())
-        .collect::<Vec<_>>();
-    let accumulated = accumulate_number(code, digits);
-    let token = accumulated.map(|n| code.span_token(Token::Number(n), initial_location));
-    Some(token)
-}
-
-fn accumulate_number(code: &mut SourceCode, digits: Vec<i64>) -> Result<i64, AnyError> {
-    let mut accumulated = 0;
-    for digit in digits {
-        accumulated = maybe_add_digit(accumulated, digit, code)?;
+    if let Some(number_str) = code.consume_if(|letter, _| is_digit(letter)) {
+        let digits = number_str
+            .as_bytes()
+            .iter()
+            .map(|digit_str| parse_digit(*digit_str).unwrap())
+            .collect::<Vec<_>>();
+        let mut accumulated = 0;
+        for digit in digits {
+            accumulated = maybe_add_digit(accumulated, digit, code)?;
+        }
+        let token = code.span_token(Token::Number(accumulated), initial_location);
+        Ok(Some(token))
+    } else {
+        Ok(None)
     }
-    Ok(accumulated)
 }
 
 pub fn parse_digit(letter: u8) -> Option<i64> {
