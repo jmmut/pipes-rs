@@ -229,70 +229,40 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut SourceCode) -> Option<Loc
     use Operator::Comparison as OpComp;
 
     let initial_location = iter.get_location();
-    match letter {
-        b'/' => {
-            iter.next();
-            // if_next_or(b'/', Operator::Concatenate, Operator::Add, iter)
-            let next_letter = iter.peek();
-            match next_letter {
-                Some(b'/') => {
-                    ignore_until_not_including(b'\n', iter);
-                    iter.next();
-                    Some(Vec::new())
-                }
-                Some(_) => None,
-                None => None,
-            }
-        }
-        b'+' => {
-            iter.next();
-            if_next_or(
-                b'+',
-                Operator::Concatenate,
-                Operator::Add,
-                iter,
-                initial_location,
-            )
-        }
-        b'=' => {
-            iter.next();
-            if_nexts_or(
-                &[(b'?', OpComp(Equals)), (b'>', Operator::Overwrite)],
-                Operator::Assignment,
-                iter,
-                initial_location,
-            )
-        }
-        b'<' => {
-            iter.next();
-            if_next_or(
-                b'=',
-                OpComp(LessThanEquals),
-                OpComp(LessThan),
-                iter,
-                initial_location,
-            )
-        }
-        b'>' => {
-            iter.next();
-            if_next_or(
-                b'=',
-                OpComp(GreaterThanEquals),
-                OpComp(GreaterThan),
-                iter,
-                initial_location,
-            )
-        }
-        b'|' => {
-            iter.next();
-            if_nexts_or(
-                &[(b'*', Operator::Multiply), (b'/', Operator::Divide)],
-                Operator::Call,
-                iter,
-                initial_location,
-            )
-        }
-        _ => None,
+    if iter.consume("//") {
+        ignore_until_not_including(b'\n', iter);
+        iter.next();
+        return Some(Vec::new());
+    } else if iter.consume("++") {
+        let token = Token::Operator(Operator::Concatenate);
+        let located_token = iter.span_token(token, initial_location);
+        return Some(vec![located_token]);
+    } else if iter.consume("=?") {
+        let token = Token::Operator(Operator::Comparison(Comparison::Equals));
+        let located_token = iter.span_token(token, initial_location);
+        return Some(vec![located_token]);
+    } else if iter.consume("=>") {
+        let token = Token::Operator(Operator::Overwrite);
+        let located_token = iter.span_token(token, initial_location);
+        return Some(vec![located_token]);
+    } else if iter.consume("<=") {
+        let token = Token::Operator(Operator::Comparison(Comparison::LessThanEquals));
+        let located_token = iter.span_token(token, initial_location);
+        return Some(vec![located_token]);
+    } else if iter.consume(">=") {
+        let token = Token::Operator(Operator::Comparison(Comparison::GreaterThanEquals));
+        let located_token = iter.span_token(token, initial_location);
+        return Some(vec![located_token]);
+    } else if iter.consume("|*") {
+        let token = Token::Operator(Operator::Multiply);
+        let located_token = iter.span_token(token, initial_location);
+        return Some(vec![located_token]);
+    } else if iter.consume("|/") {
+        let token = Token::Operator(Operator::Divide);
+        let located_token = iter.span_token(token, initial_location);
+        return Some(vec![located_token]);
+    } else {
+        return None;
     }
 }
 pub fn ignore_until_not_including(end_letter: u8, iter: &mut SourceCode) {
@@ -307,35 +277,6 @@ pub fn ignore_until_not_including(end_letter: u8, iter: &mut SourceCode) {
     }
 }
 
-fn if_next_or(
-    next: u8,
-    then: Operator,
-    or: Operator,
-    iter: &mut SourceCode,
-    initial: Location,
-) -> Option<LocatedTokens> {
-    if_nexts_or(&[(next, then)], or, iter, initial)
-}
-
-fn if_nexts_or(
-    nexts: &[(u8, Operator)],
-    or: Operator,
-    iter: &mut SourceCode,
-    initial: Location,
-) -> Option<LocatedTokens> {
-    for (next, then) in nexts {
-        if let Some(next_letter) = iter.peek() {
-            if next_letter == *next {
-                iter.next();
-                let located_token = iter.span_token(Token::Operator(*then), initial);
-                return Some(vec![located_token]);
-            }
-        }
-    }
-    let located_token = iter.span_token(Token::Operator(or), initial);
-    Some(vec![located_token])
-}
-
 fn try_consume_operator(code: &mut SourceCode) -> Option<LocatedToken> {
     let operator = parse_operator(code.peek()?)?;
     let token = code.located_token(Token::Operator(operator));
@@ -345,11 +286,16 @@ fn try_consume_operator(code: &mut SourceCode) -> Option<LocatedToken> {
 
 pub fn parse_operator(letter: u8) -> Option<Operator> {
     match letter {
+        b'+' => Some(Operator::Add),
         b'-' => Some(Operator::Substract),
+        b'%' => Some(Operator::Modulo),
         b';' => Some(Operator::Ignore),
+        b'|' => Some(Operator::Call),
         b'#' => Some(Operator::Get),
         b':' => Some(Operator::Type),
-        b'%' => Some(Operator::Modulo),
+        b'=' => Some(Operator::Assignment),
+        b'<' => Some(Operator::Comparison(Comparison::LessThan)),
+        b'>' => Some(Operator::Comparison(Comparison::GreaterThan)),
         _ => None,
     }
 }
