@@ -6,7 +6,7 @@ use std::str::Bytes;
 use crate::common::{context, err, AnyError};
 use crate::frontend::lexer::{LocatedToken, Token};
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Span {
     pub start: Location,
     pub end: Location,

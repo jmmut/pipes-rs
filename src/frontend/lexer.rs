@@ -110,8 +110,12 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
             tokens.push(token);
         } else if let Some(mut multichars) = try_consume_multichar_tokens(&mut code) {
             tokens.append(&mut multichars);
-        } else if let Some(operator) = try_consume_operator(&mut code) {
-            tokens.push(operator);
+        } else if let Some(token) = try_consume_operator(&mut code) {
+            tokens.push(token);
+        } else if let Some(token) = try_consume_identifier(&mut code) {
+            tokens.push(token?);
+        } else if let Some(token) = try_consume_string(&mut code) {
+            tokens.push(token?);
         } else if try_consume_space(&mut code) {
         } else {
             return err_loc(
@@ -161,6 +165,9 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     //     }
     // }
 
+    // if let Some(token) = tokens.last() {
+    //     println!("debugging: {}", code.format_span(token.span));
+    // }
     Ok(TokenizedSource {
         tokens: tokens.into_iter().map(|t| t.token).collect(),
         source_code: code,
@@ -171,11 +178,7 @@ pub fn try_consume_number(code: &mut SourceCode) -> Option<Result<LocatedToken, 
     let digit = parse_digit(code.peek()?)?;
     let initial_location = code.get_location();
     let number = consume_number(digit, code);
-    let span = code.span_since(initial_location);
-    let token = number.map(|n| LocatedToken {
-        token: Token::Number(n),
-        span,
-    });
+    let token = number.map(|n| code.span_token(Token::Number(n), initial_location));
     Some(token)
 }
 
@@ -271,30 +274,50 @@ pub fn consume_multichar_tokens(letter: u8, iter: &mut SourceCode) -> Option<Loc
         }
         b'+' => {
             iter.next();
-            if_next_or(b'+', Operator::Concatenate, Operator::Add, iter, initial_location)
+            if_next_or(
+                b'+',
+                Operator::Concatenate,
+                Operator::Add,
+                iter,
+                initial_location,
+            )
         }
         b'=' => {
             iter.next();
             if_nexts_or(
                 &[(b'?', OpComp(Equals)), (b'>', Operator::Overwrite)],
                 Operator::Assignment,
-                iter, initial_location,
+                iter,
+                initial_location,
             )
         }
         b'<' => {
             iter.next();
-            if_next_or(b'=', OpComp(LessThanEquals), OpComp(LessThan), iter, initial_location)
+            if_next_or(
+                b'=',
+                OpComp(LessThanEquals),
+                OpComp(LessThan),
+                iter,
+                initial_location,
+            )
         }
         b'>' => {
             iter.next();
-            if_next_or(b'=', OpComp(GreaterThanEquals), OpComp(GreaterThan), iter, initial_location)
+            if_next_or(
+                b'=',
+                OpComp(GreaterThanEquals),
+                OpComp(GreaterThan),
+                iter,
+                initial_location,
+            )
         }
         b'|' => {
             iter.next();
             if_nexts_or(
                 &[(b'*', Operator::Multiply), (b'/', Operator::Divide)],
                 Operator::Call,
-                iter, initial_location,
+                iter,
+                initial_location,
             )
         }
         _ => None,
@@ -312,11 +335,22 @@ pub fn ignore_until_not_including(end_letter: u8, iter: &mut SourceCode) {
     }
 }
 
-fn if_next_or(next: u8, then: Operator, or: Operator, iter: &mut SourceCode, initial: Location) -> Option<LocatedTokens> {
+fn if_next_or(
+    next: u8,
+    then: Operator,
+    or: Operator,
+    iter: &mut SourceCode,
+    initial: Location,
+) -> Option<LocatedTokens> {
     if_nexts_or(&[(next, then)], or, iter, initial)
 }
 
-fn if_nexts_or(nexts: &[(u8, Operator)], or: Operator, iter: &mut SourceCode, initial: Location) -> Option<LocatedTokens> {
+fn if_nexts_or(
+    nexts: &[(u8, Operator)],
+    or: Operator,
+    iter: &mut SourceCode,
+    initial: Location,
+) -> Option<LocatedTokens> {
     for (next, then) in nexts {
         if let Some(next_letter) = iter.peek() {
             if next_letter == *next {
@@ -348,20 +382,12 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
     }
 }
 
-fn try_consume_space(code: &mut SourceCode) -> bool {
-    if let Some(letter) = code.peek() {
-        if is_space(letter) {
-            code.next();
-            return true
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-fn is_space(letter: u8) -> bool {
-    [b' ', b'\n', b'\t', b'\r'].contains(&letter)
+fn try_consume_identifier(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
+    let letter = parse_letter_start(code.peek()?)?;
+    let initial_location = code.get_location();
+    let result = consume_identifier(letter, code);
+    let token = result.map(|t| code.span_token(t, initial_location));
+    Some(token)
 }
 
 pub fn parse_letter_start(letter: u8) -> Option<u8> {
@@ -375,18 +401,29 @@ pub fn parse_letter_start(letter: u8) -> Option<u8> {
     }
 }
 
-pub fn parse_letter(letter: u8) -> Option<u8> {
-    parse_letter_start(letter).or_else(|| {
-        if [b'/'].contains(&letter) {
-            Some(letter)
-        } else {
-            None
+pub fn try_consume_string(iter: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
+    let quote = iter.peek()?;
+    let initial_location = iter.get_location();
+    if quote == b'"' {
+        iter.next();
+        let inner_string = consume_escaped_until_not_including(b'"', iter);
+        match inner_string {
+            Ok(inner_string) => {
+                if let Some(b'"') = iter.peek() {
+                    let token = iter.span_token(Token::String(inner_string), initial_location);
+                    iter.next();
+                    Some(Ok(token))
+                } else {
+                    Some(err("Unclosed double quote"))
+                }
+            }
+            Err(e) => {
+                Some(Err(e))
+            }
         }
-    })
-}
-
-pub fn parse_alphanum(letter: u8) -> Option<u8> {
-    parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
+    } else {
+        None
+    }
 }
 
 pub fn consume_escaped_until_not_including(
@@ -405,6 +442,7 @@ pub fn consume_escaped_until_not_including(
                         Some(b'"') => consumed.push(b'"'),
                         Some(b'n') => consumed.push(b'\n'),
                         Some(b'0') => consumed.push(b'\0'),
+                        // Some(b'x') => // TODO: parse hexadecimal
                         Some(b'\\') => consumed.push(b'\\'),
                         None => return err("Incomplete escaped character")?,
                         Some(other) => {
@@ -424,20 +462,37 @@ pub fn consume_escaped_until_not_including(
         }
     }
 }
-
-pub fn consume_string(quote: u8, iter: &mut SourceCode) -> Result<Option<Vec<u8>>, AnyError> {
-    if quote == b'"' {
-        iter.next();
-        let inner_string = consume_escaped_until_not_including(b'"', iter)?;
-        if let Some(b'"') = iter.peek() {
-            Ok(Some(inner_string))
+fn try_consume_space(code: &mut SourceCode) -> bool {
+    if let Some(letter) = code.peek() {
+        if is_space(letter) {
+            code.next();
+            return true;
         } else {
-            err("Unclosed double quote")
+            false
         }
     } else {
-        Ok(None)
+        false
     }
 }
+
+fn is_space(letter: u8) -> bool {
+    [b' ', b'\n', b'\t', b'\r'].contains(&letter)
+}
+
+pub fn parse_letter(letter: u8) -> Option<u8> {
+    parse_letter_start(letter).or_else(|| {
+        if [b'/'].contains(&letter) {
+            Some(letter)
+        } else {
+            None
+        }
+    })
+}
+
+pub fn parse_alphanum(letter: u8) -> Option<u8> {
+    parse_letter(letter).or_else(|| if is_digit(letter) { Some(letter) } else { None })
+}
+
 pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyError> {
     if quote == b'\'' {
         iter.next();
