@@ -375,15 +375,15 @@ pub fn consume_escaped_until_not_including(
 fn try_consume_char(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
     let quote = code.peek()?;
     let initial_location = code.get_location();
-    match consume_char(quote, code) {
+    Some(match consume_char(quote, code) {
         Ok(maybe_char) => {
             let token = Token::Number(maybe_char? as i64);
             let loc_token = code.span_token(token, initial_location);
             code.next();
-            Some(Ok(loc_token))
+            Ok(loc_token)
         }
-        Err(e) => Some(Err(e)),
-    }
+        Err(e) => Err(e),
+    })
 }
 pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyError> {
     if quote == b'\'' {
@@ -421,16 +421,7 @@ pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyE
 }
 
 fn try_consume_space(code: &mut SourceCode) -> bool {
-    if let Some(letter) = code.peek() {
-        if is_space(letter) {
-            code.next();
-            return true;
-        } else {
-            false
-        }
-    } else {
-        false
-    }
+    code.consume_while(|letter, _| is_space(letter))
 }
 
 fn is_space(letter: u8) -> bool {

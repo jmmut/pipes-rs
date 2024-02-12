@@ -159,8 +159,9 @@ impl SourceCode {
             None
         }
     }
-    pub fn consume_while<F: Fn(u8, usize) -> bool>(&mut self, predicate: F) {
-        self.consume_if(|f, i| if predicate(f, i) { Some(()) } else { None });
+    pub fn consume_while<F: Fn(u8, usize) -> bool>(&mut self, predicate: F) -> bool {
+        self.consume_if(|f, i| if predicate(f, i) { Some(()) } else { None })
+            .is_some()
     }
 
     pub fn consumed(&self) -> bool {
