@@ -1,4 +1,4 @@
-use crate::frontend::location::{SourceCode, Span};
+use crate::frontend::location::{Location, SourceCode, Span};
 
 pub type AnyError = Box<dyn std::error::Error>;
 
@@ -42,6 +42,22 @@ pub fn err_span<T, S: AsRef<str>>(
         caller_location,
         error_message.as_ref(),
         code.format_span(span)
+    )
+    .into())
+}
+#[track_caller]
+pub fn err_since<T, S: AsRef<str>>(
+    error_message: S,
+    code: &SourceCode,
+    start: Location,
+) -> Result<T, AnyError> {
+    // place your breakpoints here
+    let caller_location = std::panic::Location::caller();
+    Err(format!(
+        "(from {})\n{}{}",
+        caller_location,
+        error_message.as_ref(),
+        code.format_span(code.span_since(start))
     )
     .into())
 }

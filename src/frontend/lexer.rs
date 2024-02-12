@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::common::{context, err, err_loc};
+use crate::common::{context, err, err_loc, err_since, err_span};
 use crate::frontend::location::{Location, SourceCode, Span};
 use crate::AnyError;
 
@@ -325,7 +325,11 @@ pub fn try_consume_string(iter: &mut SourceCode) -> Option<Result<LocatedToken, 
                     iter.next();
                     Some(Ok(token))
                 } else {
-                    Some(err("Unclosed double quote"))
+                    Some(err_span(
+                        "Unclosed double quote",
+                        iter,
+                        iter.span_since(initial_location),
+                    ))
                 }
             }
             Err(e) => Some(Err(e)),
@@ -341,6 +345,7 @@ pub fn consume_escaped_until_not_including(
 ) -> Result<Vec<u8>, AnyError> {
     let mut consumed = Vec::new();
     loop {
+        let inside = iter.get_location();
         match iter.peek() {
             Some(letter) => {
                 if letter == end_letter {
@@ -353,12 +358,16 @@ pub fn consume_escaped_until_not_including(
                         Some(b'0') => consumed.push(b'\0'),
                         // Some(b'x') => // TODO: parse hexadecimal
                         Some(b'\\') => consumed.push(b'\\'),
-                        None => return err("Incomplete escaped character")?,
+                        None => return err_since("Incomplete escaped character", iter, inside)?,
                         Some(other) => {
-                            return err(format!(
-                                "Unknown escaped character with code {} ({})",
-                                other, other as char
-                            ))
+                            return err_since(
+                                format!(
+                                    "Unknown escaped character with code {} ({})",
+                                    other, other as char
+                                ),
+                                iter,
+                                inside,
+                            )
                         }
                     }
                     iter.next();
@@ -386,8 +395,10 @@ fn try_consume_char(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyErr
     })
 }
 pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyError> {
+    let start = iter.get_location();
     if quote == b'\'' {
         iter.next();
+        let inside = iter.get_location();
         let letter = iter.peek();
         let character = match letter {
             Some(b'\\') => {
@@ -397,23 +408,27 @@ pub fn consume_char(quote: u8, iter: &mut SourceCode) -> Result<Option<u8>, AnyE
                     Some(b'n') => Some(b'\n'),
                     Some(b'0') => Some(b'\0'),
                     Some(b'\\') => Some(b'\\'),
-                    None => return err("Incomplete escaped character")?,
+                    None => return err_since("Incomplete escaped character", iter, inside)?,
                     Some(other) => {
-                        return err(format!(
-                            "Unknown escaped character with code {} ({})",
-                            other, other as char
-                        ));
+                        return err_since(
+                            format!(
+                                "Unknown escaped character with code {} ({})",
+                                other, other as char
+                            ),
+                            iter,
+                            inside,
+                        );
                     }
                 }
             }
             Some(regular_letter) => Some(regular_letter),
-            None => return err_loc("Unclosed single quote", iter),
+            None => return err_since("Unclosed single quote", iter, start),
         };
         iter.next();
         if let Some(b'\'') = iter.peek() {
             Ok(character)
         } else {
-            err_loc("Unclosed single quote", iter)
+            err_since("Unclosed single quote", iter, start)
         }
     } else {
         Ok(None)
