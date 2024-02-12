@@ -213,7 +213,7 @@ pub fn parse_grouping(letter: u8) -> Option<Token> {
 fn try_consume_multichar_tokens(code: &mut SourceCode) -> Option<LocatedTokens> {
     let initial_location = code.get_location();
     if code.consume("//") {
-        ignore_until_not_including(b'\n', code);
+        code.consume_while(|letter, _| letter != b'\n');
         code.next();
         Some(Vec::new())
     } else {
@@ -234,18 +234,6 @@ fn try_consume_multichar_tokens(code: &mut SourceCode) -> Option<LocatedTokens> 
             }
         }
         None
-    }
-}
-
-pub fn ignore_until_not_including(end_letter: u8, iter: &mut SourceCode) {
-    loop {
-        match iter.peek() {
-            Some(letter) if letter == end_letter => return,
-            None => return,
-            Some(_) => {
-                iter.next();
-            }
-        }
     }
 }
 

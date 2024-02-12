@@ -141,9 +141,10 @@ impl SourceCode {
         let mut i = 0;
         let mut consumed = Vec::new();
         loop {
-            if let Some(letter) = self.peek_at(self.cursor.byte + i) {
+            if let Some(letter) = self.peek_at(self.cursor.byte) {
                 if let Some(t) = predicate(letter, i) {
                     consumed.push(t);
+                    self.next();
                 } else {
                     break;
                 }
@@ -153,14 +154,15 @@ impl SourceCode {
             i += 1;
         }
         if consumed.len() > 0 {
-            for _ in 0..i {
-                self.next();
-            }
             Some(consumed)
         } else {
             None
         }
     }
+    pub fn consume_while<F: Fn(u8, usize) -> bool>(&mut self, predicate: F) {
+        self.consume_if(|f, i| if predicate(f, i) { Some(()) } else { None });
+    }
+
     pub fn consumed(&self) -> bool {
         self.cursor.byte == self.text.len()
     }
