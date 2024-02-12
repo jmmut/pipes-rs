@@ -261,11 +261,21 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
 }
 
 fn try_consume_identifier(code: &mut SourceCode) -> Option<Result<LocatedToken, AnyError>> {
-    let letter = parse_letter_start(code.peek()?)?;
     let initial_location = code.get_location();
-    let result = consume_identifier(letter, code);
-    let token = result.map(|t| code.span_token(t, initial_location));
-    Some(token)
+    let letters = code.consume_if(|letter, i| {
+        if i == 0 {
+            parse_letter_start(letter)
+        } else {
+            parse_alphanum(letter)
+        }
+    })?;
+    let name = String::from_utf8(letters).map_err(|e| e.into());
+    let token = name.map(|name| {
+        let token = keyword_or_identifier(name);
+        let located_token = code.span_token(token, initial_location);
+        located_token
+    });
+    Some(token.into())
 }
 
 pub fn parse_letter_start(letter: u8) -> Option<u8> {
@@ -276,20 +286,6 @@ pub fn parse_letter_start(letter: u8) -> Option<u8> {
         return Some(letter);
     } else {
         None
-    }
-}
-
-pub fn consume_identifier(first_letter: u8, iter: &mut SourceCode) -> Result<Token, AnyError> {
-    let mut accumulated = vec![first_letter];
-    loop {
-        iter.next();
-        if let Some(letter) = iter.peek() {
-            if let Some(new_letter) = parse_alphanum(letter) {
-                accumulated.push(new_letter);
-                continue;
-            }
-        }
-        return Ok(keyword_or_identifier(String::from_utf8(accumulated)?));
     }
 }
 
