@@ -1,92 +1,8 @@
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
-use crate::common::{context, err, err_loc, err_since, err_span};
-use crate::frontend::location::{Location, SourceCode, Span};
+use crate::common::{context, err_loc, err_since, err_span};
+use crate::frontend::location::SourceCode;
+use crate::frontend::token::{Comparison, Keyword, LocatedToken, LocatedTokens, Operator, Token};
 use crate::AnyError;
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct LocatedToken {
-    pub token: Token,
-    pub span: Span,
-}
-pub type LocatedTokens = Vec<LocatedToken>;
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum Token {
-    Number(i64),
-    Operator(Operator),
-    Identifier(String),
-    String(Vec<u8>),
-    Keyword(Keyword),
-    OpenBracket,
-    CloseBracket,
-    OpenBrace,
-    CloseBrace,
-    OpenParenthesis,
-    CloseParenthesis,
-    // Comma,
-}
-
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum Operator {
-    Add,
-    Substract,
-    Multiply,
-    Divide,
-    Modulo,
-    Ignore,
-    Call,
-    Get,
-    Type,
-    Assignment,
-    Overwrite,
-    Concatenate,
-    Comparison(Comparison),
-}
-
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum Comparison {
-    Equals,
-    LessThan,
-    GreaterThan,
-    LessThanEquals,
-    GreaterThanEquals,
-}
-
-#[derive(Copy, Clone, PartialEq, Debug, EnumIter)]
-pub enum Keyword {
-    Function,
-    Loop,
-    LoopOr,
-    Times,
-    TimesOr,
-    Replace,
-    Map,
-    Branch,
-    Something,
-    Inspect,
-    Public,
-    Cast,
-}
-impl Keyword {
-    pub fn name(&self) -> &'static str {
-        match self {
-            Keyword::Function => "function",
-            Keyword::Loop => "loop",
-            Keyword::LoopOr => "loop_or",
-            Keyword::Times => "times",
-            Keyword::TimesOr => "times_or",
-            Keyword::Replace => "replace",
-            Keyword::Map => "map",
-            Keyword::Branch => "branch",
-            Keyword::Something => "something",
-            Keyword::Inspect => "inspect",
-            Keyword::Public => "public",
-            Keyword::Cast => "cast",
-        }
-    }
-}
+use strum::IntoEnumIterator;
 
 #[derive(Debug, Clone)]
 pub struct TokenizedSource {
@@ -94,7 +10,6 @@ pub struct TokenizedSource {
     // pub tokens: Vec<LocatedToken>,
     pub source_code: SourceCode,
 }
-pub type Tokens = Vec<Token>;
 
 pub fn lex<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
     context("Lexer", try_lex(code.into()))
@@ -446,9 +361,10 @@ fn is_space(letter: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::common::unwrap_display;
-    use Token::{CloseBracket, Identifier, Number, OpenBracket, Operator};
+    use crate::frontend::token::Token::{CloseBracket, Identifier, Number, OpenBracket, Operator};
 
-    use crate::frontend::lexer::Operator::{Add, Divide, Modulo, Multiply, Substract};
+    use crate::frontend::token::Operator::{Add, Divide, Modulo, Multiply, Substract};
+    use crate::frontend::token::Tokens;
 
     use super::*;
 

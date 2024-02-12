@@ -3,9 +3,10 @@ use std::collections::VecDeque;
 use crate::common::{context, err, AnyError};
 use crate::frontend::ast::{construct_function_from_chain, error_expected, PartialExpression};
 use crate::frontend::expression::{Chain, Expression, Transformation, Type, TypedIdentifier};
-use crate::frontend::lexer::{lex, Operator, Token, TokenizedSource, Tokens};
+use crate::frontend::lexer::{lex, TokenizedSource};
 use crate::frontend::parser::reverse_iterative_parser::construct_string;
 use crate::frontend::program::Program;
+use crate::frontend::token::{Operator, Token, Tokens};
 
 #[cfg(test)]
 // pub fn parse<S: AsRef<str>>(code_text: S) -> Result<Program, AnyError> {

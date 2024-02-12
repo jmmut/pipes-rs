@@ -1,5 +1,5 @@
 use crate::common::{err, AnyError};
-use crate::frontend::lexer::Operator;
+use crate::frontend::token::Operator;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 #[derive(PartialEq, Debug, Clone)]

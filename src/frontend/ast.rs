@@ -6,9 +6,10 @@ use crate::frontend::expression::{
     Branch, Chain, Composed, Expression, Function, Loop, Transformation, Type, TypedIdentifier,
     TypedIdentifiers,
 };
-use crate::frontend::lexer::{lex, Keyword, LocatedToken, Operator, Token, TokenizedSource};
-use crate::frontend::location::{Location, SourceCode};
+use crate::frontend::lexer::{lex, TokenizedSource};
+use crate::frontend::location::SourceCode;
 use crate::frontend::program::Program;
+use crate::frontend::token::{Keyword, Operator, Token};
 
 // pub struct PartialLocatedExpresion {
 //     pe: PartialExpression,

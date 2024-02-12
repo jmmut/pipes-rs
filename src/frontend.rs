@@ -15,6 +15,7 @@ pub mod lexer;
 pub mod location;
 mod parser;
 pub mod program;
+pub mod token;
 
 #[cfg(test)]
 mod tests;

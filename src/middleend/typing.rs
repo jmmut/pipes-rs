@@ -7,9 +7,9 @@ use crate::frontend::expression::{
     Chain, Composed, Expression, Expressions, Function, Map, Replace, Transformation, Type,
     TypedIdentifier,
 };
-use crate::frontend::lexer::Operator;
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
+use crate::frontend::token::Operator;
 use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{all_same_type, unify, unify_typed_identifier};

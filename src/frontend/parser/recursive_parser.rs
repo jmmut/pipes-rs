@@ -1,7 +1,8 @@
 use crate::common::{context, err};
 use crate::frontend::expression::{Expression, Expressions, Transformation};
-use crate::frontend::lexer::{Operator, Token, TokenizedSource, Tokens};
+use crate::frontend::lexer::TokenizedSource;
 use crate::frontend::program::Program;
+use crate::frontend::token::{Operator, Token, Tokens};
 use crate::AnyError;
 
 pub fn parse(tokens: TokenizedSource) -> Result<Program, AnyError> {

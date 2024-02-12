@@ -1,10 +1,7 @@
-use std::fmt::{Display, Formatter};
-use std::iter::Peekable;
-use std::path::PathBuf;
-use std::str::Bytes;
-
 use crate::common::{context, err, AnyError};
-use crate::frontend::lexer::{LocatedToken, Token};
+use crate::frontend::token::{LocatedToken, Token};
+use std::fmt::{Display, Formatter};
+use std::path::PathBuf;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Span {

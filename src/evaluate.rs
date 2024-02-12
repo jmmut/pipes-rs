@@ -10,8 +10,8 @@ use crate::frontend::expression::{
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
-use crate::frontend::lexer::{Comparison, Operator};
 use crate::frontend::program::Program;
+use crate::frontend::token::{Comparison, Operator};
 use crate::middleend::intrinsics::Intrinsic;
 
 pub type ListPointer = i64;
