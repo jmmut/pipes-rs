@@ -137,13 +137,13 @@ impl SourceCode {
         }
         true
     }
-    pub fn consume_if<F: Fn(u8, usize) -> bool>(&mut self, predicate: F) -> Option<String> {
+    pub fn consume_if<F: Fn(u8, usize) -> Option<T>, T>(&mut self, predicate: F) -> Option<Vec<T>> {
         let mut i = 0;
-        let mut accepted = false;
+        let mut consumed = Vec::new();
         loop {
             if let Some(letter) = self.peek_at(self.cursor.byte + i) {
-                if predicate(letter, i) {
-                    accepted = true;
+                if let Some(t) = predicate(letter, i) {
+                    consumed.push(t);
                 } else {
                     break;
                 }
@@ -152,8 +152,7 @@ impl SourceCode {
             }
             i += 1;
         }
-        if accepted {
-            let consumed = self.text[self.cursor.byte..(self.cursor.byte + i)].to_string();
+        if consumed.len() > 0 {
             for _ in 0..i {
                 self.next();
             }
@@ -513,16 +512,27 @@ qwer
     fn test_consume_if() {
         let text = "abc345cde".to_string();
         let mut code = SourceCode::new_fileless(text.clone());
-        assert_eq!(
-            code.consume_if(|letter, _| letter >= b'0' && letter <= b'9'),
-            None
-        );
+        let is_digit = |letter, _| {
+            if letter >= b'0' && letter <= b'9' {
+                Some(letter)
+            } else {
+                None
+            }
+        };
+        let is_letter = |letter, _| {
+            if letter >= b'a' && letter <= b'z' {
+                Some(letter)
+            } else {
+                None
+            }
+        };
+        assert_eq!(code.consume_if(is_digit), None);
         code.next();
         code.next();
         code.next();
         assert_eq!(
-            code.consume_if(|letter, _| letter >= b'0' && letter <= b'9'),
-            Some("345".to_string())
+            code.consume_if(is_digit),
+            Some("345".to_string().as_bytes().to_vec())
         );
         assert_eq!(
             code.cursor,
@@ -534,15 +544,15 @@ qwer
         );
         assert_eq!(code.peek(), Some(b'c'));
         assert_eq!(
-            code.consume_if(|letter, _| letter >= b'a' && letter <= b'z'),
-            Some("cde".to_string())
+            code.consume_if(is_letter),
+            Some("cde".to_string().as_bytes().to_vec())
         );
-        assert_eq!(
-            code.consume_if(|letter, _| letter >= b'a' && letter <= b'z'),
-            None
-        );
+        assert_eq!(code.consume_if(is_letter), None);
 
         let mut code = SourceCode::new_fileless(text.clone());
-        assert_eq!(code.consume_if(|_, _| true), Some(text));
+        assert_eq!(
+            code.consume_if(|letter, _| Some(letter)),
+            Some(text.as_bytes().to_vec())
+        );
     }
 }

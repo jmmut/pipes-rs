@@ -148,12 +148,7 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
 
 pub fn try_consume_number(code: &mut SourceCode) -> Result<Option<LocatedToken>, AnyError> {
     let initial_location = code.get_location();
-    if let Some(number_str) = code.consume_if(|letter, _| is_digit(letter)) {
-        let digits = number_str
-            .as_bytes()
-            .iter()
-            .map(|digit_str| parse_digit(*digit_str).unwrap())
-            .collect::<Vec<_>>();
+    if let Some(digits) = code.consume_if(|letter, _| parse_digit(letter)) {
         let mut accumulated = 0;
         for digit in digits {
             accumulated = maybe_add_digit(accumulated, digit, code)?;
