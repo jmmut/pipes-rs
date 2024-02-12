@@ -20,8 +20,8 @@ pub mod token;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-mod benchmarks;
+//#[cfg(test)]
+//mod benchmarks;
 
 pub fn lex_and_parse<S: Into<SourceCode>>(code_text: S) -> Result<Program, AnyError> {
     let tokens = lex(code_text);

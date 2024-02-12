@@ -6,8 +6,8 @@ use strum::IntoEnumIterator;
 
 #[derive(Debug, Clone)]
 pub struct TokenizedSource {
-    pub tokens: Vec<Token>,
-    // pub tokens: Vec<LocatedToken>,
+    //pub tokens: Vec<Token>,
+    pub tokens: Vec<LocatedToken>,
     pub source_code: SourceCode,
 }
 
@@ -56,7 +56,8 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
     //     println!("debugging: {}", code.format_span(token.span));
     // }
     Ok(TokenizedSource {
-        tokens: tokens.into_iter().map(|t| t.token).collect(),
+        tokens,
+        // tokens: tokens.into_iter().map(|t| t.token).collect(),
         source_code: code,
     })
 }
@@ -369,7 +370,11 @@ mod tests {
     use super::*;
 
     fn get_tokens(text: &str) -> Tokens {
-        unwrap_display(lex(text)).tokens
+        unwrap_display(lex(text))
+            .tokens
+            .into_iter()
+            .map(|l| l.token)
+            .collect()
     }
     #[test]
     fn test_unkown_char() {

@@ -41,7 +41,7 @@ pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> 
     let mut accumulated = Vec::new();
     // for LocatedToken {token, location} in tokens.tokens {
     for token in tokens.tokens {
-        match token {
+        match token.token {
             Token::OpenBracket => accumulated.push(PartialExpression::OpenBracket),
             Token::CloseBracket => construct_list(&mut accumulated)?,
             Token::OpenParenthesis => accumulated.push(PartialExpression::OpenParenthesis),

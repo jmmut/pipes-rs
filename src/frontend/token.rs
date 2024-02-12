@@ -1,4 +1,4 @@
-use crate::frontend::location::Span;
+use crate::frontend::location::{Span, NO_SPAN};
 use strum_macros::EnumIter;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -6,8 +6,16 @@ pub struct LocatedToken {
     pub token: Token,
     pub span: Span,
 }
-
 pub type LocatedTokens = Vec<LocatedToken>;
+
+impl LocatedToken {
+    pub fn spanless(token: Token) -> LocatedToken {
+        LocatedToken {
+            token,
+            span: NO_SPAN,
+        }
+    }
+}
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {

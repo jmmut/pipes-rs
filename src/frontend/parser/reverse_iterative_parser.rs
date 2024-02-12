@@ -11,7 +11,7 @@ use crate::frontend::lexer::TokenizedSource;
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
-use crate::frontend::token::{Keyword, Operator, Token, Tokens};
+use crate::frontend::token::{Keyword, LocatedToken, LocatedTokens, Operator, Token, Tokens};
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
@@ -20,21 +20,21 @@ pub fn parse_type(tokens: TokenizedSource) -> Result<Type, AnyError> {
     context("Reverse type parser", Parser::parse_type(tokens))
 }
 
-pub fn parse_tokens_cached(tokens: Tokens, ast: Parser) -> Result<Program, AnyError> {
+pub fn parse_tokens_cached(tokens: LocatedTokens, ast: Parser) -> Result<Program, AnyError> {
     Ok(parse_tokens_cached_inner(tokens, ast)?.into())
 }
 
 pub fn parse_tokens_cached_inner(
-    tokens: Tokens,
+    tokens: LocatedTokens,
     mut ast: Parser,
 ) -> Result<IncompleteProgram, AnyError> {
     ast = raw_parse_tokens(tokens, ast)?;
     finish_construction(ast)
 }
 
-pub fn raw_parse_tokens(tokens: Tokens, mut ast: Parser) -> Result<Parser, AnyError> {
+pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser, AnyError> {
     for token in tokens.into_iter().rev() {
-        match token {
+        match token.token {
             Token::Number(n) => ast.push(Expression::Value(n)),
             Token::Operator(operator) => {
                 let pe = construct_transformation(&mut ast, operator)?;
@@ -93,7 +93,9 @@ impl Parser {
 
     fn parse_type(mut tokens: TokenizedSource) -> Result<Type, AnyError> {
         let parser = Parser::new(tokens.source_code.file);
-        tokens.tokens.insert(0, Token::Operator(Operator::Type));
+        tokens
+            .tokens
+            .insert(0, LocatedToken::spanless(Token::Operator(Operator::Type)));
         let mut parser = raw_parse_tokens(tokens.tokens, parser)?;
         let expression = parser.accumulated.pop_front();
         if !parser.accumulated.is_empty() {

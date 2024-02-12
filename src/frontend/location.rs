@@ -3,12 +3,21 @@ use crate::frontend::token::{LocatedToken, Token};
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
+pub const NO_LOCATION: Location = Location {
+    line: 0,
+    column: 0,
+    byte: 0,
+};
+pub const NO_SPAN: Span = Span {
+    start: NO_LOCATION,
+    end: NO_LOCATION,
+};
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Span {
     pub start: Location,
     pub end: Location,
 }
-
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Location {
     line: i32,
