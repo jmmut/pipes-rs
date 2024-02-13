@@ -58,7 +58,7 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         debug_ast,
     } = args;
     let code_string = SourceCode::new_from_string_or_file(evaluate_string, input_file)?;
-    let expression = if ast {
+    let program = if ast {
         ast_deserialize_source(&code_string)?
     } else {
         lex_and_parse(code_string)?
@@ -67,16 +67,16 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
     // two ifs so that --debug-ast and --prettify only prints once, prettified
     if debug_ast || prettify {
         if prettify {
-            println!("Expression: {:#?}", expression);
+            println!("Expression: {:#?}", program.main);
         } else {
-            println!("Expression: {:?}", expression);
+            println!("Expression: {:?}", program.main);
         }
     }
 
-    check_types(&expression)?;
+    check_types(&program)?;
 
     if !check {
-        let result = Runtime::evaluate(expression, read_src, print_dst)?;
+        let result = Runtime::evaluate(program, read_src, print_dst)?;
         if result != NOTHING {
             println!("{}", result);
         }
