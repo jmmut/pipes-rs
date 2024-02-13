@@ -41,6 +41,7 @@ pub fn import(
         context_str.clone(),
         track_identifiers_recursive(main, &mut import_state),
     )?;
+    parser.source = import_state.source;
     // println!("after importing: {:#?}", import_state.imported);
     Ok((import_state.imported, import_state.other_sources))
 }

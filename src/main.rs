@@ -113,7 +113,7 @@ mod tests {
             input_file: Some(PathBuf::from("pipes_programs/demos/hello_world.pipes")),
             ast: false,
             debug_ast: false,
-            prettify: true,
+            prettify: false,
         };
         unwrap_display(interpret(args, std::io::stdin(), &mut print_dst));
         assert_eq!(

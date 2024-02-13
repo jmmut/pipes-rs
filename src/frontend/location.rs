@@ -115,7 +115,7 @@ impl<S: AsRef<str>> From<S> for SourceCode {
 
 impl PartialEq for SourceCode {
     fn eq(&self, other: &Self) -> bool {
-        self.cursor == other.cursor && self.file == other.file
+        self.file == other.file
     }
 }
 

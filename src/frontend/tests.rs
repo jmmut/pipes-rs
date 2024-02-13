@@ -170,7 +170,7 @@ fn assert_eq_ast(code: &str, ast: &str) {
 #[test]
 fn test_import() {
     let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
-    let code = SourceCode::new(main_path).unwrap();
+    let code = SourceCode::new(main_path.clone()).unwrap();
     let parsed = unwrap_display(lex_and_parse(code));
     assert_eq!(
         parsed
@@ -180,6 +180,7 @@ fn test_import() {
         "actual: {:?}",
         parsed.identifiers.keys()
     );
+    assert_eq!(parsed.main_source.file, Some(main_path));
 }
 
 #[test]
