@@ -18,13 +18,15 @@ use crate::middleend::intrinsics;
 pub fn import(
     main: &mut Expression,
     parser: &mut Parser,
-) -> Result<HashMap<String, Expression>, AnyError> {
-    let context_str = if let Some(path) = parser.file.as_ref() {
+) -> Result<(HashMap<String, Expression>, HashMap<String, SourceCode>), AnyError> {
+    let context_str = if let Some(path) = parser.source.file.as_ref() {
         format!("Import dependencies for {}", path.to_string_lossy())
     } else {
         "Import".to_string()
     };
-    let mut import_state = ImportState::new(parser.file.clone(), parser.root.clone());
+    let mut tmp_source_code = SourceCode::new_fileless("".to_string());
+    std::mem::swap(&mut tmp_source_code, &mut parser.source);
+    let mut import_state = ImportState::new(tmp_source_code, parser.root.clone());
     import_state.available = parser.exported.keys().cloned().collect();
     import_state
         .available
@@ -40,7 +42,7 @@ pub fn import(
         track_identifiers_recursive(main, &mut import_state),
     )?;
     // println!("after importing: {:#?}", import_state.imported);
-    Ok(import_state.imported)
+    Ok((import_state.imported, import_state.other_sources))
 }
 
 struct ImportState {
@@ -50,15 +52,16 @@ struct ImportState {
     imported: HashMap<String, Expression>,
     available: HashSet<String>,
     project_root: Option<PathBuf>,
-    file: Option<PathBuf>,
+    source: SourceCode,
+    other_sources: HashMap<String, SourceCode>,
 }
 
 impl ImportState {
-    pub fn new(file: Option<PathBuf>, root: Option<PathBuf>) -> Self {
-        Self::new_with_identifiers(file, root, HashMap::new())
+    pub fn new(source: SourceCode, root: Option<PathBuf>) -> Self {
+        Self::new_with_identifiers(source, root, HashMap::new())
     }
     fn new_with_identifiers(
-        file: Option<PathBuf>,
+        source: SourceCode,
         project_root: Option<PathBuf>,
         imported: HashMap<String, Expression>,
     ) -> Self {
@@ -71,7 +74,8 @@ impl ImportState {
             imported,
             available: HashSet::new(),
             project_root,
-            file,
+            source,
+            other_sources: HashMap::new(),
         }
     }
 }
@@ -177,7 +181,7 @@ fn check_identifier(
                     "identifier '{}' not found in scope for file {:?}. Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
                         Assignments: {:?}\n  Available to this file: {:?}\n  Imported by this file: {:?}",
                     identifier,
-                    import_state.file,
+                    import_state.source.file,
                     import_state.parameter_stack,
                     import_state.intrinsic_names,
                     import_state.assignments,
@@ -190,7 +194,7 @@ fn check_identifier(
         } else if assignment_nested_count == 1 {
             if let (Some(root), Some(file)) = (
                 import_state.project_root.as_ref(),
-                import_state.file.as_ref(),
+                import_state.source.file.as_ref(),
             ) {
                 let qualified = qualify(identifier, root, file)?;
                 if import_state.imported.contains_key(&qualified) {
@@ -219,7 +223,7 @@ fn import_identifier(
     if paths.len() < 2 {
         if let (Some(root), Some(file)) = (
             import_state.project_root.as_ref(),
-            import_state.file.as_ref(),
+            import_state.source.file.as_ref(),
         ) {
             // assuming the un-qualified name was defined in the same file as where the identifier was used.
             // no need to import in that case
@@ -238,16 +242,26 @@ fn import_identifier(
             root.push(path_to_import);
             path_to_import = root;
         }
-        let source_code = SourceCode::new(path_to_import)?;
-        let file = source_code.file.clone();
+        let source_code = SourceCode::new(path_to_import.clone())?;
         let tokens = lex(source_code)?;
         let mut available: HashSet<String> = import_state.imported.keys().cloned().collect();
         available.extend(import_state.available.clone());
-        let parser = Parser::new_with_available(file, available, import_state.project_root.clone());
+        let parser = Parser::new_with_available(
+            tokens.source_code,
+            available,
+            import_state.project_root.clone(),
+        );
         let mut program = parse_tokens_cached_inner(tokens.tokens, parser)?;
         import_state
             .imported
             .extend(std::mem::take(&mut program.exported));
+        import_state
+            .other_sources
+            .extend(program.sources.into_iter());
+        import_state.other_sources.insert(
+            path_to_import.to_string_lossy().to_string(),
+            program.main_source,
+        );
         Ok(())
     }
 }

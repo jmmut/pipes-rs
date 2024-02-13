@@ -8,10 +8,11 @@ use crate::frontend::expression::{
     TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::TokenizedSource;
+use crate::frontend::location::SourceCode;
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
-use crate::frontend::token::{Keyword, LocatedToken, LocatedTokens, Operator, Token, Tokens};
+use crate::frontend::token::{Keyword, LocatedToken, LocatedTokens, Operator, Token};
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
@@ -61,20 +62,20 @@ pub struct Parser {
     pub accumulated: VecDeque<PartialExpression>,
     pub exported: HashMap<String, IdentifierValue>,
     pub available: HashSet<String>,
-    pub file: Option<PathBuf>,
     pub root: Option<PathBuf>,
+    pub source: SourceCode,
 }
 
 /// present if it's a public identifier, None if private
 pub type IdentifierValue = Expression;
 
 impl Parser {
-    pub fn new(file_opt: Option<PathBuf>) -> Self {
-        let root = get_project_root(&None, &file_opt);
-        Self::new_with_available(file_opt, HashSet::new(), root.ok()) // TODO: .ok() loses error message
+    pub fn new(source: SourceCode) -> Self {
+        let root = get_project_root(&None, &source.file);
+        Self::new_with_available(source, HashSet::new(), root.ok()) // TODO: .ok() loses error message
     }
     pub fn new_with_available(
-        file: Option<PathBuf>,
+        source: SourceCode,
         available: HashSet<String>,
         root: Option<PathBuf>,
     ) -> Self {
@@ -82,17 +83,17 @@ impl Parser {
             accumulated: VecDeque::new(),
             exported: HashMap::new(),
             available,
-            file,
             root,
+            source,
         }
     }
     fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
-        let parser = Parser::new(tokens.source_code.file);
+        let parser = Parser::new(tokens.source_code);
         parse_tokens_cached(tokens.tokens, parser)
     }
 
     fn parse_type(mut tokens: TokenizedSource) -> Result<Type, AnyError> {
-        let parser = Parser::new(tokens.source_code.file);
+        let parser = Parser::new(tokens.source_code);
         tokens
             .tokens
             .insert(0, LocatedToken::spanless(Token::Operator(Operator::Type)));
@@ -371,12 +372,13 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
         })) = elem
         {
             // parser.identifiers.insert(name.clone(), expr);
-            let qualified =
-                if let (Some(root), Some(file)) = (parser.root.as_ref(), parser.file.as_ref()) {
-                    qualify(&name, root, file)?
-                } else {
-                    name
-                };
+            let qualified = if let (Some(root), Some(file)) =
+                (parser.root.as_ref(), parser.source.file.as_ref())
+            {
+                qualify(&name, root, file)?
+            } else {
+                name
+            };
             parser.exported.insert(qualified.clone(), expr);
             Ok(PartialExpression::Expression(Expression::Identifier(
                 qualified,
@@ -523,12 +525,14 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         }
     };
 
-    let imported = import(&mut main, &mut parser)?;
+    let (imported, other_sources) = import(&mut main, &mut parser)?;
     parser.exported.extend(imported);
 
     Ok(IncompleteProgram {
         main,
         exported: parser.exported,
         available: parser.available,
+        sources: other_sources,
+        main_source: parser.source,
     })
 }

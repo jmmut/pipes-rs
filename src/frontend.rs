@@ -33,9 +33,9 @@ pub fn lex_and_parse_with_identifiers<S: Into<SourceCode>>(
     code_text: S,
     identifiers: HashSet<String>,
 ) -> Result<Program, AnyError> {
-    let tokens = lex(code_text);
-    let ast = Parser::new_with_available(None, identifiers, None);
-    let expression = parse_tokens_cached(tokens?.tokens, ast);
+    let tokens = lex(code_text)?;
+    let ast = Parser::new_with_available(tokens.source_code, identifiers, None);
+    let expression = parse_tokens_cached(tokens.tokens, ast);
     expression
 }
 

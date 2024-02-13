@@ -113,6 +113,12 @@ impl<S: AsRef<str>> From<S> for SourceCode {
     }
 }
 
+impl PartialEq for SourceCode {
+    fn eq(&self, other: &Self) -> bool {
+        self.cursor == other.cursor && self.file == other.file
+    }
+}
+
 impl SourceCode {
     pub fn peek(&mut self) -> Option<u8> {
         self.peek_at(self.cursor.byte)
