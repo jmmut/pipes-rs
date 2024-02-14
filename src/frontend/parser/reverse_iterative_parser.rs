@@ -154,6 +154,13 @@ impl Parser {
     }
 }
 
+fn ident(maybe_pe: Option<PartialExpression>) -> (Option<String>, Option<PartialExpression>) {
+    if let Some(PartialExpression::Expression(Expression::Identifier(typename))) = maybe_pe {
+        (Some(typename), None)
+    } else {
+        (None, maybe_pe)
+    }
+}
 fn construct_transformation(
     parser: &mut Parser,
     operator: Operator,
@@ -161,8 +168,8 @@ fn construct_transformation(
     let accumulated = &mut parser.accumulated;
     let elem_operand = accumulated.pop_front();
     let transformation = if let Operator::Type = operator {
-        if let Some(PartialExpression::Expression(Expression::Identifier(typename))) = elem_operand
-        {
+        let (maybe_typename, elem_operand) = ident(elem_operand);
+        if let Some(typename) = maybe_typename {
             let operand = get_type_maybe_pop_children(accumulated, typename);
             Transformation { operator, operand }
         } else if let Some(PartialExpression::Expression(Expression::Type(type_))) = elem_operand {
