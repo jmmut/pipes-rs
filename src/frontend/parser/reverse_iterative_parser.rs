@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use crate::common::{context, err, AnyError};
 use crate::frontend::ast::{error_expected, PartialExpression};
 use crate::frontend::expression::{
-    Branch, Cast, Chain, Composed, Expression, Transformation, Transformations, Type,
-    TypedIdentifier, TypedIdentifiers,
+    Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Transformation, Transformations,
+    Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::TokenizedSource;
 use crate::frontend::location::SourceCode;
@@ -529,7 +529,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
     parser.exported.extend(imported);
 
     Ok(IncompleteProgram {
-        main,
+        main: ExpressionSpan::new_spanless(main),
         exported: parser.exported,
         available: parser.available,
         sources: other_sources,

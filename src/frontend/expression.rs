@@ -1,6 +1,42 @@
 use crate::common::{err, AnyError};
+use crate::frontend::location::{Span, NO_SPAN};
 use crate::frontend::token::Operator;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
+
+#[derive(Debug, Clone)]
+pub struct ExpressionSpan {
+    syntactic_type: Expression,
+    span: Span,
+}
+
+impl ExpressionSpan {
+    pub fn new(syntactic_type: Expression, span: Span) -> Self {
+        Self {
+            syntactic_type,
+            span,
+        }
+    }
+    // TODO: most of the usages of this function should be removed to use a proper span
+    pub fn new_spanless(syntactic_type: Expression) -> Self {
+        Self {
+            syntactic_type,
+            span: NO_SPAN,
+        }
+    }
+    /// syntactic type, as opposed to the semantic type. E.g.: the syntactic type of '{3+5}' is
+    /// `ExpressionType::Chain`, and the semantic type is `Type::simple("i64")`.
+    pub fn syn_type(&self) -> &Expression {
+        &self.syntactic_type
+    }
+    pub fn take(self) -> (Expression, Span) {
+        (self.syntactic_type, self.span)
+    }
+}
+impl PartialEq for ExpressionSpan {
+    fn eq(&self, other: &Self) -> bool {
+        self.syntactic_type == other.syntactic_type
+    }
+}
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {

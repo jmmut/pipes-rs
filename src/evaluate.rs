@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Chain, Expression, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr, Transformation,
-    TypedIdentifier,
+    Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr,
+    Transformation, TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
@@ -110,7 +110,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<GenericValue, AnyError> {
         let mut runtime = Self::new(read_input, print_output);
         runtime.setup_constants(program.identifiers)?;
-        context("Runtime", runtime.evaluate_recursive(&program.main))
+        context(
+            "Runtime",
+            runtime.evaluate_recursive(&program.main.syn_type()),
+        )
     }
 
     fn new(read_input: R, print_output: W) -> Runtime<R, W> {
@@ -149,6 +152,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             let mut failed = Vec::<(String, Expression)>::new();
             let identifiers_count_previous = identifiers_vec.len();
             for (name, expression) in identifiers_vec {
+                // let expression = ExpressionSpan::new_spanless(expression);
                 match context("Runtime setup", self.evaluate_recursive(&expression)) {
                     Ok(value) => self.bind_static_identifier(name, value),
                     Err(_) => {
@@ -729,7 +733,7 @@ mod tests {
         let print_output = Vec::<u8>::new();
         let expression = lex_and_parse(code_text).unwrap();
         let mut runtime = Runtime::new(read_input, print_output);
-        let result = runtime.evaluate_recursive(&expression.main);
+        let result = runtime.evaluate_recursive(&expression.main.syn_type());
         (result.unwrap(), runtime.print_output)
     }
 

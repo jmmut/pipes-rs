@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::frontend::expression::Expression;
-use crate::frontend::location::SourceCode;
+use crate::frontend::expression::{Expression, ExpressionSpan};
+use crate::frontend::location::{SourceCode, NO_SPAN};
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Program {
-    pub main: Expression,
+    pub main: ExpressionSpan,
     pub identifiers: HashMap<String, Expression>,
     pub main_source: SourceCode,
     pub sources: HashMap<String, SourceCode>,
@@ -14,11 +14,14 @@ pub struct Program {
 impl Program {
     pub fn new(expression: Expression) -> Self {
         Self {
-            main: expression,
+            main: ExpressionSpan::new_spanless(expression),
             identifiers: HashMap::new(),
             main_source: SourceCode::new_fileless("".to_string()),
             sources: HashMap::new(),
         }
+    }
+    pub fn main(&self) -> &Expression {
+        self.main.syn_type()
     }
 }
 
@@ -35,7 +38,7 @@ impl From<IncompleteProgram> for Program {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct IncompleteProgram {
-    pub main: Expression,
+    pub main: ExpressionSpan,
     pub exported: HashMap<String, Expression>,
     pub available: HashSet<String>,
     pub main_source: SourceCode,
