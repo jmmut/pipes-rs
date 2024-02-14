@@ -3,11 +3,11 @@ use std::fmt::Debug;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Branch, Chain, Composed, Expression, Function, Loop, Transformation, Type, TypedIdentifier,
-    TypedIdentifiers,
+    Branch, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Transformation, Type,
+    TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::{lex, TokenizedSource};
-use crate::frontend::location::SourceCode;
+use crate::frontend::location::{SourceCode, Span};
 use crate::frontend::program::Program;
 use crate::frontend::token::{Keyword, Operator, Token};
 
@@ -29,6 +29,12 @@ pub enum PartialExpression {
     Keyword(Keyword),
     ChildrenTypes(TypedIdentifiers),
     TypedIdentifier(TypedIdentifier),
+}
+
+impl PartialExpression {
+    pub fn expression(e: Expression) -> PartialExpression {
+        PartialExpression::Expression(e)
+    }
 }
 pub fn ast_deserialize(s: &str) -> Result<Program, AnyError> {
     let tokens = lex(s).unwrap();
@@ -60,10 +66,10 @@ pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> 
                 "UT" => construct_unnamed_type(&mut accumulated)?,
                 "NU" => construct_name_untyped(&mut accumulated)?,
                 // "Type" => construct_simple_type(&mut accumulated)?,
-                _ => accumulated.push(PartialExpression::Expression(Expression::Identifier(ident))),
+                _ => accumulated.push(PartialExpression::expression(Expression::Identifier(ident))),
             },
             Token::Number(n) => {
-                accumulated.push(PartialExpression::Expression(Expression::Value(n)))
+                accumulated.push(PartialExpression::expression(Expression::Value(n)))
             }
             Token::String(string) => construct_string(string, &mut accumulated)?,
         };
@@ -79,7 +85,7 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
         elem = accumulated.pop()
     }
     if let Some(PartialExpression::OpenBracket) = elem {
-        accumulated.push(PartialExpression::Expression(Expression::StaticList {
+        accumulated.push(PartialExpression::expression(Expression::StaticList {
             elements: expressions.into_iter().collect::<Vec<_>>(),
         }));
         Ok(())
@@ -108,7 +114,7 @@ fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Res
         elem = accumulated.pop();
         if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
             let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
-            accumulated.push(PartialExpression::Expression(Expression::Type(a_type)));
+            accumulated.push(PartialExpression::expression(Expression::Type(a_type)));
             Ok(())
         } else {
             error_expected("parent type name before parenthesis", elem)
@@ -125,7 +131,7 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyEr
         match pe {
             PartialExpression::Operation(t) => transformations.push_front(t),
             PartialExpression::Expression(e) => {
-                accumulated.push(PartialExpression::Expression(Expression::Chain(Chain {
+                accumulated.push(PartialExpression::expression(Expression::Chain(Chain {
                     initial: Box::new(e),
                     transformations: transformations.into_iter().collect::<Vec<_>>(),
                 })));
@@ -133,7 +139,7 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyEr
             }
             PartialExpression::OpenBrace => {
                 return if transformations.is_empty() {
-                    accumulated.push(PartialExpression::Expression(Expression::empty_chain()));
+                    accumulated.push(PartialExpression::expression(Expression::empty_chain()));
                     Ok(())
                 } else {
                     error_expected("expression or operation", pe)
@@ -168,7 +174,7 @@ fn construct_function(accumulated: &mut Vec<PartialExpression>) -> Result<(), An
     return if let Some(PartialExpression::Expression(Expression::Chain(chain))) = elem {
         match construct_function_from_chain(accumulated, chain) {
             Ok(function) => {
-                accumulated.push(PartialExpression::Expression(Expression::Function(
+                accumulated.push(PartialExpression::expression(Expression::Function(
                     function,
                 )));
                 Ok(())
@@ -225,7 +231,7 @@ fn construct_loop(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
     return if let Some(PartialExpression::Expression(Expression::Chain(chain))) = elem {
         match construct_loop_from_chain(accumulated, chain) {
             Ok(loop_) => {
-                accumulated.push(PartialExpression::Expression(Expression::Composed(
+                accumulated.push(PartialExpression::expression(Expression::Composed(
                     Composed::Loop(loop_),
                 )));
                 Ok(())
@@ -293,7 +299,7 @@ fn construct_branch(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyE
         if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
             let elem = accumulated.pop();
             if let Some(PartialExpression::Keyword(Keyword::Branch)) = elem {
-                accumulated.push(PartialExpression::Expression(Expression::Composed(
+                accumulated.push(PartialExpression::expression(Expression::Composed(
                     Composed::Branch(Branch { yes, no }),
                 )));
                 Ok(())

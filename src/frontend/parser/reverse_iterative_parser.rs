@@ -138,7 +138,7 @@ impl Parser {
     }
 
     fn push(&mut self, expression: Expression) {
-        self.push_pe(PartialExpression::Expression(expression));
+        self.push_pe(PartialExpression::expression(expression));
     }
     fn push_pe(&mut self, partial_expression: PartialExpression) {
         self.accumulated.push_front(partial_expression);
@@ -223,7 +223,7 @@ fn construct_function(
     let (parameter, elem) = extract_single_child_type(accumulated, elem);
 
     if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(Expression::function(
+        Ok(PartialExpression::expression(Expression::function(
             parameter, body,
         )))
     } else {
@@ -233,7 +233,7 @@ fn construct_function(
             accumulated.push_front(elem);
         }
 
-        Ok(PartialExpression::Expression(Expression::Type(
+        Ok(PartialExpression::expression(Expression::Type(
             Type::function(parameter, returned),
         )))
     }
@@ -286,7 +286,7 @@ fn construct_type_chain_chain(
     if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
         let elem = accumulated.pop_front();
         if let Some(PartialExpression::Expression(Expression::Chain(otherwise))) = elem {
-            Ok(PartialExpression::Expression(factory(
+            Ok(PartialExpression::expression(factory(
                 parameter, body, otherwise,
             )))
         } else {
@@ -309,7 +309,7 @@ fn construct_type_chain(
     let (parameter, elem) = extract_single_child_type(accumulated, elem);
 
     if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
-        Ok(PartialExpression::Expression(factory(parameter, body)))
+        Ok(PartialExpression::expression(factory(parameter, body)))
     } else {
         error_expected(format!("chain for the {} body", construct_name), elem)
     }
@@ -340,7 +340,7 @@ fn construct_branch(
     if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
         let elem = accumulated.pop_front();
         if let Some(PartialExpression::Expression(Expression::Chain(no))) = elem {
-            Ok(PartialExpression::Expression(Expression::Composed(
+            Ok(PartialExpression::expression(Expression::Composed(
                 Composed::Branch(Branch { yes, no }),
             )))
         } else {
@@ -380,7 +380,7 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
                 name
             };
             parser.exported.insert(qualified.clone(), expr);
-            Ok(PartialExpression::Expression(Expression::Identifier(
+            Ok(PartialExpression::expression(Expression::Identifier(
                 qualified,
             )))
         } else {
@@ -403,7 +403,7 @@ fn construct_cast(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
         } else {
             TypedIdentifier::nothing()
         };
-        Ok(PartialExpression::Expression(Expression::Composed(
+        Ok(PartialExpression::expression(Expression::Composed(
             Composed::Cast(Cast { target_type }),
         )))
     } else {
@@ -500,7 +500,7 @@ pub fn construct_string(string: Vec<u8>) -> PartialExpression {
         .iter()
         .map(|b| Expression::Value(*b as i64))
         .collect::<Vec<_>>();
-    PartialExpression::Expression(Expression::StaticList { elements })
+    PartialExpression::expression(Expression::StaticList { elements })
 }
 
 fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {
