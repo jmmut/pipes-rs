@@ -8,7 +8,7 @@ use crate::frontend::expression::{
     Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::TokenizedSource;
-use crate::frontend::location::SourceCode;
+use crate::frontend::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
@@ -36,12 +36,12 @@ pub fn parse_tokens_cached_inner(
 pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser, AnyError> {
     for token in tokens.into_iter().rev() {
         match token.token {
-            Token::Number(n) => ast.push(Expression::Value(n)),
+            Token::Number(n) => ast.push(Expression::Value(n), token.span),
             Token::Operator(operator) => {
                 let pe = construct_transformation(&mut ast, operator)?;
                 ast.accumulated.push_front(pe);
             }
-            Token::Identifier(ident) => ast.push(Expression::Identifier(ident)),
+            Token::Identifier(ident) => ast.push(Expression::Identifier(ident), token.span),
             Token::Keyword(keyword) => {
                 let pe = construct_keyword(&mut ast, keyword)?;
                 ast.accumulated.push_front(pe);
@@ -123,7 +123,7 @@ impl Parser {
         construct_expression: fn(&mut VecDeque<PartialExpression>) -> Result<Expression, AnyError>,
     ) -> Result<(), AnyError> {
         let expression = construct_expression(&mut self.accumulated)?;
-        self.push(expression);
+        self.push_es(expression);
         Ok(())
     }
     fn push_f_pe(
@@ -137,8 +137,17 @@ impl Parser {
         Ok(())
     }
 
-    fn push(&mut self, expression: Expression) {
+    fn push_no_span(&mut self, expression: Expression) {
         self.push_pe(PartialExpression::expression(expression));
+    }
+    fn push(&mut self, expression: Expression, span: Span) {
+        // TODO: use span
+        // self.push_pe(PartialExpression::Expression(ExpressionSpan::new(expression, span)));
+        self.push_pe(PartialExpression::Expression(expression));
+    }
+    fn push_es(&mut self, expression_span: Expression) {
+        // TODO: make ExpressionSpan
+        self.push_pe(PartialExpression::Expression(expression_span));
     }
     fn push_pe(&mut self, partial_expression: PartialExpression) {
         self.accumulated.push_front(partial_expression);
