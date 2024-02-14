@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::frontend::expression::{Expression, ExpressionSpan};
-use crate::frontend::location::{SourceCode, NO_SPAN};
+use crate::frontend::location::SourceCode;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Program {
-    pub main: ExpressionSpan,
+    main: ExpressionSpan,
     pub identifiers: HashMap<String, Expression>,
     pub main_source: SourceCode,
     pub sources: HashMap<String, SourceCode>,
@@ -22,6 +22,16 @@ impl Program {
     }
     pub fn main(&self) -> &Expression {
         self.main.syn_type()
+    }
+    pub fn take(
+        self,
+    ) -> (
+        ExpressionSpan,
+        HashMap<String, Expression>,
+        SourceCode,
+        HashMap<String, SourceCode>,
+    ) {
+        (self.main, self.identifiers, self.main_source, self.sources)
     }
 }
 

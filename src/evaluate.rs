@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr,
-    Transformation, TypedIdentifier,
+    Chain, Expression, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr, Transformation,
+    TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
@@ -109,11 +109,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
         print_output: W,
     ) -> Result<GenericValue, AnyError> {
         let mut runtime = Self::new(read_input, print_output);
-        runtime.setup_constants(program.identifiers)?;
-        context(
-            "Runtime",
-            runtime.evaluate_recursive(&program.main.syn_type()),
-        )
+        let (main, identifiers, ..) = program.take();
+        runtime.setup_constants(identifiers)?;
+        context("Runtime", runtime.evaluate_recursive(main.syn_type()))
     }
 
     fn new(read_input: R, print_output: W) -> Runtime<R, W> {
@@ -733,7 +731,7 @@ mod tests {
         let print_output = Vec::<u8>::new();
         let expression = lex_and_parse(code_text).unwrap();
         let mut runtime = Runtime::new(read_input, print_output);
-        let result = runtime.evaluate_recursive(&expression.main.syn_type());
+        let result = runtime.evaluate_recursive(&expression.main());
         (result.unwrap(), runtime.print_output)
     }
 

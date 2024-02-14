@@ -67,9 +67,9 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
     // two ifs so that --debug-ast and --prettify only prints once, prettified
     if debug_ast || prettify {
         if prettify {
-            println!("Expression: {:#?}", program.main);
+            println!("Expression: {:#?}", program.main());
         } else {
-            println!("Expression: {:?}", program.main);
+            println!("Expression: {:?}", program.main());
         }
     }
 

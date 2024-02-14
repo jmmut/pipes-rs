@@ -28,6 +28,9 @@ impl ExpressionSpan {
     pub fn syn_type(&self) -> &Expression {
         &self.syntactic_type
     }
+    pub fn span(&self) -> Span {
+        self.span
+    }
     pub fn take(self) -> (Expression, Span) {
         (self.syntactic_type, self.span)
     }

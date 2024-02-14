@@ -23,7 +23,7 @@ pub fn check_types(program: &Program) -> Result<(), AnyError> {
 
 pub fn get_type(program: &Program) -> Result<Type, AnyError> {
     let mut typer = Typer::new(program)?;
-    typer.get_type(&typer.program.main.syn_type())
+    typer.get_type(&typer.program.main())
 }
 
 pub fn is_builtin_nested_type(name: &str) -> Option<&'static str> {
@@ -615,7 +615,7 @@ mod tests {
     #[test]
     fn test_identifier() {
         let func = lex_and_parse("function(x :i64) {x+1}").unwrap();
-        let identifiers = HashMap::from([("increment".to_string(), func.main.take().0)]);
+        let identifiers = HashMap::from([("increment".to_string(), func.take().0.take().0)]);
         let lib: HashSet<String> = identifiers.keys().cloned().collect();
         let mut main = lex_and_parse_with_identifiers("4 |increment", lib.clone()).unwrap();
         main.identifiers = identifiers.clone();
