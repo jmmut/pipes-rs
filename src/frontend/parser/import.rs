@@ -178,6 +178,10 @@ fn check_identifier(
             if !import_state.imported.contains_key(identifier)
                 && !import_state.available.contains(identifier)
             {
+                let mut imported = import_state.imported.keys().collect::<Vec<_>>();
+                imported.sort_unstable();
+                let mut available = import_state.available.iter().collect::<Vec<_>>();
+                available.sort_unstable();
                 err(format!(
                     "identifier '{}' not found in scope for file {:?}. Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
                         Assignments: {:?}\n  Available to this file: {:?}\n  Imported by this file: {:?}",
@@ -186,8 +190,8 @@ fn check_identifier(
                     import_state.parameter_stack,
                     import_state.intrinsic_names,
                     import_state.assignments,
-                    import_state.available,
-                    import_state.imported.keys()
+                    available,
+                    imported
                 ))
             } else {
                 Ok(())

@@ -42,8 +42,8 @@ impl Intrinsic {
             Intrinsic::ToStr => {
                 parse_type("function(number :i64) (number_str :array(digit_char :i64))")
             }
-            Intrinsic::NewArray => parse_type("function(size :i64) (:array)"),
-            Intrinsic::Size => parse_type("function(:array) (:i64)"),
+            Intrinsic::NewArray => parse_type("function(size :i64) (:array(:any))"),
+            Intrinsic::Size => parse_type("function(:array(:any)) (:i64)"),
             Intrinsic::Breakpoint => parse_type("function(t) (t)"),
         }
     }
