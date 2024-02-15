@@ -256,7 +256,7 @@ impl<'a> Typer<'a> {
                 return self.get_call_type(input, operand);
             }
             Operator::Get => {
-                let array = parse_type("array(:any)");// TODO: support tuples
+                let array = parse_type("array(:any)"); // TODO: support tuples
                 let unified_input = self.assert_type_unifies(&input, &array, operator)?;
                 self.assert_expr_unifies(operand, &builtin_types::I64)?;
                 if let Type::Nested { children, .. } = unified_input {

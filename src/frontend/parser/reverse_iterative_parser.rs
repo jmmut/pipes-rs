@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 
 use crate::common::{context, err, AnyError};
-use crate::frontend::ast::{error_expected, PartialExpression};
+use crate::frontend::ast::error_expected;
 use crate::frontend::expression::{
     Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Transformation, Transformations,
     Type, TypedIdentifier, TypedIdentifiers,
@@ -33,6 +33,32 @@ pub fn parse_tokens_cached_inner(
     finish_construction(ast)
 }
 
+#[derive(Debug)]
+pub enum PartialExpression {
+    OpenBracket(Span),
+    CloseBracket(Span),
+    OpenBrace(Span),
+    CloseBrace(Span),
+    OpenParenthesis(Span),
+    CloseParenthesis(Span),
+    Expression(Expression), // ExpressionSpan
+    Operation(Transformation),
+    Operator(Operator),
+    Keyword(Keyword),
+    ChildrenTypes(TypedIdentifiers),
+    TypedIdentifier(TypedIdentifier),
+}
+
+impl PartialExpression {
+    pub fn expression(
+        e: Expression,
+        // span: Span,
+    ) -> PartialExpression {
+        PartialExpression::Expression(e)
+        // PartialExpression::Expression(ExpressionSpan::new(e, span)
+    }
+}
+
 pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser, AnyError> {
     for token in tokens.into_iter().rev() {
         match token.token {
@@ -46,12 +72,12 @@ pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser
                 let pe = construct_keyword(&mut ast, keyword)?;
                 ast.accumulated.push_front(pe);
             }
-            Token::OpenBrace => ast.push_f(construct_chain)?,
-            Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace),
-            Token::OpenBracket => ast.push_f(construct_array)?,
-            Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket),
+            Token::OpenBrace => ast.push_f(construct_chain, token.span)?,
+            Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace(token.span)),
+            Token::OpenBracket => ast.push_f(construct_array, token.span)?,
+            Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket(token.span)),
             Token::OpenParenthesis => ast.push_f_pe(construct_children_types)?,
-            Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis),
+            Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis(token.span)),
             Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
         };
     }
@@ -121,6 +147,7 @@ impl Parser {
     fn push_f(
         &mut self,
         construct_expression: fn(&mut VecDeque<PartialExpression>) -> Result<Expression, AnyError>,
+        span: Span,
     ) -> Result<(), AnyError> {
         let expression = construct_expression(&mut self.accumulated)?;
         self.push_es(expression);
@@ -184,8 +211,8 @@ fn construct_transformation(
         } else if operator == Operator::Ignore {
             let operand = if let None = elem_operand {
                 Expression::empty_chain()
-            } else if let Some(PartialExpression::CloseBrace) = elem_operand {
-                accumulated.push_front(PartialExpression::CloseBrace);
+            } else if let Some(PartialExpression::CloseBrace(span)) = elem_operand {
+                accumulated.push_front(PartialExpression::CloseBrace(span));
                 Expression::empty_chain()
             } else {
                 error_expected("expression or close brace or end of file", elem_operand)?
@@ -430,7 +457,7 @@ fn construct_cast(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
 fn construct_chain(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {
     let elem_expression = accumulated.pop_front();
     match elem_expression {
-        Some(PartialExpression::CloseBrace) => Ok(Expression::empty_chain()),
+        Some(PartialExpression::CloseBrace(span)) => Ok(Expression::empty_chain()),
         Some(PartialExpression::Expression(initial)) => {
             construct_chain_transformations(accumulated, initial)
         }
@@ -446,7 +473,7 @@ fn construct_chain_transformations(
     loop {
         let elem_operator = accumulated.pop_front();
         match elem_operator {
-            Some(PartialExpression::CloseBrace) => {
+            Some(PartialExpression::CloseBrace(span)) => {
                 return Ok(Expression::chain(Box::new(initial), transformations))
             }
             Some(PartialExpression::Operation(transformation)) => {
@@ -464,7 +491,7 @@ fn construct_array(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expr
         elements.push(e);
         elem = accumulated.pop_front()
     }
-    if let Some(PartialExpression::CloseBracket) = elem {
+    if let Some(PartialExpression::CloseBracket(span)) = elem {
         Ok(Expression::StaticList { elements })
     } else {
         error_expected("array end or expression", elem)
@@ -499,7 +526,7 @@ fn construct_children_types(
                 };
                 types.push(typed_identifier);
             }
-            Some(PartialExpression::CloseParenthesis) => {
+            Some(PartialExpression::CloseParenthesis(span)) => {
                 if let Some(previous_name) = name_opt {
                     types.push(TypedIdentifier::any(previous_name));
                 }
@@ -532,7 +559,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         }
     } else {
         let error_message = format!("unfinished code: {:?}", accumulated);
-        accumulated.push_back(PartialExpression::CloseBrace);
+        accumulated.push_back(PartialExpression::CloseBrace(NO_SPAN));
         let e = construct_chain(accumulated)?;
         if !accumulated.is_empty() {
             return err(error_message);

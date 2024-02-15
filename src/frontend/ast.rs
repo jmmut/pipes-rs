@@ -7,7 +7,8 @@ use crate::frontend::expression::{
     TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::{lex, TokenizedSource};
-use crate::frontend::location::{SourceCode, Span};
+use crate::frontend::location::{SourceCode, Span, NO_SPAN};
+use crate::frontend::parser::reverse_iterative_parser::PartialExpression;
 use crate::frontend::program::Program;
 use crate::frontend::token::{Keyword, Operator, Token};
 
@@ -15,27 +16,6 @@ use crate::frontend::token::{Keyword, Operator, Token};
 //     pe: PartialExpression,
 //     pub location: Location,
 // }
-#[derive(Debug)]
-pub enum PartialExpression {
-    OpenBracket,
-    CloseBracket,
-    OpenBrace,
-    CloseBrace,
-    OpenParenthesis,
-    CloseParenthesis,
-    Expression(Expression),
-    Operation(Transformation),
-    Operator(Operator),
-    Keyword(Keyword),
-    ChildrenTypes(TypedIdentifiers),
-    TypedIdentifier(TypedIdentifier),
-}
-
-impl PartialExpression {
-    pub fn expression(e: Expression) -> PartialExpression {
-        PartialExpression::Expression(e)
-    }
-}
 pub fn ast_deserialize(s: &str) -> Result<Program, AnyError> {
     let tokens = lex(s).unwrap();
     context("AST parser", deserialize_tokens(tokens))
@@ -48,11 +28,13 @@ pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> 
     // for LocatedToken {token, location} in tokens.tokens {
     for token in tokens.tokens {
         match token.token {
-            Token::OpenBracket => accumulated.push(PartialExpression::OpenBracket),
+            Token::OpenBracket => accumulated.push(PartialExpression::OpenBracket(token.span)),
             Token::CloseBracket => construct_list(&mut accumulated)?,
-            Token::OpenParenthesis => accumulated.push(PartialExpression::OpenParenthesis),
+            Token::OpenParenthesis => {
+                accumulated.push(PartialExpression::OpenParenthesis(token.span))
+            }
             Token::CloseParenthesis => construct_type_with_children(&mut accumulated)?,
-            Token::OpenBrace => accumulated.push(PartialExpression::OpenBrace),
+            Token::OpenBrace => accumulated.push(PartialExpression::OpenBrace(token.span)),
             Token::CloseBrace => construct_chain(&mut accumulated)?,
             Token::Operator(o) => accumulated.push(PartialExpression::Operator(o)),
             Token::Keyword(keyword) => accumulated.push(PartialExpression::Keyword(keyword)),
@@ -84,7 +66,7 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
         expressions.push_front(e);
         elem = accumulated.pop()
     }
-    if let Some(PartialExpression::OpenBracket) = elem {
+    if let Some(PartialExpression::OpenBracket(_)) = elem {
         accumulated.push(PartialExpression::expression(Expression::StaticList {
             elements: expressions.into_iter().collect::<Vec<_>>(),
         }));
@@ -110,7 +92,7 @@ fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Res
         types.push_front(typed_identifier);
         elem = accumulated.pop();
     }
-    if let Some(PartialExpression::OpenParenthesis) = elem {
+    if let Some(PartialExpression::OpenParenthesis(span)) = elem {
         elem = accumulated.pop();
         if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
             let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
@@ -137,7 +119,7 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyEr
                 })));
                 return Ok(());
             }
-            PartialExpression::OpenBrace => {
+            PartialExpression::OpenBrace(span) => {
                 return if transformations.is_empty() {
                     accumulated.push(PartialExpression::expression(Expression::empty_chain()));
                     Ok(())
