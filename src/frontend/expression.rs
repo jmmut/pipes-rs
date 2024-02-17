@@ -4,12 +4,12 @@ use crate::frontend::token::Operator;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 #[derive(Debug, Clone)]
-pub struct NewExpression {
+pub struct ExpressionSpan {
     pub syntactic_type: Expression,
     pub span: Span,
 }
 
-impl NewExpression {
+impl ExpressionSpan {
     pub fn new(syntactic_type: Expression, span: Span) -> Self {
         Self {
             syntactic_type,
@@ -38,7 +38,7 @@ impl NewExpression {
         (self.syntactic_type, self.span)
     }
 }
-impl PartialEq for NewExpression {
+impl PartialEq for ExpressionSpan {
     fn eq(&self, other: &Self) -> bool {
         self.syntactic_type == other.syntactic_type
     }
@@ -468,7 +468,5 @@ pub struct Cast {
     pub target_type: TypedIdentifier,
 }
 
-pub type ExpressionSpan = NewExpression;
-// pub type ExpressionSpan = Expression;
 pub type Expressions = Vec<ExpressionSpan>;
 pub type Transformations = Vec<Transformation>;
