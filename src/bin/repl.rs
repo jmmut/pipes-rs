@@ -35,6 +35,7 @@ fn main() -> Result<(), AnyError> {
         match result {
             Ok(()) => {}
             Err(e) => {
+                clear_terminal(args.no_clear);
                 println!("Error: {}", e);
             }
         }
@@ -50,13 +51,6 @@ fn interpret<R: Read, W: Write>(args: &Args, read_src: R, print_dst: W) -> Resul
         no_clear,
     } = args;
 
-    if *no_clear {
-        // clear screen and go to line 1 column 1 https://stackoverflow.com/a/34837038/2375586
-        print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
-    } else {
-        // reset terminal to avoid clearing by scrolling, but loses previous output
-        print!("{esc}c", esc = 27 as char);
-    }
     let code_string =
         SourceCode::new_from_string_or_file(evaluate_string.clone(), input_file.clone())?;
     let program = lex_and_parse(code_string)?;
@@ -65,9 +59,20 @@ fn interpret<R: Read, W: Write>(args: &Args, read_src: R, print_dst: W) -> Resul
 
     if !check {
         let result = Runtime::evaluate(program, read_src, print_dst)?;
+        clear_terminal(*no_clear);
         if result != NOTHING {
             println!("{}", result);
         }
     }
     Ok(())
+}
+
+fn clear_terminal(no_clear: bool) {
+    if no_clear {
+        // clear screen and go to line 1 column 1 https://stackoverflow.com/a/34837038/2375586
+        print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+    } else {
+        // reset terminal to avoid clearing by scrolling, but loses previous output
+        print!("{esc}c", esc = 27 as char);
+    }
 }
