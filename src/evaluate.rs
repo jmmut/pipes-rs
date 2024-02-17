@@ -226,7 +226,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut identifiers = HashMap::<String, usize>::new();
         let mut accumulated = self.evaluate_recursive(&*initial)?;
         for Transformation { operator, operand } in transformations {
-            match operator {
+            match &operator.operator {
                 Operator::Add => accumulated += self.evaluate_recursive(operand)?,
                 Operator::Substract => accumulated -= self.evaluate_recursive(operand)?,
                 Operator::Multiply => accumulated *= self.evaluate_recursive(operand)?,

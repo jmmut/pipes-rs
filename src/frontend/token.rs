@@ -35,6 +35,21 @@ pub enum Token {
 pub type Tokens = Vec<Token>;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
+pub struct OperatorSpan {
+    pub operator: Operator,
+    pub span: Span,
+}
+
+impl OperatorSpan {
+    pub fn spanless(operator: Operator) -> Self {
+        Self {
+            operator,
+            span: NO_SPAN,
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Operator {
     Add,
     Substract,

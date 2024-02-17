@@ -10,7 +10,7 @@ use crate::frontend::lexer::{lex, TokenizedSource};
 use crate::frontend::location::{SourceCode, Span};
 use crate::frontend::parser::reverse_iterative_parser::PartialExpression;
 use crate::frontend::program::Program;
-use crate::frontend::token::{Keyword, LocatedToken, Operator, Token};
+use crate::frontend::token::{Keyword, LocatedToken, Operator, OperatorSpan, Token};
 
 // pub struct PartialLocatedExpresion {
 //     pe: PartialExpression,
@@ -141,7 +141,7 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
         let elem = accumulated.pop();
         if let Some(PartialExpression::Operator(operator)) = elem {
             accumulated.push(PartialExpression::Operation(Transformation {
-                operator,
+                operator: OperatorSpan::spanless(operator),
                 operand,
             }));
             Ok(())

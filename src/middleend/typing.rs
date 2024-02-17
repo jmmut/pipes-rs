@@ -10,7 +10,7 @@ use crate::frontend::expression::{
 use crate::frontend::location::{Span, NO_SPAN};
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
-use crate::frontend::token::Operator;
+use crate::frontend::token::{Operator, OperatorSpan};
 use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{all_same_type, unify, unify_typed_identifier};
@@ -195,7 +195,11 @@ impl<'a> Typer<'a> {
             accumulated_type =
                 self.get_operation_type(&accumulated_type, t.operator, &t.operand)?;
             if let Transformation {
-                operator: Operator::Assignment,
+                operator:
+                    OperatorSpan {
+                        operator: Operator::Assignment,
+                        span: op_span,
+                    },
                 operand:
                     ExpressionSpan {
                         syntactic_type: Expression::Identifier(name),
@@ -253,30 +257,30 @@ impl<'a> Typer<'a> {
     fn get_operation_type(
         &mut self,
         input: &Type,
-        operator: Operator,
+        operator: OperatorSpan,
         ExpressionSpan {
             syntactic_type: operand,
             span,
         }: &ExpressionSpan,
     ) -> Result<Type, AnyError> {
-        match operator {
+        match operator.operator {
             Operator::Add
             | Operator::Substract
             | Operator::Multiply
             | Operator::Divide
             | Operator::Modulo => {
                 let unified_input =
-                    self.assert_type_unifies(input, &builtin_types::I64, operator, NO_SPAN)?;
+                    self.assert_type_unifies(input, &builtin_types::I64, operator)?;
                 let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
             }
             Operator::Ignore => return self.get_type(operand),
             Operator::Call => {
-                return self.get_call_type(input, operand, *span);
+                return self.get_call_type(input, operand, operator.span);
             }
             Operator::Get => {
                 let array = parse_type("array(:any)"); // TODO: support tuples
-                let unified_input = self.assert_type_unifies(&input, &array, operator, *span)?;
+                let unified_input = self.assert_type_unifies(&input, &array, operator)?;
                 self.assert_expr_unifies(operand, &builtin_types::I64)?;
                 if let Type::Nested { children, .. } = unified_input {
                     Ok(children[0].type_.clone())
@@ -286,7 +290,7 @@ impl<'a> Typer<'a> {
             }
             Operator::Type => {
                 if let Expression::Type(expected_type) = operand {
-                    self.assert_type_unifies(input, expected_type, operator, *span)
+                    self.assert_type_unifies(input, expected_type, operator)
                 } else {
                     err(format!(
                         "Operator ':' can only be followed by a type, not {:?}",
@@ -297,13 +301,13 @@ impl<'a> Typer<'a> {
             Operator::Assignment | Operator::Overwrite => Ok(input.clone()),
             Operator::Concatenate => {
                 let array = parse_type("array(:any)");
-                let unified_input = self.assert_type_unifies(input, &array, operator, *span)?;
+                let unified_input = self.assert_type_unifies(input, &array, operator)?;
                 let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
             }
             Operator::Comparison(_) => {
                 let i64 = builtin_types::I64;
-                let unified_input = self.assert_type_unifies(input, &i64, operator, *span)?;
+                let unified_input = self.assert_type_unifies(input, &i64, operator)?;
                 self.assert_expr_unifies(operand, &unified_input)?;
                 Ok(i64) // TODO: really should be bool
             }
@@ -316,6 +320,10 @@ impl<'a> Typer<'a> {
         operand: &Expression,
         span: Span,
     ) -> Result<Type, AnyError> {
+        let operator_span = OperatorSpan {
+            operator: Operator::Call,
+            span,
+        };
         match operand {
             Expression::Identifier(name) => {
                 let callable_type = self.get_identifier_type(name)?;
@@ -352,12 +360,8 @@ impl<'a> Typer<'a> {
                 self.assert_same_unless_nothing(&body_type, &loop_or.otherwise, span)
             }
             Expression::Composed(Composed::Times(times)) => {
-                let unified_input = self.assert_type_unifies(
-                    input_type,
-                    &builtin_types::I64,
-                    Operator::Call,
-                    span,
-                )?;
+                let unified_input =
+                    self.assert_type_unifies(input_type, &builtin_types::I64, operator_span)?;
                 let unified_elem = self.assert_typed_identifier_unifies(
                     &TypedIdentifier::nameless(unified_input.clone()),
                     &times.iteration_elem,
@@ -367,12 +371,8 @@ impl<'a> Typer<'a> {
                 Ok(unified_input)
             }
             Expression::Composed(Composed::TimesOr(times_or)) => {
-                let unified_input = self.assert_type_unifies(
-                    input_type,
-                    &builtin_types::I64,
-                    Operator::Call,
-                    span,
-                )?;
+                let unified_input =
+                    self.assert_type_unifies(input_type, &builtin_types::I64, operator_span)?;
                 let unified_elem = self.assert_typed_identifier_unifies(
                     &TypedIdentifier::nameless(unified_input.clone()),
                     &times_or.iteration_elem,
@@ -387,12 +387,8 @@ impl<'a> Typer<'a> {
             })) => {
                 let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem, span)?;
                 let body_type = self.check_types_scope(unified_elem.clone(), &body)?;
-                let unified_result_elem = self.assert_type_unifies(
-                    &unified_elem.type_,
-                    &body_type,
-                    Operator::Call,
-                    span,
-                )?;
+                let unified_result_elem =
+                    self.assert_type_unifies(&unified_elem.type_, &body_type, operator_span)?;
                 Ok(Type::from(
                     BuiltinType::Array.name(),
                     vec![TypedIdentifier::nameless(unified_result_elem)],
@@ -410,7 +406,7 @@ impl<'a> Typer<'a> {
                 ))
             }
             Expression::Composed(Composed::Branch(branch)) => {
-                self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call, span)?;
+                self.assert_type_unifies(input_type, &builtin_types::I64, operator_span)?;
                 let yes_type = self.check_types_chain(&branch.yes)?;
                 let no_type = self.check_types_chain(&branch.no)?;
                 if let Some(same) = unify(&yes_type, &no_type) {
@@ -439,8 +435,14 @@ impl<'a> Typer<'a> {
             BuiltinType::Array.name(),
             vec![TypedIdentifier::nameless(builtin_types::ANY)],
         );
-        let unified_input =
-            self.assert_type_unifies(input_type, &expected_input, Operator::Call, span)?;
+        let unified_input = self.assert_type_unifies(
+            input_type,
+            &expected_input,
+            OperatorSpan {
+                operator: Operator::Call,
+                span,
+            },
+        )?;
         let inner_input_type = unified_input.array_element()?;
         let unified_elem = self.assert_typed_identifier_unifies(
             &iteration_elem,
@@ -458,8 +460,14 @@ impl<'a> Typer<'a> {
     ) -> Result<Type, AnyError> {
         let chain_type = self.check_types_chain(chain)?;
         if *expected != builtin_types::NOTHING {
-            let unified_output =
-                self.assert_type_unifies(&expected, &chain_type, Operator::Call, span)?;
+            let unified_output = self.assert_type_unifies(
+                &expected,
+                &chain_type,
+                OperatorSpan {
+                    operator: Operator::Call,
+                    span,
+                },
+            )?;
             Ok(unified_output)
         } else {
             Ok(chain_type)
@@ -477,7 +485,14 @@ impl<'a> Typer<'a> {
             returned,
         } = callable_type
         {
-            self.assert_type_unifies(input_type, &parameter.type_, Operator::Call, span)?;
+            self.assert_type_unifies(
+                input_type,
+                &parameter.type_,
+                OperatorSpan {
+                    operator: Operator::Call,
+                    span,
+                },
+            )?;
             Ok(returned.type_.clone())
         } else {
             let expected_prototype = Type::function(
@@ -522,8 +537,7 @@ impl<'a> Typer<'a> {
         &mut self,
         actual: &Type,
         expected: &Type,
-        operator: Operator,
-        span: Span,
+        OperatorSpan { operator, span }: OperatorSpan,
     ) -> Result<Type, AnyError> {
         let unified = unify(expected, &actual);
         if let Some(unified) = unified {

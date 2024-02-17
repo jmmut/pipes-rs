@@ -1,6 +1,6 @@
 use crate::common::{err, AnyError};
 use crate::frontend::location::{Span, NO_SPAN};
-use crate::frontend::token::Operator;
+use crate::frontend::token::{Operator, OperatorSpan};
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 #[derive(Debug, Clone)]
@@ -359,7 +359,7 @@ impl Chain {
 }
 #[derive(PartialEq, Debug, Clone)]
 pub struct Transformation {
-    pub operator: Operator,
+    pub operator: OperatorSpan,
     pub operand: ExpressionSpan, // TODO: list of expressions?
 }
 

@@ -11,7 +11,7 @@ use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
 use crate::frontend::parser::root::qualify;
-use crate::frontend::token::Operator;
+use crate::frontend::token::{Operator, OperatorSpan};
 use crate::middleend::intrinsics;
 
 /// Adds imported identifiers to the parser.identifiers parameter
@@ -290,8 +290,13 @@ fn track_identifiers_recursive_chain(
     track_identifiers_recursive(chain.initial.as_mut(), import_state)?;
     let mut identifiers_defined_in_this_chain = Vec::new();
     for Transformation { operator, operand } in &mut chain.transformations {
-        if let (Operator::Assignment, Expression::Identifier(name)) =
-            (operator, operand.syn_type().clone())
+        if let (
+            OperatorSpan {
+                operator: Operator::Assignment,
+                span,
+            },
+            Expression::Identifier(name),
+        ) = (operator, operand.syn_type().clone())
         {
             identifiers_defined_in_this_chain.push(name.clone());
             import_state.assignments.push(name)
