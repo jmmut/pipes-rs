@@ -1,6 +1,6 @@
 use crate::common::{err, AnyError};
 use crate::frontend::location::{Span, NO_SPAN};
-use crate::frontend::token::{Operator, OperatorSpan};
+use crate::frontend::token::OperatorSpan;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 #[derive(Debug, Clone)]

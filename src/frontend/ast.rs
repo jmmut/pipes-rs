@@ -45,10 +45,12 @@ pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> 
                 "UT" => construct_unnamed_type(&mut accumulated)?,
                 "NU" => construct_name_untyped(&mut accumulated)?,
                 // "Type" => construct_simple_type(&mut accumulated)?,
-                _ => accumulated.push(PartialExpression::expression(Expression::Identifier(ident))),
+                _ => accumulated.push(PartialExpression::expression_no_span(
+                    Expression::Identifier(ident),
+                )),
             },
             Token::Number(n) => {
-                accumulated.push(PartialExpression::expression(Expression::Value(n)))
+                accumulated.push(PartialExpression::expression_no_span(Expression::Value(n)))
             }
             Token::String(string) => construct_string(string, &mut accumulated, span)?,
         };
@@ -64,9 +66,11 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
         elem = accumulated.pop()
     }
     if let Some(PartialExpression::OpenBracket(_)) = elem {
-        accumulated.push(PartialExpression::expression(Expression::StaticList {
-            elements: expressions.into_iter().collect::<Vec<_>>(),
-        }));
+        accumulated.push(PartialExpression::expression_no_span(
+            Expression::StaticList {
+                elements: expressions.into_iter().collect::<Vec<_>>(),
+            },
+        ));
         Ok(())
     } else {
         error_expected("array start or expression", elem)
@@ -98,7 +102,9 @@ fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Res
         })) = elem
         {
             let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
-            accumulated.push(PartialExpression::expression(Expression::Type(a_type)));
+            accumulated.push(PartialExpression::expression_no_span(Expression::Type(
+                a_type,
+            )));
             Ok(())
         } else {
             error_expected("parent type name before parenthesis", elem)
@@ -115,15 +121,19 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>, span: Span) -> Resu
         match pe {
             PartialExpression::Operation(t) => transformations.push_front(t),
             PartialExpression::Expression(e) => {
-                accumulated.push(PartialExpression::expression(Expression::Chain(Chain {
-                    initial: Box::new(e),
-                    transformations: transformations.into_iter().collect::<Vec<_>>(),
-                })));
+                accumulated.push(PartialExpression::expression_no_span(Expression::Chain(
+                    Chain {
+                        initial: Box::new(e),
+                        transformations: transformations.into_iter().collect::<Vec<_>>(),
+                    },
+                )));
                 return Ok(());
             }
             PartialExpression::OpenBrace(span) => {
                 return if transformations.is_empty() {
-                    accumulated.push(PartialExpression::expression(Expression::empty_chain()));
+                    accumulated.push(PartialExpression::expression_no_span(
+                        Expression::empty_chain(),
+                    ));
                     Ok(())
                 } else {
                     error_expected("expression or operation", pe)
@@ -162,7 +172,7 @@ fn construct_function(accumulated: &mut Vec<PartialExpression>) -> Result<(), An
     {
         match construct_function_from_chain(accumulated, chain) {
             Ok(function) => {
-                accumulated.push(PartialExpression::expression(Expression::Function(
+                accumulated.push(PartialExpression::expression_no_span(Expression::Function(
                     function,
                 )));
                 Ok(())
@@ -226,7 +236,7 @@ fn construct_loop(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
     {
         match construct_loop_from_chain(accumulated, chain) {
             Ok(loop_) => {
-                accumulated.push(PartialExpression::expression(Expression::Composed(
+                accumulated.push(PartialExpression::expression_no_span(Expression::Composed(
                     Composed::Loop(loop_),
                 )));
                 Ok(())
@@ -305,7 +315,7 @@ fn construct_branch(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyE
         {
             let elem = accumulated.pop();
             if let Some(PartialExpression::Keyword(Keyword::Branch)) = elem {
-                accumulated.push(PartialExpression::expression(Expression::Composed(
+                accumulated.push(PartialExpression::expression_no_span(Expression::Composed(
                     Composed::Branch(Branch { yes, no }),
                 )));
                 Ok(())

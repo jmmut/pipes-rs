@@ -7,7 +7,7 @@ use crate::frontend::expression::{
     Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Map, Replace,
     Transformation, Type, TypedIdentifier,
 };
-use crate::frontend::location::{Span, NO_SPAN};
+use crate::frontend::location::Span;
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::frontend::token::{Operator, OperatorSpan};
@@ -260,7 +260,7 @@ impl<'a> Typer<'a> {
         operator: OperatorSpan,
         ExpressionSpan {
             syntactic_type: operand,
-            span,
+            ..
         }: &ExpressionSpan,
     ) -> Result<Type, AnyError> {
         match operator.operator {

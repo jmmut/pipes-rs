@@ -50,14 +50,11 @@ pub enum PartialExpression {
 }
 
 impl PartialExpression {
-    pub fn expression(
-        e: Expression,
-        // span: Span,
-    ) -> PartialExpression {
-        // PartialExpression::Expression(e)
+    pub fn expression_no_span(e: Expression) -> PartialExpression {
         PartialExpression::Expression(ExpressionSpan::new(e, NO_SPAN))
-        // PartialExpression::Expression(NewExpression::new(e, span))
-        // PartialExpression::Expression(ExpressionSpan::new(e, span))
+    }
+    pub fn expression(e: Expression, span: Span) -> PartialExpression {
+        PartialExpression::Expression(ExpressionSpan::new(e, span))
     }
 }
 
@@ -71,7 +68,7 @@ pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser
             }
             Token::Identifier(ident) => ast.push(Expression::Identifier(ident), span),
             Token::Keyword(keyword) => {
-                let pe = construct_keyword(&mut ast, keyword)?;
+                let pe = construct_keyword(&mut ast, keyword, span)?;
                 ast.accumulated.push_front(pe);
             }
             Token::OpenBrace => ast.push_f(construct_chain, span)?,
@@ -173,9 +170,6 @@ impl Parser {
         Ok(())
     }
 
-    fn push_no_span(&mut self, expression: Expression) {
-        self.push_pe(PartialExpression::expression(expression));
-    }
     fn push(&mut self, expression: Expression, span: Span) {
         // TODO: use span
         self.push_pe(PartialExpression::Expression(ExpressionSpan::new(
@@ -264,10 +258,14 @@ fn get_type_maybe_pop_children(
     ExpressionSpan::new_spanless(Expression::Type(Type::simple(typename)))
 }
 
-fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExpression, AnyError> {
+fn construct_keyword(
+    parser: &mut Parser,
+    keyword: Keyword,
+    span: Span,
+) -> Result<PartialExpression, AnyError> {
     let accumulated = &mut parser.accumulated;
     match keyword {
-        Keyword::Function => construct_function(accumulated),
+        Keyword::Function => construct_function(accumulated, span),
         Keyword::Loop => construct_loop(accumulated),
         Keyword::LoopOr => construct_loop_or(accumulated),
         Keyword::Times => construct_times(accumulated),
@@ -284,6 +282,7 @@ fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExp
 
 fn construct_function(
     accumulated: &mut VecDeque<PartialExpression>,
+    span: Span,
 ) -> Result<PartialExpression, AnyError> {
     let elem = accumulated.pop_front();
 
@@ -291,12 +290,13 @@ fn construct_function(
 
     if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Chain(body),
-        span,
+        span: chain_span,
     })) = elem
     {
-        Ok(PartialExpression::expression(Expression::function(
-            parameter, body,
-        )))
+        Ok(PartialExpression::expression(
+            Expression::function(parameter, body),
+            span.merge(&chain_span),
+        ))
     } else {
         let (returned, elem) = extract_single_child_type(accumulated, elem);
 
@@ -304,7 +304,7 @@ fn construct_function(
             accumulated.push_front(elem);
         }
 
-        Ok(PartialExpression::expression(Expression::Type(
+        Ok(PartialExpression::expression_no_span(Expression::Type(
             Type::function(parameter, returned),
         )))
     }
@@ -365,7 +365,7 @@ fn construct_type_chain_chain(
             span,
         })) = elem
         {
-            Ok(PartialExpression::expression(factory(
+            Ok(PartialExpression::expression_no_span(factory(
                 parameter, body, otherwise,
             )))
         } else {
@@ -392,7 +392,9 @@ fn construct_type_chain(
         span,
     })) = elem
     {
-        Ok(PartialExpression::expression(factory(parameter, body)))
+        Ok(PartialExpression::expression_no_span(factory(
+            parameter, body,
+        )))
     } else {
         error_expected(format!("chain for the {} body", construct_name), elem)
     }
@@ -431,7 +433,7 @@ fn construct_branch(
             span,
         })) = elem
         {
-            Ok(PartialExpression::expression(Expression::Composed(
+            Ok(PartialExpression::expression_no_span(Expression::Composed(
                 Composed::Branch(Branch { yes, no }),
             )))
         } else {
@@ -479,9 +481,9 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
                 name
             };
             parser.exported.insert(qualified.clone(), expr);
-            Ok(PartialExpression::expression(Expression::Identifier(
-                qualified,
-            )))
+            Ok(PartialExpression::expression_no_span(
+                Expression::Identifier(qualified),
+            ))
         } else {
             error_expected(
                 "assignment and identifier after 'public <expression>'",
@@ -502,7 +504,7 @@ fn construct_cast(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
         } else {
             TypedIdentifier::nothing()
         };
-        Ok(PartialExpression::expression(Expression::Composed(
+        Ok(PartialExpression::expression_no_span(Expression::Composed(
             Composed::Cast(Cast { target_type }),
         )))
     } else {
@@ -621,7 +623,7 @@ pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
         .iter()
         .map(|b| ExpressionSpan::new(Expression::Value(*b as i64), span))
         .collect::<Vec<_>>();
-    PartialExpression::expression(Expression::StaticList { elements })
+    PartialExpression::expression_no_span(Expression::StaticList { elements })
 }
 
 fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {
