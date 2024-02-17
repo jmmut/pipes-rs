@@ -4,13 +4,13 @@ use std::fmt::Debug;
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Branch, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Transformation, Type,
-    TypedIdentifier, TypedIdentifiers,
+    TypedIdentifier,
 };
 use crate::frontend::lexer::{lex, TokenizedSource};
-use crate::frontend::location::{SourceCode, Span, NO_SPAN};
+use crate::frontend::location::{SourceCode, Span};
 use crate::frontend::parser::reverse_iterative_parser::PartialExpression;
 use crate::frontend::program::Program;
-use crate::frontend::token::{Keyword, Operator, Token};
+use crate::frontend::token::{Keyword, LocatedToken, Operator, Token};
 
 // pub struct PartialLocatedExpresion {
 //     pe: PartialExpression,
@@ -25,21 +25,18 @@ pub fn ast_deserialize_source(s: &SourceCode) -> Result<Program, AnyError> {
 }
 pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     let mut accumulated = Vec::new();
-    // for LocatedToken {token, location} in tokens.tokens {
-    for token in tokens.tokens {
-        match token.token {
-            Token::OpenBracket => accumulated.push(PartialExpression::OpenBracket(token.span)),
+    for LocatedToken { token, span } in tokens.tokens {
+        match token {
+            Token::OpenBracket => accumulated.push(PartialExpression::OpenBracket(span)),
             Token::CloseBracket => construct_list(&mut accumulated)?,
-            Token::OpenParenthesis => {
-                accumulated.push(PartialExpression::OpenParenthesis(token.span))
-            }
+            Token::OpenParenthesis => accumulated.push(PartialExpression::OpenParenthesis(span)),
             Token::CloseParenthesis => construct_type_with_children(&mut accumulated)?,
-            Token::OpenBrace => accumulated.push(PartialExpression::OpenBrace(token.span)),
-            Token::CloseBrace => construct_chain(&mut accumulated)?,
+            Token::OpenBrace => accumulated.push(PartialExpression::OpenBrace(span)),
+            Token::CloseBrace => construct_chain(&mut accumulated, span)?,
             Token::Operator(o) => accumulated.push(PartialExpression::Operator(o)),
             Token::Keyword(keyword) => accumulated.push(PartialExpression::Keyword(keyword)),
             Token::Identifier(ident) => match ident.as_str() {
-                "Chain" => construct_chain(&mut accumulated)?,
+                "Chain" => construct_chain(&mut accumulated, span)?,
                 "Loop" => construct_loop(&mut accumulated)?,
                 "Op" => construct_operation(&mut accumulated)?,
                 "Fn" => construct_function(&mut accumulated)?,
@@ -53,7 +50,7 @@ pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> 
             Token::Number(n) => {
                 accumulated.push(PartialExpression::expression(Expression::Value(n)))
             }
-            Token::String(string) => construct_string(string, &mut accumulated)?,
+            Token::String(string) => construct_string(string, &mut accumulated, span)?,
         };
     }
     finish_construction(&mut accumulated)
@@ -79,8 +76,9 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
 fn construct_string(
     string: Vec<u8>,
     accumulated: &mut Vec<PartialExpression>,
+    span: Span,
 ) -> Result<(), AnyError> {
-    let pe = crate::frontend::parser::reverse_iterative_parser::construct_string(string);
+    let pe = crate::frontend::parser::reverse_iterative_parser::construct_string(string, span);
     accumulated.push(pe);
     Ok(())
 }
@@ -106,7 +104,7 @@ fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Res
     }
 }
 
-fn construct_chain(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+fn construct_chain(accumulated: &mut Vec<PartialExpression>, span: Span) -> Result<(), AnyError> {
     let mut transformations = VecDeque::new();
 
     while let Some(pe) = accumulated.pop() {
@@ -353,13 +351,13 @@ fn finish_construction(accumulated: &mut Vec<PartialExpression>) -> Result<Progr
 }
 fn finish_construction_expression(
     accumulated: &mut Vec<PartialExpression>,
-) -> Result<Expression, AnyError> {
+) -> Result<ExpressionSpan, AnyError> {
     if accumulated.len() <= 1 {
         match accumulated.pop() {
             Some(PartialExpression::Expression(e)) => {
                 return Ok(e);
             }
-            None => return Ok(Expression::Nothing),
+            None => return Ok(ExpressionSpan::new_spanless(Expression::Nothing)),
             Some(v) => {
                 accumulated.push(v);
             }
@@ -383,9 +381,9 @@ mod tests {
     #[test]
     fn test_nothing() {
         let ast = ast_deserialize("{}").unwrap();
-        assert_eq!(ast, Program::new(Expression::empty_chain()));
+        assert_eq!(ast, Program::new_raw(Expression::empty_chain()));
         let ast = ast_deserialize("").unwrap();
-        assert_eq!(ast, Program::new(Expression::Nothing));
+        assert_eq!(ast, Program::new_raw(Expression::Nothing));
     }
     #[test]
     fn test_braced_value() {

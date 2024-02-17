@@ -18,6 +18,15 @@ pub struct Span {
     pub start: Location,
     pub end: Location,
 }
+
+impl Span {
+    pub fn merge(&self, other: &Span) -> Span {
+        Span {
+            start: self.start.min(&other.start),
+            end: self.end.max(&other.end),
+        }
+    }
+}
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Location {
     line: i32,
@@ -40,6 +49,20 @@ impl Location {
             self.column = 1;
         } else {
             self.column += 1;
+        }
+    }
+    pub fn min(&self, other: &Location) -> Location {
+        if self.byte <= other.byte {
+            *self
+        } else {
+            *other
+        }
+    }
+    pub fn max(&self, other: &Location) -> Location {
+        if self.byte >= other.byte {
+            *self
+        } else {
+            *other
         }
     }
 }

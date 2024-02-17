@@ -4,8 +4,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Branch, Chain, Composed, Expression, Function, Inspect, Loop, LoopOr, Map, Replace, Something,
-    Times, TimesOr, Transformation, Type, TypedIdentifier,
+    Branch, Chain, Composed, Expression, ExpressionSpan, Function, Inspect, Loop, LoopOr, Map,
+    Replace, Something, Times, TimesOr, Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
@@ -16,9 +16,10 @@ use crate::middleend::intrinsics;
 
 /// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(
-    main: &mut Expression,
+    main: &mut ExpressionSpan,
+    // main: &mut ExpressionSpan,
     parser: &mut Parser,
-) -> Result<(HashMap<String, Expression>, HashMap<String, SourceCode>), AnyError> {
+) -> Result<(HashMap<String, ExpressionSpan>, HashMap<String, SourceCode>), AnyError> {
     let context_str = if let Some(path) = parser.source.file.as_ref() {
         format!("Import dependencies for {}", path.to_string_lossy())
     } else {
@@ -50,7 +51,7 @@ struct ImportState {
     parameter_stack: Vec<String>,
     intrinsic_names: Vec<String>,
     assignments: Vec<String>,
-    imported: HashMap<String, Expression>,
+    imported: HashMap<String, ExpressionSpan>,
     available: HashSet<String>,
     project_root: Option<PathBuf>,
     source: SourceCode,
@@ -64,7 +65,7 @@ impl ImportState {
     fn new_with_identifiers(
         source: SourceCode,
         project_root: Option<PathBuf>,
-        imported: HashMap<String, Expression>,
+        imported: HashMap<String, ExpressionSpan>,
     ) -> Self {
         Self {
             parameter_stack: Vec::new(),
@@ -81,10 +82,10 @@ impl ImportState {
     }
 }
 fn track_identifiers_recursive(
-    expression: &mut Expression,
+    expression: &mut ExpressionSpan,
     import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
-    match expression {
+    match expression.syn_type_mut() {
         Expression::Nothing => Ok(()),
         Expression::Value(_) => Ok(()),
         Expression::Identifier(name) => check_identifier(name, import_state),
@@ -289,7 +290,9 @@ fn track_identifiers_recursive_chain(
     track_identifiers_recursive(chain.initial.as_mut(), import_state)?;
     let mut identifiers_defined_in_this_chain = Vec::new();
     for Transformation { operator, operand } in &mut chain.transformations {
-        if let (Operator::Assignment, Expression::Identifier(name)) = (operator, operand.clone()) {
+        if let (Operator::Assignment, Expression::Identifier(name)) =
+            (operator, operand.syn_type().clone())
+        {
             identifiers_defined_in_this_chain.push(name.clone());
             import_state.assignments.push(name)
         }

@@ -23,7 +23,7 @@ pub fn check_types(program: &Program) -> Result<(), AnyError> {
 
 pub fn get_type(program: &Program) -> Result<Type, AnyError> {
     let mut typer = Typer::new(program)?;
-    typer.get_type(&typer.program.main())
+    typer.get_type(&typer.program.main().syn_type())
 }
 
 pub fn is_builtin_nested_type(name: &str) -> Option<&'static str> {
@@ -80,7 +80,7 @@ impl<'a> Typer<'a> {
             for name in identifiers_vec {
                 match context(
                     "Runtime setup",
-                    self.get_type(self.program.identifiers.get(name).unwrap()),
+                    self.get_type(self.program.identifiers.get(name).unwrap().syn_type()),
                 ) {
                     Ok(type_) => self.bind_identifier_type(name.clone(), type_),
                     Err(e) => {
@@ -177,11 +177,11 @@ impl<'a> Typer<'a> {
     }
 
     fn check_types_chain(&mut self, chain: &Chain) -> Result<Type, AnyError> {
-        let mut accumulated_type = self.get_type(&chain.initial)?;
+        let mut accumulated_type = self.get_type(chain.initial.syn_type())?;
         let mut assigned_in_this_chain = HashMap::new();
         for t in &chain.transformations {
             accumulated_type =
-                self.get_operation_type(&accumulated_type, t.operator, &t.operand)?;
+                self.get_operation_type(&accumulated_type, t.operator, &t.operand.syn_type())?;
             if let Transformation {
                 operator: Operator::Assignment,
                 operand: Expression::Identifier(name),
@@ -219,7 +219,7 @@ impl<'a> Typer<'a> {
     fn check_types_list(&mut self, elements: &Expressions) -> Result<Type, AnyError> {
         let mut types = Vec::new();
         for e in elements {
-            types.push(self.get_type(e)?);
+            types.push(self.get_type(e.syn_type())?);
         }
         return if types.len() == 0 {
             Ok(Type::from_nameless(
@@ -617,7 +617,7 @@ mod tests {
     #[test]
     fn test_identifier() {
         let func = lex_and_parse("function(x :i64) {x+1}").unwrap();
-        let identifiers = HashMap::from([("increment".to_string(), func.take().0.take().0)]);
+        let identifiers = HashMap::from([("increment".to_string(), func.take().0)]);
         let lib: HashSet<String> = identifiers.keys().cloned().collect();
         let mut main = lex_and_parse_with_identifiers("4 |increment", lib.clone()).unwrap();
         main.identifiers = identifiers.clone();

@@ -6,13 +6,21 @@ use crate::frontend::location::SourceCode;
 #[derive(PartialEq, Debug, Clone)]
 pub struct Program {
     main: ExpressionSpan,
-    pub identifiers: HashMap<String, Expression>,
+    pub identifiers: HashMap<String, ExpressionSpan>,
     pub main_source: SourceCode,
     pub sources: HashMap<String, SourceCode>,
 }
 
 impl Program {
-    pub fn new(expression: Expression) -> Self {
+    pub fn new(expression: ExpressionSpan) -> Self {
+        Self {
+            main: expression,
+            identifiers: HashMap::new(),
+            main_source: SourceCode::new_fileless("".to_string()),
+            sources: HashMap::new(),
+        }
+    }
+    pub fn new_raw(expression: Expression) -> Self {
         Self {
             main: ExpressionSpan::new_spanless(expression),
             identifiers: HashMap::new(),
@@ -20,14 +28,14 @@ impl Program {
             sources: HashMap::new(),
         }
     }
-    pub fn main(&self) -> &Expression {
-        self.main.syn_type()
+    pub fn main(&self) -> &ExpressionSpan {
+        &self.main
     }
     pub fn take(
         self,
     ) -> (
         ExpressionSpan,
-        HashMap<String, Expression>,
+        HashMap<String, ExpressionSpan>,
         SourceCode,
         HashMap<String, SourceCode>,
     ) {
@@ -49,7 +57,7 @@ impl From<IncompleteProgram> for Program {
 #[derive(PartialEq, Debug, Clone)]
 pub struct IncompleteProgram {
     pub main: ExpressionSpan,
-    pub exported: HashMap<String, Expression>,
+    pub exported: HashMap<String, ExpressionSpan>,
     pub available: HashSet<String>,
     pub main_source: SourceCode,
     pub sources: HashMap<String, SourceCode>,

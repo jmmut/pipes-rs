@@ -41,7 +41,7 @@ pub enum PartialExpression {
     CloseBrace(Span),
     OpenParenthesis(Span),
     CloseParenthesis(Span),
-    Expression(Expression), // ExpressionSpan
+    Expression(ExpressionSpan),
     Operation(Transformation),
     Operator(Operator),
     Keyword(Keyword),
@@ -54,31 +54,33 @@ impl PartialExpression {
         e: Expression,
         // span: Span,
     ) -> PartialExpression {
-        PartialExpression::Expression(e)
-        // PartialExpression::Expression(ExpressionSpan::new(e, span)
+        // PartialExpression::Expression(e)
+        PartialExpression::Expression(ExpressionSpan::new(e, NO_SPAN))
+        // PartialExpression::Expression(NewExpression::new(e, span))
+        // PartialExpression::Expression(ExpressionSpan::new(e, span))
     }
 }
 
 pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser, AnyError> {
-    for token in tokens.into_iter().rev() {
-        match token.token {
-            Token::Number(n) => ast.push(Expression::Value(n), token.span),
+    for LocatedToken { token, span } in tokens.into_iter().rev() {
+        match token {
+            Token::Number(n) => ast.push(Expression::Value(n), span),
             Token::Operator(operator) => {
                 let pe = construct_transformation(&mut ast, operator)?;
                 ast.accumulated.push_front(pe);
             }
-            Token::Identifier(ident) => ast.push(Expression::Identifier(ident), token.span),
+            Token::Identifier(ident) => ast.push(Expression::Identifier(ident), span),
             Token::Keyword(keyword) => {
                 let pe = construct_keyword(&mut ast, keyword)?;
                 ast.accumulated.push_front(pe);
             }
-            Token::OpenBrace => ast.push_f(construct_chain, token.span)?,
-            Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace(token.span)),
-            Token::OpenBracket => ast.push_f(construct_array, token.span)?,
-            Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket(token.span)),
+            Token::OpenBrace => ast.push_f(construct_chain, span)?,
+            Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace(span)),
+            Token::OpenBracket => ast.push_f(construct_array, span)?,
+            Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket(span)),
             Token::OpenParenthesis => ast.push_f_pe(construct_children_types)?,
-            Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis(token.span)),
-            Token::String(string) => ast.push_pe(construct_string(string)), // _ => return error_expected("anything else", token),
+            Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis(span)),
+            Token::String(string) => ast.push_pe(construct_string(string, span)), // _ => return error_expected("anything else", token),
         };
     }
     Ok(ast)
@@ -86,14 +88,11 @@ pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser
 
 pub struct Parser {
     pub accumulated: VecDeque<PartialExpression>,
-    pub exported: HashMap<String, IdentifierValue>,
+    pub exported: HashMap<String, ExpressionSpan>,
     pub available: HashSet<String>,
     pub root: Option<PathBuf>,
     pub source: SourceCode,
 }
-
-/// present if it's a public identifier, None if private
-pub type IdentifierValue = Expression;
 
 impl Parser {
     pub fn new(source: SourceCode) -> Self {
@@ -146,7 +145,9 @@ impl Parser {
 
     fn push_f(
         &mut self,
-        construct_expression: fn(&mut VecDeque<PartialExpression>) -> Result<Expression, AnyError>,
+        construct_expression: fn(
+            &mut VecDeque<PartialExpression>,
+        ) -> Result<ExpressionSpan, AnyError>,
         span: Span,
     ) -> Result<(), AnyError> {
         let expression = construct_expression(&mut self.accumulated)?;
@@ -169,10 +170,11 @@ impl Parser {
     }
     fn push(&mut self, expression: Expression, span: Span) {
         // TODO: use span
-        // self.push_pe(PartialExpression::Expression(ExpressionSpan::new(expression, span)));
-        self.push_pe(PartialExpression::Expression(expression));
+        self.push_pe(PartialExpression::Expression(ExpressionSpan::new(
+            expression, span,
+        )));
     }
-    fn push_es(&mut self, expression_span: Expression) {
+    fn push_es(&mut self, expression_span: ExpressionSpan) {
         // TODO: make ExpressionSpan
         self.push_pe(PartialExpression::Expression(expression_span));
     }
@@ -200,7 +202,7 @@ fn construct_transformation(
             let operand = get_type_maybe_pop_children(accumulated, typename);
             Transformation { operator, operand }
         } else if let Some(PartialExpression::Expression(Expression::Type(type_))) = elem_operand {
-            let operand = Expression::Type(type_);
+            let operand = ExpressionSpan::new_spanless(Expression::Type(type_));
             Transformation { operator, operand }
         } else {
             error_expected("type or type name after type operator ':'", elem_operand)?
@@ -217,6 +219,7 @@ fn construct_transformation(
             } else {
                 error_expected("expression or close brace or end of file", elem_operand)?
             };
+            let operand = ExpressionSpan::new_spanless(operand);
             Transformation { operator, operand }
         } else {
             error_expected("operand after operator", elem_operand)?
@@ -228,16 +231,16 @@ fn construct_transformation(
 fn get_type_maybe_pop_children(
     accumulated: &mut VecDeque<PartialExpression>,
     typename: String,
-) -> Expression {
+) -> ExpressionSpan {
     let maybe_children = accumulated.pop_front();
     match maybe_children {
         Some(PartialExpression::ChildrenTypes(children)) => {
-            return Expression::Type(Type::from(typename, children));
+            return ExpressionSpan::new_spanless(Expression::Type(Type::from(typename, children)));
         }
         Some(not_children) => accumulated.push_front(not_children),
         None => {}
     }
-    Expression::Type(Type::simple(typename))
+    ExpressionSpan::new_spanless(Expression::Type(Type::simple(typename)))
 }
 
 fn construct_keyword(parser: &mut Parser, keyword: Keyword) -> Result<PartialExpression, AnyError> {
@@ -454,10 +457,14 @@ fn construct_cast(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
     }
 }
 
-fn construct_chain(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {
+fn construct_chain(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<ExpressionSpan, AnyError> {
     let elem_expression = accumulated.pop_front();
     match elem_expression {
-        Some(PartialExpression::CloseBrace(span)) => Ok(Expression::empty_chain()),
+        Some(PartialExpression::CloseBrace(span)) => {
+            Ok(ExpressionSpan::new_spanless(Expression::empty_chain()))
+        }
         Some(PartialExpression::Expression(initial)) => {
             construct_chain_transformations(accumulated, initial)
         }
@@ -467,14 +474,17 @@ fn construct_chain(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expr
 
 fn construct_chain_transformations(
     accumulated: &mut VecDeque<PartialExpression>,
-    initial: Expression,
-) -> Result<Expression, AnyError> {
+    initial: ExpressionSpan,
+) -> Result<ExpressionSpan, AnyError> {
     let mut transformations = Transformations::new();
     loop {
         let elem_operator = accumulated.pop_front();
         match elem_operator {
             Some(PartialExpression::CloseBrace(span)) => {
-                return Ok(Expression::chain(Box::new(initial), transformations))
+                return Ok(ExpressionSpan::new_spanless(Expression::chain(
+                    Box::new(initial),
+                    transformations,
+                )))
             }
             Some(PartialExpression::Operation(transformation)) => {
                 transformations.push(transformation);
@@ -484,7 +494,9 @@ fn construct_chain_transformations(
     }
 }
 
-fn construct_array(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expression, AnyError> {
+fn construct_array(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<ExpressionSpan, AnyError> {
     let mut elements = Vec::new();
     let mut elem = accumulated.pop_front();
     while let Some(PartialExpression::Expression(e)) = elem {
@@ -492,7 +504,9 @@ fn construct_array(accumulated: &mut VecDeque<PartialExpression>) -> Result<Expr
         elem = accumulated.pop_front()
     }
     if let Some(PartialExpression::CloseBracket(span)) = elem {
-        Ok(Expression::StaticList { elements })
+        Ok(ExpressionSpan::new_spanless(Expression::StaticList {
+            elements,
+        }))
     } else {
         error_expected("array end or expression", elem)
     }
@@ -538,10 +552,10 @@ fn construct_children_types(
     }
 }
 
-pub fn construct_string(string: Vec<u8>) -> PartialExpression {
+pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
     let elements = string
         .iter()
-        .map(|b| Expression::Value(*b as i64))
+        .map(|b| ExpressionSpan::new(Expression::Value(*b as i64), span))
         .collect::<Vec<_>>();
     PartialExpression::expression(Expression::StaticList { elements })
 }
@@ -551,7 +565,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
     let mut main = if accumulated.len() <= 1 {
         match accumulated.pop_front() {
             Some(PartialExpression::Expression(e)) => e,
-            None => Expression::Nothing,
+            None => ExpressionSpan::new_spanless(Expression::Nothing),
             Some(v) => {
                 accumulated.push_front(v);
                 return err(format!("unfinished code: {:?}", accumulated));
@@ -572,7 +586,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
     parser.exported.extend(imported);
 
     Ok(IncompleteProgram {
-        main: ExpressionSpan::new_spanless(main),
+        main: main,
         exported: parser.exported,
         available: parser.available,
         sources: other_sources,

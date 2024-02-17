@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Chain, Expression, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr, Transformation,
-    TypedIdentifier,
+    Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr,
+    Transformation, TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
@@ -111,7 +111,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut runtime = Self::new(read_input, print_output);
         let (main, identifiers, ..) = program.take();
         runtime.setup_constants(identifiers)?;
-        context("Runtime", runtime.evaluate_recursive(main.syn_type()))
+        context("Runtime", runtime.evaluate_recursive(&main))
     }
 
     fn new(read_input: R, print_output: W) -> Runtime<R, W> {
@@ -143,11 +143,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
     fn setup_constants(
         &mut self,
-        identifiers: HashMap<String, Expression>,
+        identifiers: HashMap<String, ExpressionSpan>,
     ) -> Result<(), AnyError> {
         let mut identifiers_vec = identifiers.into_iter().collect::<Vec<_>>();
         loop {
-            let mut failed = Vec::<(String, Expression)>::new();
+            let mut failed = Vec::new();
             let identifiers_count_previous = identifiers_vec.len();
             for (name, expression) in identifiers_vec {
                 // let expression = ExpressionSpan::new_spanless(expression);
@@ -173,8 +173,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
     }
 
-    fn evaluate_recursive(&mut self, expression: &Expression) -> Result<GenericValue, AnyError> {
-        match expression {
+    fn evaluate_recursive(
+        &mut self,
+        expression: &ExpressionSpan,
+    ) -> Result<GenericValue, AnyError> {
+        match expression.syn_type() {
             Expression::Nothing => Ok(NOTHING),
             Expression::Value(n) => Ok(*n),
             Expression::Identifier(name) => self.get_identifier(name),
@@ -288,8 +291,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .push(value);
     }
 
-    fn call_callable(&mut self, argument: i64, callable: &Expression) -> Result<i64, AnyError> {
-        match callable {
+    fn call_callable(&mut self, argument: i64, callable: &ExpressionSpan) -> Result<i64, AnyError> {
+        match callable.syn_type() {
             Expression::Identifier(function_name) => {
                 let function_ptr = self.get_identifier(function_name)?;
                 self.call_function_pointer(argument, function_ptr)
@@ -587,7 +590,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn get_list_element(
         &mut self,
         list_pointer: ListPointer,
-        operand: &Expression,
+        operand: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {
         let index = self.evaluate_recursive(operand)?;
         let list = self.lists.get(&list_pointer).ok_or_else(|| {
@@ -610,10 +613,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn evaluate_assignment(
         &mut self,
         accumulated: GenericValue,
-        operand: &Expression,
+        operand: &ExpressionSpan,
         identifiers: &mut HashMap<String, usize>,
     ) -> Result<(), AnyError> {
-        match operand {
+        match operand.syn_type() {
             Expression::Identifier(name) => {
                 self.bind_identifier(name.clone(), accumulated);
                 *identifiers.entry(name.clone()).or_insert(0) += 1;
@@ -628,9 +631,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn evaluate_overwrite(
         &mut self,
         accumulated: GenericValue,
-        operand: &Expression,
+        operand: &ExpressionSpan,
     ) -> Result<(), AnyError> {
-        match operand {
+        match operand.syn_type() {
             Expression::Identifier(name) => {
                 if let Some(value) = self.identifiers.get_mut(name) {
                     *value.last_mut().unwrap() = accumulated;
@@ -649,7 +652,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         &mut self,
         accumulated: GenericValue,
         operator: Comparison,
-        operand: &Expression,
+        operand: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {
         let value = self.evaluate_recursive(operand)?;
         let compared = match operator {
@@ -665,9 +668,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn evaluate_concatenate(
         &mut self,
         accumulated: GenericValue,
-        operand: &Expression,
+        operand: &ExpressionSpan,
     ) -> Result<ListPointer, AnyError> {
-        let second_pointer = match operand {
+        let second_pointer = match operand.syn_type() {
             Expression::StaticList { elements } => self.evaluate_list(&elements),
             Expression::Identifier(name) => self.get_identifier(name),
             Expression::Chain(chain) => self.evaluate_chain(chain),

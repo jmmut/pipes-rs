@@ -9,13 +9,13 @@ use super::*;
 #[test]
 fn test_nothing() {
     let expression = lex_and_parse("").unwrap();
-    assert_eq!(expression, Program::new(Expression::Nothing))
+    assert_eq!(expression, Program::new_raw(Expression::Nothing))
 }
 
 #[test]
 fn test_nothing_braces() {
     let expression = lex_and_parse("{}").unwrap();
-    assert_eq!(expression, Program::new(Expression::empty_chain()));
+    assert_eq!(expression, Program::new_raw(Expression::empty_chain()));
     lex_and_parse("[{}]").expect("should parse (maybe doesn't evaluate)");
     lex_and_parse("[5 {}]").expect("should parse (maybe doesn't evaluate)");
     lex_and_parse("{[]}").expect("should parse (maybe doesn't evaluate)");
@@ -26,7 +26,7 @@ fn test_nothing_braces() {
 #[test]
 fn test_value() {
     let expression = lex_and_parse("57").unwrap();
-    assert_eq!(expression, Program::new(Expression::Value(57)));
+    assert_eq!(expression, Program::new_raw(Expression::Value(57)));
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn test_correct_braces() {
 #[test]
 fn test_empty_chain() {
     let ast = "{}";
-    let expected = Program::new(Expression::empty_chain());
+    let expected = Program::new_raw(Expression::empty_chain());
     assert_eq!(lex_and_parse(ast).unwrap(), expected);
 }
 

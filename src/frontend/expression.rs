@@ -4,12 +4,12 @@ use crate::frontend::token::Operator;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 #[derive(Debug, Clone)]
-pub struct ExpressionSpan {
+pub struct NewExpression {
     syntactic_type: Expression,
     span: Span,
 }
 
-impl ExpressionSpan {
+impl NewExpression {
     pub fn new(syntactic_type: Expression, span: Span) -> Self {
         Self {
             syntactic_type,
@@ -28,6 +28,9 @@ impl ExpressionSpan {
     pub fn syn_type(&self) -> &Expression {
         &self.syntactic_type
     }
+    pub fn syn_type_mut(&mut self) -> &mut Expression {
+        &mut self.syntactic_type
+    }
     pub fn span(&self) -> Span {
         self.span
     }
@@ -35,7 +38,7 @@ impl ExpressionSpan {
         (self.syntactic_type, self.span)
     }
 }
-impl PartialEq for ExpressionSpan {
+impl PartialEq for NewExpression {
     fn eq(&self, other: &Self) -> bool {
         self.syntactic_type == other.syntactic_type
     }
@@ -60,6 +63,21 @@ pub enum Expression {
     Composed(Composed),
 }
 
+impl Expression {
+    pub fn new(expression: Expression, span: Span) -> Self {
+        expression
+    }
+    pub fn new_spanless(expression: Expression) -> Self {
+        Self::new(expression, NO_SPAN)
+    }
+    pub fn syn_type(&self) -> &Expression {
+        self
+    }
+    pub fn syn_type_mut(&mut self) -> &mut Expression {
+        self
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum Composed {
     Loop(Loop),
@@ -79,7 +97,7 @@ impl Expression {
         Self::Chain(Chain::empty())
     }
     #[allow(unused)]
-    pub fn chain(initial: Box<Expression>, transformations: Transformations) -> Self {
+    pub fn chain(initial: Box<ExpressionSpan>, transformations: Transformations) -> Self {
         Self::Chain(Chain {
             initial,
             transformations,
@@ -325,7 +343,7 @@ impl PartialEq for Type {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
-    pub initial: Box<Expression>,
+    pub initial: Box<ExpressionSpan>,
     pub transformations: Transformations,
     // pub type_: Type,
     // pub identifiers
@@ -334,7 +352,7 @@ pub struct Chain {
 impl Chain {
     pub fn empty() -> Self {
         Self {
-            initial: Box::new(Expression::Nothing),
+            initial: Box::new(ExpressionSpan::new(Expression::Nothing, NO_SPAN)),
             transformations: Vec::new(),
         }
     }
@@ -342,7 +360,7 @@ impl Chain {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Transformation {
     pub operator: Operator,
-    pub operand: Expression, // TODO: list of expressions?
+    pub operand: ExpressionSpan, // TODO: list of expressions?
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -450,6 +468,7 @@ pub struct Cast {
     pub target_type: TypedIdentifier,
 }
 
-pub type Expressions = Vec<Expression>;
-// pub type Expressions = Vec<ExpressionSpan>;
+// pub type ExpressionSpan = NewExpression;
+pub type ExpressionSpan = Expression;
+pub type Expressions = Vec<ExpressionSpan>;
 pub type Transformations = Vec<Transformation>;
