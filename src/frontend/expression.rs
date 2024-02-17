@@ -245,8 +245,15 @@ impl Type {
         )
     }
     pub fn simple<S: Into<String> + AsRef<str>>(type_name: S) -> Type {
-        let type_name = TypeName::new(type_name);
-        Type::Simple { type_name }
+        if type_name.as_ref() == BuiltinType::Array.name() {
+            Type::children(
+                type_name,
+                vec![TypedIdentifier::nameless(builtin_types::ANY)],
+            )
+        } else {
+            let type_name = TypeName::new(type_name);
+            Type::Simple { type_name }
+        }
     }
     pub fn children<S: Into<String> + AsRef<str>>(
         type_name: S,
