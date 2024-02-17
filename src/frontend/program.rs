@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::frontend::expression::{Expression, ExpressionSpan};
 use crate::frontend::location::SourceCode;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     main: ExpressionSpan,
     pub identifiers: HashMap<String, ExpressionSpan>,

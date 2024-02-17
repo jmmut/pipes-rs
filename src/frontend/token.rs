@@ -34,7 +34,7 @@ pub enum Token {
 }
 pub type Tokens = Vec<Token>;
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct OperatorSpan {
     pub operator: Operator,
     pub span: Span,
@@ -46,6 +46,11 @@ impl OperatorSpan {
             operator,
             span: NO_SPAN,
         }
+    }
+}
+impl PartialEq for OperatorSpan {
+    fn eq(&self, other: &Self) -> bool {
+        self.operator == other.operator
     }
 }
 

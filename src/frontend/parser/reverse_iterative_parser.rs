@@ -66,7 +66,7 @@ pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser
         match token {
             Token::Number(n) => ast.push(Expression::Value(n), span),
             Token::Operator(operator) => {
-                let pe = construct_transformation(&mut ast, operator)?;
+                let pe = construct_transformation(&mut ast, operator, span)?;
                 ast.accumulated.push_front(pe);
             }
             Token::Identifier(ident) => ast.push(Expression::Identifier(ident), span),
@@ -204,22 +204,25 @@ fn ident(maybe_pe: Option<PartialExpression>) -> (Option<String>, Option<Partial
 }
 fn construct_transformation(
     parser: &mut Parser,
-    operator: Operator,
+    raw_operator: Operator,
+    span: Span,
 ) -> Result<PartialExpression, AnyError> {
+    let operator = OperatorSpan {
+        operator: raw_operator,
+        span,
+    };
     let accumulated = &mut parser.accumulated;
     let elem_operand = accumulated.pop_front();
-    let transformation = if let Operator::Type = operator {
+    let transformation = if let Operator::Type = raw_operator {
         let (maybe_typename, elem_operand) = ident(elem_operand);
         if let Some(typename) = maybe_typename {
             let operand = get_type_maybe_pop_children(accumulated, typename);
-            let operator = OperatorSpan::spanless(operator);
             Transformation { operator, operand }
         } else if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Type(type_),
             span,
         })) = elem_operand
         {
-            let operator = OperatorSpan::spanless(operator);
             let operand = ExpressionSpan::new_spanless(Expression::Type(type_));
             Transformation { operator, operand }
         } else {
@@ -227,9 +230,8 @@ fn construct_transformation(
         }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
-            let operator = OperatorSpan::spanless(operator);
             Transformation { operator, operand }
-        } else if operator == Operator::Ignore {
+        } else if raw_operator == Operator::Ignore {
             let operand = if let None = elem_operand {
                 Expression::empty_chain()
             } else if let Some(PartialExpression::CloseBrace(span)) = elem_operand {
@@ -238,7 +240,6 @@ fn construct_transformation(
             } else {
                 error_expected("expression or close brace or end of file", elem_operand)?
             };
-            let operator = OperatorSpan::spanless(operator);
             let operand = ExpressionSpan::new_spanless(operand);
             Transformation { operator, operand }
         } else {
