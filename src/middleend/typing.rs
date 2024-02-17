@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use strum::IntoEnumIterator;
 
-use crate::common::{context, err, AnyError};
+use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::{
     Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Map, Replace,
     Transformation, Type, TypedIdentifier,
 };
+use crate::frontend::location::{Span, NO_SPAN};
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::frontend::token::Operator;
@@ -50,6 +51,7 @@ type BindingsTypesStack = Vec<Type>;
 struct Typer<'a> {
     program: &'a Program,
     identifier_types: HashMap<String, BindingsTypesStack>,
+    current_source: Option<String>,
 }
 
 impl<'a> Typer<'a> {
@@ -58,6 +60,7 @@ impl<'a> Typer<'a> {
         let mut typer = Self {
             program,
             identifier_types,
+            current_source: None,
         };
         typer.setup_constants()?;
         Ok(typer)
@@ -78,6 +81,7 @@ impl<'a> Typer<'a> {
             let identifiers_count_previous = identifiers_vec.len();
             let mut errors = Vec::new();
             for name in identifiers_vec {
+                self.current_source = Some(Self::identifier_to_source(name));
                 match context(
                     "Runtime setup",
                     self.get_type(self.program.identifiers.get(name).unwrap().syn_type()),
@@ -90,6 +94,7 @@ impl<'a> Typer<'a> {
                 }
             }
             if failed.len() == 0 {
+                self.current_source = None;
                 return Ok(());
             }
             if failed.len() == identifiers_count_previous {
@@ -107,6 +112,13 @@ impl<'a> Typer<'a> {
             }
             identifiers_vec = failed;
         }
+    }
+
+    fn identifier_to_source(name: &str) -> String {
+        let mut parts = name.split("/").collect::<Vec<_>>();
+        parts.pop();
+        let filename = parts.join("/") + ".pipes";
+        filename
     }
 
     fn bind_typed_identifier(&mut self, TypedIdentifier { name, type_ }: TypedIdentifier) {
@@ -181,7 +193,7 @@ impl<'a> Typer<'a> {
         let mut assigned_in_this_chain = HashMap::new();
         for t in &chain.transformations {
             accumulated_type =
-                self.get_operation_type(&accumulated_type, t.operator, &t.operand.syn_type())?;
+                self.get_operation_type(&accumulated_type, t.operator, &t.operand)?;
             if let Transformation {
                 operator: Operator::Assignment,
                 operand:
@@ -242,7 +254,10 @@ impl<'a> Typer<'a> {
         &mut self,
         input: &Type,
         operator: Operator,
-        operand: &Expression,
+        ExpressionSpan {
+            syntactic_type: operand,
+            span,
+        }: &ExpressionSpan,
     ) -> Result<Type, AnyError> {
         match operator {
             Operator::Add
@@ -251,17 +266,17 @@ impl<'a> Typer<'a> {
             | Operator::Divide
             | Operator::Modulo => {
                 let unified_input =
-                    self.assert_type_unifies(input, &builtin_types::I64, operator)?;
+                    self.assert_type_unifies(input, &builtin_types::I64, operator, NO_SPAN)?;
                 let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
             }
             Operator::Ignore => return self.get_type(operand),
             Operator::Call => {
-                return self.get_call_type(input, operand);
+                return self.get_call_type(input, operand, *span);
             }
             Operator::Get => {
                 let array = parse_type("array(:any)"); // TODO: support tuples
-                let unified_input = self.assert_type_unifies(&input, &array, operator)?;
+                let unified_input = self.assert_type_unifies(&input, &array, operator, *span)?;
                 self.assert_expr_unifies(operand, &builtin_types::I64)?;
                 if let Type::Nested { children, .. } = unified_input {
                     Ok(children[0].type_.clone())
@@ -271,7 +286,7 @@ impl<'a> Typer<'a> {
             }
             Operator::Type => {
                 if let Expression::Type(expected_type) = operand {
-                    self.assert_type_unifies(input, expected_type, operator)
+                    self.assert_type_unifies(input, expected_type, operator, *span)
                 } else {
                     err(format!(
                         "Operator ':' can only be followed by a type, not {:?}",
@@ -282,32 +297,37 @@ impl<'a> Typer<'a> {
             Operator::Assignment | Operator::Overwrite => Ok(input.clone()),
             Operator::Concatenate => {
                 let array = parse_type("array(:any)");
-                let unified_input = self.assert_type_unifies(input, &array, operator)?;
+                let unified_input = self.assert_type_unifies(input, &array, operator, *span)?;
                 let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
                 return Ok(unified_operand);
             }
             Operator::Comparison(_) => {
                 let i64 = builtin_types::I64;
-                let unified_input = self.assert_type_unifies(input, &i64, operator)?;
+                let unified_input = self.assert_type_unifies(input, &i64, operator, *span)?;
                 self.assert_expr_unifies(operand, &unified_input)?;
                 Ok(i64) // TODO: really should be bool
             }
         }
     }
 
-    fn get_call_type(&mut self, input_type: &Type, operand: &Expression) -> Result<Type, AnyError> {
+    fn get_call_type(
+        &mut self,
+        input_type: &Type,
+        operand: &Expression,
+        span: Span,
+    ) -> Result<Type, AnyError> {
         match operand {
             Expression::Identifier(name) => {
                 let callable_type = self.get_identifier_type(name)?;
-                self.check_type_callable(input_type, operand, &callable_type)
+                self.check_type_callable(input_type, operand, &callable_type, span)
             }
             Expression::Chain(chain) => {
                 let callable_type = self.check_types_chain(chain)?;
-                self.check_type_callable(input_type, operand, &callable_type)
+                self.check_type_callable(input_type, operand, &callable_type, span)
             }
             Expression::Function(function) => {
                 let callable_type = self.check_type_function(function)?;
-                self.check_type_callable(input_type, operand, &callable_type)
+                self.check_type_callable(input_type, operand, &callable_type, span)
             }
             Expression::Nothing
             | Expression::Value(_)
@@ -320,19 +340,24 @@ impl<'a> Typer<'a> {
                 self.is_castable_to(input_type, &cast.target_type)
             }
             Expression::Composed(Composed::Loop(loop_)) => {
-                let unified_elem = self.assert_iterates_elems(input_type, &loop_.iteration_elem)?;
+                let unified_elem =
+                    self.assert_iterates_elems(input_type, &loop_.iteration_elem, span)?;
                 let body_type = self.check_types_scope(unified_elem, &loop_.body)?;
                 Ok(body_type)
             }
             Expression::Composed(Composed::LoopOr(loop_or)) => {
                 let unified_elem =
-                    self.assert_iterates_elems(input_type, &loop_or.iteration_elem)?;
+                    self.assert_iterates_elems(input_type, &loop_or.iteration_elem, span)?;
                 let body_type = self.check_types_scope(unified_elem, &loop_or.body)?;
-                self.assert_same_unless_nothing(&body_type, &loop_or.otherwise)
+                self.assert_same_unless_nothing(&body_type, &loop_or.otherwise, span)
             }
             Expression::Composed(Composed::Times(times)) => {
-                let unified_input =
-                    self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
+                let unified_input = self.assert_type_unifies(
+                    input_type,
+                    &builtin_types::I64,
+                    Operator::Call,
+                    span,
+                )?;
                 let unified_elem = self.assert_typed_identifier_unifies(
                     &TypedIdentifier::nameless(unified_input.clone()),
                     &times.iteration_elem,
@@ -342,24 +367,32 @@ impl<'a> Typer<'a> {
                 Ok(unified_input)
             }
             Expression::Composed(Composed::TimesOr(times_or)) => {
-                let unified_input =
-                    self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
+                let unified_input = self.assert_type_unifies(
+                    input_type,
+                    &builtin_types::I64,
+                    Operator::Call,
+                    span,
+                )?;
                 let unified_elem = self.assert_typed_identifier_unifies(
                     &TypedIdentifier::nameless(unified_input.clone()),
                     &times_or.iteration_elem,
                     Operator::Call,
                 )?;
                 let body_type = self.check_types_scope(unified_elem, &times_or.body)?;
-                self.assert_same_unless_nothing(&body_type, &times_or.otherwise)
+                self.assert_same_unless_nothing(&body_type, &times_or.otherwise, span)
             }
             Expression::Composed(Composed::Replace(Replace {
                 iteration_elem,
                 body,
             })) => {
-                let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem)?;
+                let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem, span)?;
                 let body_type = self.check_types_scope(unified_elem.clone(), &body)?;
-                let unified_result_elem =
-                    self.assert_type_unifies(&unified_elem.type_, &body_type, Operator::Call)?;
+                let unified_result_elem = self.assert_type_unifies(
+                    &unified_elem.type_,
+                    &body_type,
+                    Operator::Call,
+                    span,
+                )?;
                 Ok(Type::from(
                     BuiltinType::Array.name(),
                     vec![TypedIdentifier::nameless(unified_result_elem)],
@@ -369,7 +402,7 @@ impl<'a> Typer<'a> {
                 iteration_elem,
                 body,
             })) => {
-                let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem)?;
+                let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem, span)?;
                 let body_type = self.check_types_scope(unified_elem, &body)?;
                 Ok(Type::from(
                     BuiltinType::Array.name(),
@@ -377,7 +410,7 @@ impl<'a> Typer<'a> {
                 ))
             }
             Expression::Composed(Composed::Branch(branch)) => {
-                self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call)?;
+                self.assert_type_unifies(input_type, &builtin_types::I64, Operator::Call, span)?;
                 let yes_type = self.check_types_chain(&branch.yes)?;
                 let no_type = self.check_types_chain(&branch.no)?;
                 if let Some(same) = unify(&yes_type, &no_type) {
@@ -400,13 +433,14 @@ impl<'a> Typer<'a> {
         &mut self,
         input_type: &Type,
         iteration_elem: &TypedIdentifier,
+        span: Span,
     ) -> Result<TypedIdentifier, AnyError> {
         let expected_input = Type::from(
             BuiltinType::Array.name(),
             vec![TypedIdentifier::nameless(builtin_types::ANY)],
         );
         let unified_input =
-            self.assert_type_unifies(input_type, &expected_input, Operator::Call)?;
+            self.assert_type_unifies(input_type, &expected_input, Operator::Call, span)?;
         let inner_input_type = unified_input.array_element()?;
         let unified_elem = self.assert_typed_identifier_unifies(
             &iteration_elem,
@@ -420,11 +454,12 @@ impl<'a> Typer<'a> {
         &mut self,
         expected: &Type,
         chain: &Chain,
+        span: Span,
     ) -> Result<Type, AnyError> {
         let chain_type = self.check_types_chain(chain)?;
         if *expected != builtin_types::NOTHING {
             let unified_output =
-                self.assert_type_unifies(&expected, &chain_type, Operator::Call)?;
+                self.assert_type_unifies(&expected, &chain_type, Operator::Call, span)?;
             Ok(unified_output)
         } else {
             Ok(chain_type)
@@ -435,13 +470,14 @@ impl<'a> Typer<'a> {
         input_type: &Type,
         callable: &Expression,
         callable_type: &Type,
+        span: Span,
     ) -> Result<Type, AnyError> {
         if let Type::Function {
             parameter,
             returned,
         } = callable_type
         {
-            self.assert_type_unifies(input_type, &parameter.type_, Operator::Call)?;
+            self.assert_type_unifies(input_type, &parameter.type_, Operator::Call, span)?;
             Ok(returned.type_.clone())
         } else {
             let expected_prototype = Type::function(
@@ -487,12 +523,18 @@ impl<'a> Typer<'a> {
         actual: &Type,
         expected: &Type,
         operator: Operator,
+        span: Span,
     ) -> Result<Type, AnyError> {
         let unified = unify(expected, &actual);
         if let Some(unified) = unified {
             Ok(unified)
         } else {
-            err(type_mismatch_op(operator, actual, expected))
+            let source = if let Some(source_path) = &self.current_source {
+                self.program.sources.get(source_path).unwrap()
+            } else {
+                &self.program.main_source
+            };
+            err_span(type_mismatch_op(operator, actual, expected), source, span)
         }
     }
     fn assert_typed_identifier_unifies(
@@ -514,7 +556,7 @@ fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type)
     format!(
         "Type mismatch for expression '{:?}':\
         \n  actual:   {:?}\
-        \n  expected: {:?}",
+        \n  expected: {:?}\n",
         actual_expression, actual, expected
     )
 }
@@ -522,7 +564,7 @@ fn type_mismatch_op(operator: Operator, actual: &Type, expected: &Type) -> Strin
     format!(
         "Type mismatch before operator '{:?}':\
         \n  actual:   {:?}\
-        \n  expected: {:?}",
+        \n  expected: {:?}\n",
         operator, actual, expected
     )
 }
