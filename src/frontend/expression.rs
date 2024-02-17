@@ -2,6 +2,7 @@ use crate::common::{err, AnyError};
 use crate::frontend::location::{Span, NO_SPAN};
 use crate::frontend::token::OperatorSpan;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub struct ExpressionSpan {
@@ -198,6 +199,16 @@ impl<S: Into<String> + AsRef<str>> From<S> for TypeName {
     }
 }
 
+impl Display for TypeName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            TypeName::Builtin(name) => name,
+            TypeName::UserDefined(name) => name.as_str(),
+        };
+        write!(f, "{}", name)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Type {
     Simple {
@@ -341,6 +352,65 @@ impl PartialEq for Type {
     }
 }
 
+impl Display for Type {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Simple { type_name } => {
+                write!(f, "{}", type_name)
+            }
+            Type::Nested {
+                type_name,
+                children,
+            } => {
+                write!(
+                    f,
+                    "{}{}",
+                    type_name,
+                    typed_identifiers_to_str(&children, false)
+                )
+            }
+            Type::Function {
+                parameter,
+                returned,
+            } => {
+                let parameters = vec![*parameter.clone()];
+                let returneds = vec![*returned.clone()];
+                let force_param_parens = returned.type_ != builtin_types::NOTHING;
+                write!(
+                    f,
+                    "function{}{}",
+                    typed_identifiers_to_str(&parameters, force_param_parens),
+                    typed_identifiers_to_str(&returneds, false)
+                )
+            }
+        }
+    }
+}
+
+fn typed_identifiers_to_str(children: &TypedIdentifiers, force_parenthesis: bool) -> String {
+    if children.len() == 0 && !force_parenthesis {
+        "".to_string()
+    } else if children.len() == 1 && children[0].type_ == builtin_types::NOTHING {
+        if force_parenthesis {
+            "()".to_string()
+        } else {
+            "".to_string()
+        }
+    } else {
+        let mut accum = "(".to_string();
+        for child in children {
+            accum += &child.to_string();
+            accum += "  ";
+        }
+        if !children.is_empty() {
+            accum.pop();
+            accum.pop();
+        }
+        accum += ")";
+        accum
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
     pub initial: Box<ExpressionSpan>,
@@ -410,6 +480,16 @@ impl TypedIdentifier {
     }
 }
 
+impl Display for TypedIdentifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.name.is_empty() {
+            write!(f, ":{}", self.type_)
+        } else {
+            write!(f, "{} :{}", self.name, self.type_)
+        }
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct Loop {
     pub iteration_elem: TypedIdentifier,
@@ -470,3 +550,30 @@ pub struct Cast {
 
 pub type Expressions = Vec<ExpressionSpan>;
 pub type Transformations = Vec<Transformation>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::parse_type;
+
+    #[test]
+    fn test_display_simple_type() {
+        assert_type_displayed("simple_name");
+    }
+    #[test]
+    fn test_display_nested_type() {
+        assert_type_displayed("array(:i64)");
+    }
+    #[test]
+    fn test_display_function_type() {
+        assert_type_displayed("function(param_name :param_type)(return_name :return_type)");
+        assert_type_displayed("function");
+        assert_type_displayed("function()(:i64)");
+    }
+
+    fn assert_type_displayed(code: &str) {
+        let type_ = parse_type(code);
+        let displayed = format!("{}", type_);
+        assert_eq!(displayed, code);
+    }
+}
