@@ -4,8 +4,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Chain, Composed, Expression, Expressions, Function, Map, Replace, Transformation, Type,
-    TypedIdentifier,
+    Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Map, Replace,
+    Transformation, Type, TypedIdentifier,
 };
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
@@ -184,7 +184,11 @@ impl<'a> Typer<'a> {
                 self.get_operation_type(&accumulated_type, t.operator, &t.operand.syn_type())?;
             if let Transformation {
                 operator: Operator::Assignment,
-                operand: Expression::Identifier(name),
+                operand:
+                    ExpressionSpan {
+                        syntactic_type: Expression::Identifier(name),
+                        span,
+                    },
             } = t
             {
                 *assigned_in_this_chain.entry(name.clone()).or_insert(0) += 1;

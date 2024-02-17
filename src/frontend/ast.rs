@@ -92,7 +92,11 @@ fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Res
     }
     if let Some(PartialExpression::OpenParenthesis(span)) = elem {
         elem = accumulated.pop();
-        if let Some(PartialExpression::Expression(Expression::Identifier(parent))) = elem {
+        if let Some(PartialExpression::Expression(ExpressionSpan {
+            syntactic_type: Expression::Identifier(parent),
+            span,
+        })) = elem
+        {
             let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
             accumulated.push(PartialExpression::expression(Expression::Type(a_type)));
             Ok(())
@@ -151,7 +155,11 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
 
 fn construct_function(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
-    return if let Some(PartialExpression::Expression(Expression::Chain(chain))) = elem {
+    return if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Chain(chain),
+        span,
+    })) = elem
+    {
         match construct_function_from_chain(accumulated, chain) {
             Ok(function) => {
                 accumulated.push(PartialExpression::expression(Expression::Function(
@@ -176,7 +184,10 @@ pub fn construct_function_from_chain(
             let parameter = TypedIdentifier::nameless(Type::nothing());
             Ok(Function { parameter, body })
         }
-        Some(PartialExpression::Expression(Expression::Identifier(param))) => {
+        Some(PartialExpression::Expression(ExpressionSpan {
+            syntactic_type: Expression::Identifier(param),
+            span,
+        })) => {
             let elem = accumulated.pop();
             match elem {
                 Some(PartialExpression::Keyword(Keyword::Function)) => {
@@ -208,7 +219,11 @@ pub fn construct_function_from_chain(
 
 fn construct_loop(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
-    return if let Some(PartialExpression::Expression(Expression::Chain(chain))) = elem {
+    return if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Chain(chain),
+        span,
+    })) = elem
+    {
         match construct_loop_from_chain(accumulated, chain) {
             Ok(loop_) => {
                 accumulated.push(PartialExpression::expression(Expression::Composed(
@@ -239,7 +254,10 @@ pub fn construct_loop_from_chain(
                 body,
             })
         }
-        Some(PartialExpression::Expression(Expression::Identifier(param))) => {
+        Some(PartialExpression::Expression(ExpressionSpan {
+            syntactic_type: Expression::Identifier(param),
+            span,
+        })) => {
             let elem = accumulated.pop();
             match elem {
                 Some(PartialExpression::Keyword(Keyword::Loop)) => {
@@ -274,9 +292,17 @@ pub fn construct_loop_from_chain(
 
 fn construct_branch(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
-    if let Some(PartialExpression::Expression(Expression::Chain(no))) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Chain(no),
+        span,
+    })) = elem
+    {
         let elem = accumulated.pop();
-        if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
+        if let Some(PartialExpression::Expression(ExpressionSpan {
+            syntactic_type: Expression::Chain(yes),
+            span,
+        })) = elem
+        {
             let elem = accumulated.pop();
             if let Some(PartialExpression::Keyword(Keyword::Branch)) = elem {
                 accumulated.push(PartialExpression::expression(Expression::Composed(
@@ -296,11 +322,19 @@ fn construct_branch(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyE
 
 fn construct_named_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
-    if let Some(PartialExpression::Expression(Expression::Type(type_))) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Type(type_),
+        span,
+    })) = elem
+    {
         let elem = accumulated.pop();
         if let Some(PartialExpression::Operator(Operator::Type)) = elem {
             let elem = accumulated.pop();
-            if let Some(PartialExpression::Expression(Expression::Identifier(name))) = elem {
+            if let Some(PartialExpression::Expression(ExpressionSpan {
+                syntactic_type: Expression::Identifier(name),
+                span,
+            })) = elem
+            {
                 accumulated.push(PartialExpression::TypedIdentifier(TypedIdentifier {
                     name,
                     type_,
@@ -318,7 +352,11 @@ fn construct_named_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), 
 }
 fn construct_unnamed_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
-    if let Some(PartialExpression::Expression(Expression::Type(type_))) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Type(type_),
+        span,
+    })) = elem
+    {
         let elem = accumulated.pop();
         if let Some(PartialExpression::Operator(Operator::Type)) = elem {
             accumulated.push(PartialExpression::TypedIdentifier(
@@ -335,7 +373,11 @@ fn construct_unnamed_type(accumulated: &mut Vec<PartialExpression>) -> Result<()
 
 fn construct_name_untyped(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
-    if let Some(PartialExpression::Expression(Expression::Identifier(name))) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Identifier(name),
+        span,
+    })) = elem
+    {
         accumulated.push(PartialExpression::TypedIdentifier(TypedIdentifier::any(
             name,
         )));

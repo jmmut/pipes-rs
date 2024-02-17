@@ -5,8 +5,8 @@ use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 #[derive(Debug, Clone)]
 pub struct NewExpression {
-    syntactic_type: Expression,
-    span: Span,
+    pub syntactic_type: Expression,
+    pub span: Span,
 }
 
 impl NewExpression {
@@ -468,7 +468,7 @@ pub struct Cast {
     pub target_type: TypedIdentifier,
 }
 
-// pub type ExpressionSpan = NewExpression;
-pub type ExpressionSpan = Expression;
+pub type ExpressionSpan = NewExpression;
+// pub type ExpressionSpan = Expression;
 pub type Expressions = Vec<ExpressionSpan>;
 pub type Transformations = Vec<Transformation>;

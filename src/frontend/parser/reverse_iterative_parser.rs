@@ -131,7 +131,11 @@ impl Parser {
             ))
         } else if let Some(PartialExpression::Operation(Transformation {
             operator: Operator::Type,
-            operand: Expression::Type(type_),
+            operand:
+                ExpressionSpan {
+                    syntactic_type: Expression::Type(type_),
+                    ..
+                },
         })) = expression
         {
             Ok(type_)
@@ -184,7 +188,11 @@ impl Parser {
 }
 
 fn ident(maybe_pe: Option<PartialExpression>) -> (Option<String>, Option<PartialExpression>) {
-    if let Some(PartialExpression::Expression(Expression::Identifier(typename))) = maybe_pe {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Identifier(typename),
+        span,
+    })) = maybe_pe
+    {
         (Some(typename), None)
     } else {
         (None, maybe_pe)
@@ -201,7 +209,11 @@ fn construct_transformation(
         if let Some(typename) = maybe_typename {
             let operand = get_type_maybe_pop_children(accumulated, typename);
             Transformation { operator, operand }
-        } else if let Some(PartialExpression::Expression(Expression::Type(type_))) = elem_operand {
+        } else if let Some(PartialExpression::Expression(ExpressionSpan {
+            syntactic_type: Expression::Type(type_),
+            span,
+        })) = elem_operand
+        {
             let operand = ExpressionSpan::new_spanless(Expression::Type(type_));
             Transformation { operator, operand }
         } else {
@@ -268,7 +280,11 @@ fn construct_function(
 
     let (parameter, elem) = extract_single_child_type(accumulated, elem);
 
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Chain(body),
+        span,
+    })) = elem
+    {
         Ok(PartialExpression::expression(Expression::function(
             parameter, body,
         )))
@@ -329,9 +345,17 @@ fn construct_type_chain_chain(
     let elem = accumulated.pop_front();
     let (parameter, elem) = extract_single_child_type(accumulated, elem);
 
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Chain(body),
+        span,
+    })) = elem
+    {
         let elem = accumulated.pop_front();
-        if let Some(PartialExpression::Expression(Expression::Chain(otherwise))) = elem {
+        if let Some(PartialExpression::Expression(ExpressionSpan {
+            syntactic_type: Expression::Chain(otherwise),
+            span,
+        })) = elem
+        {
             Ok(PartialExpression::expression(factory(
                 parameter, body, otherwise,
             )))
@@ -354,7 +378,11 @@ fn construct_type_chain(
     let elem = accumulated.pop_front();
     let (parameter, elem) = extract_single_child_type(accumulated, elem);
 
-    if let Some(PartialExpression::Expression(Expression::Chain(body))) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Chain(body),
+        span,
+    })) = elem
+    {
         Ok(PartialExpression::expression(factory(parameter, body)))
     } else {
         error_expected(format!("chain for the {} body", construct_name), elem)
@@ -383,9 +411,17 @@ fn construct_branch(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
     let elem = accumulated.pop_front();
-    if let Some(PartialExpression::Expression(Expression::Chain(yes))) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Chain(yes),
+        span,
+    })) = elem
+    {
         let elem = accumulated.pop_front();
-        if let Some(PartialExpression::Expression(Expression::Chain(no))) = elem {
+        if let Some(PartialExpression::Expression(ExpressionSpan {
+            syntactic_type: Expression::Chain(no),
+            span,
+        })) = elem
+        {
             Ok(PartialExpression::expression(Expression::Composed(
                 Composed::Branch(Branch { yes, no }),
             )))
@@ -414,7 +450,11 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
         let elem = parser.accumulated.pop_front();
         if let Some(PartialExpression::Operation(Transformation {
             operator: Operator::Assignment,
-            operand: Expression::Identifier(name),
+            operand:
+                ExpressionSpan {
+                    syntactic_type: Expression::Identifier(name),
+                    span,
+                },
         })) = elem
         {
             // parser.identifiers.insert(name.clone(), expr);
@@ -519,7 +559,10 @@ fn construct_children_types(
     let mut name_opt = None;
     loop {
         match elem {
-            Some(PartialExpression::Expression(Expression::Identifier(name))) => {
+            Some(PartialExpression::Expression(ExpressionSpan {
+                syntactic_type: Expression::Identifier(name),
+                span,
+            })) => {
                 if let Some(previous_name) = name_opt {
                     types.push(TypedIdentifier::any(previous_name));
                 }
@@ -527,7 +570,11 @@ fn construct_children_types(
             }
             Some(PartialExpression::Operation(Transformation {
                 operator: Operator::Type,
-                operand: Expression::Type(type_),
+                operand:
+                    ExpressionSpan {
+                        syntactic_type: Expression::Type(type_),
+                        span,
+                    },
             })) => {
                 let typed_identifier = if let Some(previous_name) = name_opt {
                     name_opt = None;
