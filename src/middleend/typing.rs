@@ -7,7 +7,7 @@ use crate::frontend::expression::{
     Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Map, Replace,
     Transformation, Type, TypedIdentifier,
 };
-use crate::frontend::location::Span;
+use crate::frontend::location::{SourceCode, Span};
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::frontend::token::{Operator, OperatorSpan};
@@ -271,7 +271,8 @@ impl<'a> Typer<'a> {
             | Operator::Modulo => {
                 let unified_input =
                     self.assert_type_unifies(input, &builtin_types::I64, operator)?;
-                let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
+                let unified_operand =
+                    self.assert_expr_unifies(operand, &unified_input, operator.span)?;
                 return Ok(unified_operand);
             }
             Operator::Ignore => return self.get_type(operand),
@@ -281,7 +282,7 @@ impl<'a> Typer<'a> {
             Operator::Get => {
                 let array = parse_type("array(:any)"); // TODO: support tuples
                 let unified_input = self.assert_type_unifies(&input, &array, operator)?;
-                self.assert_expr_unifies(operand, &builtin_types::I64)?;
+                self.assert_expr_unifies(operand, &builtin_types::I64, operator.span)?;
                 if let Type::Nested { children, .. } = unified_input {
                     Ok(children[0].type_.clone())
                 } else {
@@ -302,13 +303,14 @@ impl<'a> Typer<'a> {
             Operator::Concatenate => {
                 let array = parse_type("array(:any)");
                 let unified_input = self.assert_type_unifies(input, &array, operator)?;
-                let unified_operand = self.assert_expr_unifies(operand, &unified_input)?;
+                let unified_operand =
+                    self.assert_expr_unifies(operand, &unified_input, operator.span)?;
                 return Ok(unified_operand);
             }
             Operator::Comparison(_) => {
                 let i64 = builtin_types::I64;
                 let unified_input = self.assert_type_unifies(input, &i64, operator)?;
-                self.assert_expr_unifies(operand, &unified_input)?;
+                self.assert_expr_unifies(operand, &unified_input, operator.span)?;
                 Ok(i64) // TODO: really should be bool
             }
         }
@@ -524,13 +526,19 @@ impl<'a> Typer<'a> {
         &mut self,
         actual_expression: &Expression,
         expected: &Type,
+        span: Span,
     ) -> Result<Type, AnyError> {
         let actual_type = self.get_type(actual_expression)?;
         let unified = unify(expected, &actual_type);
         if let Some(unified) = unified {
             Ok(unified)
         } else {
-            err(type_mismatch(actual_expression, &actual_type, expected))
+            let source = self.get_current_source();
+            err_span(
+                type_mismatch(actual_expression, &actual_type, expected),
+                source,
+                span,
+            )
         }
     }
     fn assert_type_unifies(
@@ -543,12 +551,20 @@ impl<'a> Typer<'a> {
         if let Some(unified) = unified {
             Ok(unified)
         } else {
-            let source = if let Some(source_path) = &self.current_source {
-                self.program.sources.get(source_path).unwrap()
-            } else {
-                &self.program.main_source
-            };
+            let source = self.get_current_source();
             err_span(type_mismatch_op(operator, actual, expected), source, span)
+        }
+    }
+
+    fn get_current_source(&self) -> &SourceCode {
+        if let Some(source_path) = &self.current_source {
+            if let Some(source) = self.program.sources.get(source_path) {
+                source
+            } else {
+                panic!("Bug: attempted to print source code '{}' but we didn't store it. Available: {:?}", source_path, self.program.sources.keys())
+            }
+        } else {
+            &self.program.main_source
         }
     }
     fn assert_typed_identifier_unifies(
@@ -643,6 +659,7 @@ mod tests {
     #[test]
     fn test_basic_array() {
         assert_types_ok("[1 2] :array(:i64)");
+        assert_eq!(parse_type("array"), parse_type("array(:any)"));
     }
     #[test]
     fn test_basic_tuple() {
