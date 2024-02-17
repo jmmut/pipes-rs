@@ -242,12 +242,14 @@ fn import_identifier(
         let _function_name = paths.pop().unwrap();
         let imported_path = PathBuf::from_iter(paths.into_iter());
         // let mut path_to_import = root.join(imported_path);
-        let mut path_to_import = imported_path.clone();
-        path_to_import.set_extension("pipes");
-        if let Some(mut root) = import_state.project_root.clone() {
-            root.push(path_to_import);
-            path_to_import = root;
-        }
+        let mut relative_path_to_import = imported_path.clone();
+        relative_path_to_import.set_extension("pipes");
+        let path_to_import = if let Some(mut root) = import_state.project_root.clone() {
+            root.push(&relative_path_to_import);
+            root
+        } else {
+            relative_path_to_import.clone()
+        };
         let source_code = SourceCode::new(path_to_import.clone())?;
         let tokens = lex(source_code)?;
         let mut available: HashSet<String> = import_state.imported.keys().cloned().collect();
@@ -265,7 +267,7 @@ fn import_identifier(
             .other_sources
             .extend(program.sources.into_iter());
         import_state.other_sources.insert(
-            path_to_import.to_string_lossy().to_string(),
+            relative_path_to_import.to_string_lossy().to_string(),
             program.main_source,
         );
         Ok(())

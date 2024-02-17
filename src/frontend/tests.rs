@@ -181,6 +181,10 @@ fn test_import() {
         parsed.identifiers.keys()
     );
     assert_eq!(parsed.main_source.file, Some(main_path));
+    assert_eq!(
+        parsed.sources.keys().collect::<Vec<_>>(),
+        vec!["some_namespace/reusable_functions.pipes"]
+    )
 }
 
 #[test]
