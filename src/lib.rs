@@ -4,6 +4,7 @@ use crate::common::AnyError;
 use crate::evaluate::{GenericValue, Runtime};
 use crate::frontend::lex_and_parse;
 use crate::frontend::location::SourceCode;
+use crate::middleend::typing::check_types;
 
 pub mod common;
 pub mod evaluate;
@@ -20,11 +21,13 @@ pub fn interpret_in_web(code: &str) -> Box<[JsValue]> {
 
 fn interpret_in_web_fallible(code: &str) -> Result<(GenericValue, String), AnyError> {
     let source = SourceCode::new_fileless(code.to_string());
-    let expression = lex_and_parse(source)?;
+    let program = lex_and_parse(source)?;
+
+    check_types(&program)?;
 
     let mut print_output = Vec::<u8>::new();
     let read_input: &[u8] = &[];
-    let result = Runtime::evaluate(expression, read_input, &mut print_output)?;
+    let result = Runtime::evaluate(program, read_input, &mut print_output)?;
     Ok((result, String::from_utf8(print_output)?))
 }
 
