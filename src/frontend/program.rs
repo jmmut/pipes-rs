@@ -21,12 +21,7 @@ impl Program {
         }
     }
     pub fn new_raw(expression: Expression) -> Self {
-        Self {
-            main: ExpressionSpan::new_spanless(expression),
-            identifiers: HashMap::new(),
-            main_source: SourceCode::new_fileless("".to_string()),
-            sources: HashMap::new(),
-        }
+        Self::new(ExpressionSpan::new_spanless(expression))
     }
     pub fn main(&self) -> &ExpressionSpan {
         &self.main
