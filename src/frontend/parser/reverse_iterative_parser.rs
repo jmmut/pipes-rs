@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 
-use crate::common::{context, err, AnyError};
-use crate::frontend::ast::error_expected;
+use crate::common::{context, err, err_span, AnyError};
+use crate::frontend::ast::{error_expected, expected};
 use crate::frontend::expression::{
     Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Transformation, Transformations,
     Type, TypedIdentifier, TypedIdentifiers,
@@ -29,7 +29,7 @@ pub fn parse_tokens_cached_inner(
     tokens: LocatedTokens,
     mut ast: Parser,
 ) -> Result<IncompleteProgram, AnyError> {
-    ast = raw_parse_tokens(tokens, ast)?;
+    ast.raw_parse_tokens(tokens)?;
     finish_construction(ast)
 }
 
@@ -58,31 +58,6 @@ impl PartialExpression {
     }
 }
 
-pub fn raw_parse_tokens(tokens: LocatedTokens, mut ast: Parser) -> Result<Parser, AnyError> {
-    for LocatedToken { token, span } in tokens.into_iter().rev() {
-        match token {
-            Token::Number(n) => ast.push(Expression::Value(n), span),
-            Token::Operator(operator) => {
-                let pe = construct_transformation(&mut ast, operator, span)?;
-                ast.accumulated.push_front(pe);
-            }
-            Token::Identifier(ident) => ast.push(Expression::Identifier(ident), span),
-            Token::Keyword(keyword) => {
-                let pe = construct_keyword(&mut ast, keyword, span)?;
-                ast.accumulated.push_front(pe);
-            }
-            Token::OpenBrace => ast.push_f(construct_chain, span)?,
-            Token::CloseBrace => ast.push_pe(PartialExpression::CloseBrace(span)),
-            Token::OpenBracket => ast.push_f(construct_array, span)?,
-            Token::CloseBracket => ast.push_pe(PartialExpression::CloseBracket(span)),
-            Token::OpenParenthesis => ast.push_f_pe(construct_children_types)?,
-            Token::CloseParenthesis => ast.push_pe(PartialExpression::CloseParenthesis(span)),
-            Token::String(string) => ast.push_pe(construct_string(string, span)), // _ => return error_expected("anything else", token),
-        };
-    }
-    Ok(ast)
-}
-
 pub struct Parser {
     pub accumulated: VecDeque<PartialExpression>,
     pub exported: HashMap<String, ExpressionSpan>,
@@ -109,17 +84,42 @@ impl Parser {
             source,
         }
     }
+
+    pub fn raw_parse_tokens(&mut self, tokens: LocatedTokens) -> Result<(), AnyError> {
+        for LocatedToken { token, span } in tokens.into_iter().rev() {
+            match token {
+                Token::Number(n) => self.push(Expression::Value(n), span),
+                Token::Operator(operator) => {
+                    let pe = construct_transformation(self, operator, span)?;
+                    self.accumulated.push_front(pe);
+                }
+                Token::Identifier(ident) => self.push(Expression::Identifier(ident), span),
+                Token::Keyword(keyword) => {
+                    let pe = construct_keyword(self, keyword, span)?;
+                    self.accumulated.push_front(pe);
+                }
+                Token::OpenBrace => self.push_f(construct_chain, span)?,
+                Token::CloseBrace => self.push_pe(PartialExpression::CloseBrace(span)),
+                Token::OpenBracket => self.push_f(construct_array, span)?,
+                Token::CloseBracket => self.push_pe(PartialExpression::CloseBracket(span)),
+                Token::OpenParenthesis => self.push_f_pe(construct_children_types)?,
+                Token::CloseParenthesis => self.push_pe(PartialExpression::CloseParenthesis(span)),
+                Token::String(string) => self.push_pe(construct_string(string, span)), // _ => return error_expected("anything else", token),
+            };
+        }
+        Ok(())
+    }
     fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
         let parser = Parser::new(tokens.source_code);
         parse_tokens_cached(tokens.tokens, parser)
     }
 
     fn parse_type(mut tokens: TokenizedSource) -> Result<Type, AnyError> {
-        let parser = Parser::new(tokens.source_code);
+        let mut parser = Parser::new(tokens.source_code);
         tokens
             .tokens
             .insert(0, LocatedToken::spanless(Token::Operator(Operator::Type)));
-        let mut parser = raw_parse_tokens(tokens.tokens, parser)?;
+        parser.raw_parse_tokens(tokens.tokens)?;
         let expression = parser.accumulated.pop_front();
         if !parser.accumulated.is_empty() {
             err(format!(
@@ -152,10 +152,12 @@ impl Parser {
         &mut self,
         construct_expression: fn(
             &mut VecDeque<PartialExpression>,
+            source: &SourceCode,
+            span: Span,
         ) -> Result<ExpressionSpan, AnyError>,
         span: Span,
     ) -> Result<(), AnyError> {
-        let expression = construct_expression(&mut self.accumulated)?;
+        let expression = construct_expression(&mut self.accumulated, &self.source, span)?;
         self.push_es(expression);
         Ok(())
     }
@@ -506,6 +508,8 @@ fn construct_cast(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
 
 fn construct_chain(
     accumulated: &mut VecDeque<PartialExpression>,
+    source: &SourceCode,
+    span: Span,
 ) -> Result<ExpressionSpan, AnyError> {
     let elem_expression = accumulated.pop_front();
     match elem_expression {
@@ -543,10 +547,13 @@ fn construct_chain_transformations(
 
 fn construct_array(
     accumulated: &mut VecDeque<PartialExpression>,
+    source: &SourceCode,
+    mut last_span: Span,
 ) -> Result<ExpressionSpan, AnyError> {
     let mut elements = Vec::new();
     let mut elem = accumulated.pop_front();
     while let Some(PartialExpression::Expression(e)) = elem {
+        last_span = e.span;
         elements.push(e);
         elem = accumulated.pop_front()
     }
@@ -555,7 +562,7 @@ fn construct_array(
             elements,
         }))
     } else {
-        error_expected("array end or expression", elem)
+        err_span(expected("array end or expression", elem), source, last_span)
     }
 }
 fn construct_children_types(
@@ -632,7 +639,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
     } else {
         let error_message = format!("unfinished code: {:?}", accumulated);
         accumulated.push_back(PartialExpression::CloseBrace(NO_SPAN));
-        let e = construct_chain(accumulated)?;
+        let e = construct_chain(accumulated, &parser.source, NO_SPAN)?;
         if !accumulated.is_empty() {
             return err(error_message);
         } else {

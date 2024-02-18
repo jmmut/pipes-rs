@@ -418,11 +418,14 @@ fn finish_construction_expression(
     err(format!("unfinished code: {:?}", accumulated))
 }
 
+pub fn expected<T: Debug, S: AsRef<str>>(expected: S, actual: T) -> String {
+    format!("expected {} but was {:?}", expected.as_ref(), actual)
+}
 pub fn error_expected<T: Debug, R, S: AsRef<str>>(expected: S, actual: T) -> Result<R, AnyError> {
     Err(anyerror_expected(expected, &actual))
 }
-pub fn anyerror_expected<T: Debug, S: AsRef<str>>(expected: S, actual: &T) -> AnyError {
-    format!("expected {} but was {:?}", expected.as_ref(), actual).into()
+pub fn anyerror_expected<T: Debug, S: AsRef<str>>(expected_: S, actual: &T) -> AnyError {
+    expected(expected_.as_ref(), actual).into()
 }
 #[cfg(test)]
 mod tests {
