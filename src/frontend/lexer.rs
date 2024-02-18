@@ -70,6 +70,7 @@ pub fn try_consume_number(code: &mut SourceCode) -> Result<Option<LocatedToken>,
             accumulated = maybe_add_digit(accumulated, digit, code)?;
         }
         let token = code.span_token(Token::Number(accumulated), initial_location);
+        code.next();
         Ok(Some(token))
     } else {
         Ok(None)
@@ -146,6 +147,7 @@ fn try_consume_multichar_tokens(code: &mut SourceCode) -> Option<LocatedTokens> 
             if code.consume(text) {
                 let token = Token::Operator(operator);
                 let located_token = code.span_token(token, initial_location);
+                code.next();
                 return Some(vec![located_token]);
             }
         }
@@ -191,6 +193,7 @@ fn try_consume_identifier(code: &mut SourceCode) -> Option<Result<LocatedToken, 
         let located_token = code.span_token(token, initial_location);
         located_token
     });
+    code.next();
     Some(token.into())
 }
 
@@ -362,6 +365,7 @@ fn is_space(letter: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::common::unwrap_display;
+    use crate::frontend::location::{Location, Span};
     use crate::frontend::token::Token::{CloseBracket, Identifier, Number, OpenBracket, Operator};
 
     use crate::frontend::token::Operator::{Add, Divide, Modulo, Multiply, Substract};
@@ -496,5 +500,15 @@ mod tests {
         lex(r"'\'").expect_err("unfinished escaped char should fail");
         lex(r"'\").expect_err("unclosed char should fail");
         lex(r"'").expect_err("unclosed char should fail");
+    }
+
+    #[test]
+    fn test_location() {
+        let lexed = lex("123+5").unwrap().tokens;
+        let span = Span {
+            start: Location::from(1, 1, 0),
+            end: Location::from(1, 3, 2),
+        };
+        assert_eq!(lexed[0].span, span)
     }
 }

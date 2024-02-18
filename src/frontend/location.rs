@@ -42,6 +42,9 @@ impl Location {
             byte: 0,
         }
     }
+    pub fn from(line: i32, column: i32, byte: usize) -> Self {
+        Self { line, column, byte }
+    }
     pub fn read(&mut self, letter: u8) {
         self.byte += 1;
         if letter == b'\n' {
@@ -157,6 +160,8 @@ impl SourceCode {
             None
         }
     }
+    // advances the cursor to the last matching byte. this allows getting the span of the
+    // parsed text with inclusive indexes for the start and end.
     pub fn consume(&mut self, matching: &str) -> bool {
         for i in 0..matching.len() {
             if let Some(letter) = self.peek_at(self.cursor.byte + i) {
@@ -167,19 +172,20 @@ impl SourceCode {
                 return false;
             }
         }
-        for _ in 0..matching.len() {
+        for _ in 1..matching.len() {
             self.next();
         }
         true
     }
+    // advances the cursor to the last successful predicate. this allows getting the span of the
+    // parsed text with inclusive indexes for the start and end.
     pub fn consume_if<F: Fn(u8, usize) -> Option<T>, T>(&mut self, predicate: F) -> Option<Vec<T>> {
         let mut i = 0;
         let mut consumed = Vec::new();
         loop {
-            if let Some(letter) = self.peek_at(self.cursor.byte) {
+            if let Some(letter) = self.peek_at(self.cursor.byte + i) {
                 if let Some(t) = predicate(letter, i) {
                     consumed.push(t);
-                    self.next();
                 } else {
                     break;
                 }
@@ -189,14 +195,24 @@ impl SourceCode {
             i += 1;
         }
         if consumed.len() > 0 {
+            for _ in 1..consumed.len() {
+                self.next();
+            }
             Some(consumed)
         } else {
             None
         }
     }
+    // advances the cursor to the byte *after* the last successful predicate
     pub fn consume_while<F: Fn(u8, usize) -> bool>(&mut self, predicate: F) -> bool {
-        self.consume_if(|f, i| if predicate(f, i) { Some(()) } else { None })
-            .is_some()
+        return if let Some(consumed) =
+            self.consume_if(|f, i| if predicate(f, i) { Some(()) } else { None })
+        {
+            self.next();
+            true
+        } else {
+            false
+        };
     }
 
     pub fn consumed(&self) -> bool {
@@ -533,14 +549,8 @@ qwer
         code.next();
         code.next();
         assert_eq!(code.consume("345"), true);
-        assert_eq!(
-            code.cursor,
-            Location {
-                line: 1,
-                column: 7,
-                byte: 6,
-            }
-        );
+        assert_eq!(code.cursor, Location::from(1, 6, 5));
+        code.next();
         assert_eq!(code.consume("6789"), true);
         assert_eq!(code.consume("0"), false);
         let mut code = SourceCode::new_fileless(text.clone());
@@ -572,19 +582,14 @@ qwer
             code.consume_if(is_digit),
             Some("345".to_string().as_bytes().to_vec())
         );
-        assert_eq!(
-            code.cursor,
-            Location {
-                line: 1,
-                column: 7,
-                byte: 6,
-            }
-        );
+        assert_eq!(code.cursor, Location::from(1, 6, 5));
+        code.next();
         assert_eq!(code.peek(), Some(b'c'));
         assert_eq!(
             code.consume_if(is_letter),
             Some("cde".to_string().as_bytes().to_vec())
         );
+        code.next();
         assert_eq!(code.consume_if(is_letter), None);
 
         let mut code = SourceCode::new_fileless(text.clone());

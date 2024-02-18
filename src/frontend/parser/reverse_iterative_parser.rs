@@ -548,21 +548,36 @@ fn construct_chain_transformations(
 fn construct_array(
     accumulated: &mut VecDeque<PartialExpression>,
     source: &SourceCode,
-    mut last_span: Span,
+    open_bracket_span: Span,
 ) -> Result<ExpressionSpan, AnyError> {
     let mut elements = Vec::new();
     let mut elem = accumulated.pop_front();
+    let mut last_span = open_bracket_span;
     while let Some(PartialExpression::Expression(e)) = elem {
         last_span = e.span;
         elements.push(e);
         elem = accumulated.pop_front()
     }
     if let Some(PartialExpression::CloseBracket(span)) = elem {
-        Ok(ExpressionSpan::new_spanless(Expression::StaticList {
-            elements,
-        }))
+        Ok(ExpressionSpan::new(
+            Expression::StaticList { elements },
+            span,
+        ))
+    } else if let Some(PartialExpression::Operation(Transformation { operator, operand })) = elem {
+        println!("span: {:?}", last_span);
+        let expected_message = expected("array end or expression", operator.operator);
+        let message = format!(
+            "List elements need braces ('{{' and '}}') if they are chained operations.\n{}",
+            expected_message
+        );
+        err_span(message, source, operator.span)
     } else {
-        err_span(expected("array end or expression", elem), source, last_span)
+        println!("span: {:?}", last_span);
+        err_span(
+            expected("array end or expression", elem),
+            source,
+            open_bracket_span.merge(&last_span),
+        )
     }
 }
 fn construct_children_types(
