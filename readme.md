@@ -1,4 +1,8 @@
 
+Pipes is an experimental toy programming language about applying successive transformations to some data.
+Think bash with static typing.
+
+This repo contains an interpreter written in rust and a couple related tools, like a web+wasm playground.
 
 ## Roadmap
 
