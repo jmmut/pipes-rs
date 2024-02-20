@@ -422,8 +422,13 @@ fn typed_identifiers_to_str(children: &TypedIdentifiers, force_parenthesis: bool
 pub struct Chain {
     pub initial: Box<ExpressionSpan>,
     pub transformations: Transformations,
-    // pub type_: Type,
-    // pub identifiers
+}
+// type Chain = Chain2;
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Chain2 {
+    pub initial: Option<ExpressionSpan>,
+    pub operations: Operations,
 }
 
 impl Chain {
@@ -434,6 +439,13 @@ impl Chain {
         }
     }
 }
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Operation {
+    pub operator: OperatorSpan,
+    pub operands: Expressions,
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct Transformation {
     pub operator: OperatorSpan,
@@ -557,6 +569,7 @@ pub struct Cast {
 
 pub type Expressions = Vec<ExpressionSpan>;
 pub type Transformations = Vec<Transformation>;
+pub type Operations = Vec<Operation>;
 
 #[cfg(test)]
 mod tests {

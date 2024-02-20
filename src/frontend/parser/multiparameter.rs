@@ -1,5 +1,6 @@
 use crate::common::{context, err, err_span, AnyError};
-use crate::frontend::expression::{Expression, ExpressionSpan};
+use crate::frontend::ast::expected;
+use crate::frontend::expression::{Expression, ExpressionSpan, Operation};
 use crate::frontend::lexer::TokenizedSource;
 use crate::frontend::location::{SourceCode, Span};
 use crate::frontend::program::Program;
@@ -11,9 +12,11 @@ pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
 
 struct Parser;
 
+#[derive(Debug)]
 enum PartialExpression {
     Token(LocatedToken),
     Expression(ExpressionSpan),
+    Operation(Operation),
 }
 type PartialExpressions = Vec<PartialExpression>;
 
@@ -35,13 +38,13 @@ impl Parser {
         for LocatedToken { token, span } in tokens.into_iter().rev() {
             match token {
                 Token::Number(n) => push_e(&mut pes, Expression::Value(n), span),
+                Token::OpenBrace => construct_chain(&mut pes, span)?,
                 Token::Operator(_)
                 | Token::Identifier(_)
                 | Token::String(_)
                 | Token::Keyword(_)
                 | Token::OpenBracket
                 | Token::CloseBracket
-                | Token::OpenBrace
                 | Token::CloseBrace
                 | Token::OpenParenthesis
                 | Token::CloseParenthesis => push_t(&mut pes, token, span),
@@ -62,6 +65,11 @@ impl Parser {
                     source,
                     t.span,
                 ),
+                PartialExpression::Operation(o) => err_span(
+                    "A top level file can not just be an operation",
+                    source,
+                    o.operator.span,
+                ),
                 PartialExpression::Expression(e) => Ok(Program::new(e)),
             }
         } else {
@@ -78,6 +86,57 @@ fn push_e(pes: &mut PartialExpressions, syntactic_type: Expression, span: Span) 
 }
 fn push_t(pes: &mut PartialExpressions, token: Token, span: Span) {
     pes.push(PartialExpression::Token(LocatedToken { token, span }))
+}
+
+fn construct_chain(
+    pes: &mut Vec<PartialExpression>,
+    open_brace_span: Span,
+) -> Result<(), AnyError> {
+    let elem = pes.pop();
+    if let Some(PartialExpression::Expression(initial)) = elem {
+        let mut elem = pes.pop();
+        let mut operations = Vec::new();
+        while let Some(PartialExpression::Operation(operation)) = elem {
+            operations.push(operation);
+            elem = pes.pop();
+        }
+        if let Some(PartialExpression::Token(LocatedToken {
+            token: Token::CloseBrace,
+            span: close_span,
+        })) = elem
+        {
+            // push_e(
+            //     pes,
+            //     Expression::Chain(Chain{initial, operations}),
+            //     open_brace_span.merge(&close_span),
+            // );
+            Ok(())
+        } else {
+            err(expected("operator or closing brace '}'", elem))
+        }
+    } else if let Some(PartialExpression::Token(LocatedToken {
+        token: Token::CloseBrace,
+        span: close_span,
+    })) = elem
+    {
+        push_e(
+            pes,
+            Expression::empty_chain(),
+            open_brace_span.merge(&close_span),
+        );
+        Ok(())
+    } else {
+        err(expected("expression or closing brace '}'", elem))
+    }
+}
+
+fn construct_operation() -> Result<(), AnyError> {
+    unimplemented!()
+    // if let Some(PartialExpression::Token(LocatedToken {token: Token::Operator(operator), span: op_span})) = elem {
+    //     construct_operation(operator, )
+    // } else {
+    //
+    // }
 }
 
 #[cfg(test)]
@@ -109,5 +168,19 @@ mod tests {
     #[test]
     fn test_fails_on_incomplete_token() {
         lex_and_parse(":").expect_err("should fail");
+    }
+    #[test]
+    fn test_extra_brace() {
+        lex_and_parse("5}").expect_err("should fail");
+        lex_and_parse("{5}}").expect_err("should fail");
+        lex_and_parse("{5").expect_err("should fail");
+        lex_and_parse("{{5}").expect_err("should fail");
+    }
+
+    #[test]
+    fn test_correct_braces() {
+        lex_and_parse("5").expect("should work");
+        lex_and_parse("{5}").expect("should work");
+        lex_and_parse("{{5}}").expect("should work");
     }
 }
