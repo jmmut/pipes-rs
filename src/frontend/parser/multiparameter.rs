@@ -1,10 +1,10 @@
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::ast::expected;
-use crate::frontend::expression::{Expression, ExpressionSpan, Operation};
+use crate::frontend::expression::{Chain, Expression, ExpressionSpan, Operation};
 use crate::frontend::lexer::TokenizedSource;
-use crate::frontend::location::{SourceCode, Span};
+use crate::frontend::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::program::Program;
-use crate::frontend::token::{LocatedToken, LocatedTokens, Token};
+use crate::frontend::token::{LocatedToken, LocatedTokens, Operator, OperatorSpan, Token};
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Multiparameter parser", Parser::parse_tokens(tokens))
@@ -39,9 +39,9 @@ impl Parser {
             match token {
                 Token::Number(n) => push_e(&mut pes, Expression::Value(n), span),
                 Token::OpenBrace => construct_chain(&mut pes, span)?,
-                Token::Operator(_)
-                | Token::Identifier(_)
-                | Token::String(_)
+                Token::Operator(operator) => construct_operation(&mut pes, operator, span)?,
+                Token::Identifier(name) => push_e(&mut pes, Expression::Identifier(name), span),
+                Token::String(_)
                 | Token::Keyword(_)
                 | Token::OpenBracket
                 | Token::CloseBracket
@@ -57,8 +57,15 @@ impl Parser {
         source: &SourceCode,
     ) -> Result<Program, AnyError> {
         if partial_expressions.len() == 0 {
-            Ok(Program::new_raw(Expression::Nothing))
-        } else if partial_expressions.len() == 1 {
+            return Ok(Program::new_raw(Expression::Nothing));
+        } else if partial_expressions.len() > 1 {
+            partial_expressions.insert(
+                0,
+                PartialExpression::Token(LocatedToken::spanless(Token::CloseBrace)),
+            );
+            construct_chain(&mut partial_expressions, NO_SPAN)?;
+        }
+        if partial_expressions.len() == 1 {
             match partial_expressions.pop().unwrap() {
                 PartialExpression::Token(t) => err_span(
                     "A top level file can not just be this token",
@@ -73,7 +80,7 @@ impl Parser {
                 PartialExpression::Expression(e) => Ok(Program::new(e)),
             }
         } else {
-            err("unimplemented")
+            err(expected("chain or expression", partial_expressions))
         }
     }
 }
@@ -88,10 +95,7 @@ fn push_t(pes: &mut PartialExpressions, token: Token, span: Span) {
     pes.push(PartialExpression::Token(LocatedToken { token, span }))
 }
 
-fn construct_chain(
-    pes: &mut Vec<PartialExpression>,
-    open_brace_span: Span,
-) -> Result<(), AnyError> {
+fn construct_chain(pes: &mut PartialExpressions, open_brace_span: Span) -> Result<(), AnyError> {
     let elem = pes.pop();
     if let Some(PartialExpression::Expression(initial)) = elem {
         let mut elem = pes.pop();
@@ -105,11 +109,11 @@ fn construct_chain(
             span: close_span,
         })) = elem
         {
-            // push_e(
-            //     pes,
-            //     Expression::Chain(Chain{initial, operations}),
-            //     open_brace_span.merge(&close_span),
-            // );
+            push_e(
+                pes,
+                Expression::Chain(Chain{initial: Some(Box::new(initial)), operations}),
+                open_brace_span.merge(&close_span),
+            );
             Ok(())
         } else {
             err(expected("operator or closing brace '}'", elem))
@@ -130,22 +134,38 @@ fn construct_chain(
     }
 }
 
-fn construct_operation() -> Result<(), AnyError> {
-    unimplemented!()
-    // if let Some(PartialExpression::Token(LocatedToken {token: Token::Operator(operator), span: op_span})) = elem {
-    //     construct_operation(operator, )
-    // } else {
-    //
-    // }
+fn construct_operation(
+    pes: &mut PartialExpressions,
+    operator: Operator,
+    op_span: Span,
+) -> Result<(), AnyError> {
+    let mut elem = pes.pop();
+    let mut operands = Vec::new();
+    while let Some(PartialExpression::Expression(expr)) = elem {
+        elem = pes.pop();
+        operands.push(expr);
+    }
+    if let Some(elem) = elem {
+        pes.push(elem);
+    }
+    pes.push(PartialExpression::Operation(Operation {
+        operator: OperatorSpan {
+            operator,
+            span: op_span,
+        },
+        operands,
+    }));
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::AnyError;
-    use crate::frontend::expression::{Expression, ExpressionSpan};
+    use crate::common::{unwrap_display, AnyError};
+    use crate::frontend::expression::{Chain, Expression, ExpressionSpan};
     use crate::frontend::lexer::lex;
     use crate::frontend::program::Program;
+    use crate::frontend::token::{Operator, OperatorSpan};
 
     fn lex_and_parse(code: &str) -> Result<Program, AnyError> {
         let tokens = lex(code)?;
@@ -182,5 +202,25 @@ mod tests {
         lex_and_parse("5").expect("should work");
         lex_and_parse("{5}").expect("should work");
         lex_and_parse("{{5}}").expect("should work");
+    }
+
+    #[test]
+    fn test_operators() {
+        let program = unwrap_display(lex_and_parse("3 |func 4 5"));
+        assert_eq!(
+            program,
+            mock_program(Expression::Chain(Chain {
+                initial: Some(Box::new(ExpressionSpan::new_spanless(Expression::Value(3)))),
+                operations: vec![Operation {
+                    operator: OperatorSpan::spanless(Operator::Call),
+                    operands: vec![
+                        ExpressionSpan::new_spanless(Expression::Identifier("func".to_string())),
+                        ExpressionSpan::new_spanless(Expression::Value(4)),
+                        ExpressionSpan::new_spanless(Expression::Value(5)),
+                    ],
+                }],
+            }))
+        );
+        // "{3 [|[func 4 5]]}"
     }
 }
