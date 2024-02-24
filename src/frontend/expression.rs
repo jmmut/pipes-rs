@@ -97,11 +97,11 @@ impl Expression {
     pub fn empty_chain() -> Self {
         Self::Chain(Chain::empty())
     }
-    #[allow(unused)]
-    pub fn chain(initial: Box<ExpressionSpan>, transformations: Transformations) -> Self {
+
+    pub fn chain(initial: Box<ExpressionSpan>, operations: Operations) -> Self {
         Self::Chain(Chain {
-            initial,
-            transformations,
+            initial: Some(initial),
+            operations,
         })
     }
     #[allow(unused)]
@@ -420,22 +420,15 @@ fn typed_identifiers_to_str(children: &TypedIdentifiers, force_parenthesis: bool
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
-    pub initial: Box<ExpressionSpan>,
-    pub transformations: Transformations,
-}
-// type Chain = Chain2;
-
-#[derive(PartialEq, Debug, Clone)]
-pub struct Chain2 {
-    pub initial: Option<ExpressionSpan>,
+    pub initial: Option<Box<ExpressionSpan>>,
     pub operations: Operations,
 }
 
 impl Chain {
     pub fn empty() -> Self {
         Self {
-            initial: Box::new(ExpressionSpan::new(Expression::Nothing, NO_SPAN)),
-            transformations: Vec::new(),
+            initial: Some(Box::new(ExpressionSpan::new(Expression::Nothing, NO_SPAN))),
+            operations: Vec::new(),
         }
     }
 }
@@ -445,11 +438,13 @@ pub struct Operation {
     pub operator: OperatorSpan,
     pub operands: Expressions,
 }
-
-#[derive(PartialEq, Debug, Clone)]
-pub struct Transformation {
-    pub operator: OperatorSpan,
-    pub operand: ExpressionSpan, // TODO: list of expressions?
+impl Operation {
+    pub fn single(operator: OperatorSpan, operand: ExpressionSpan) -> Operation {
+        Operation {
+            operator,
+            operands: vec![operand],
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -568,12 +563,18 @@ pub struct Cast {
 }
 
 pub type Expressions = Vec<ExpressionSpan>;
-pub type Transformations = Vec<Transformation>;
 pub type Operations = Vec<Operation>;
+
+pub fn take_single(mut expressions: Expressions) -> Option<ExpressionSpan> {
+    if expressions.len() != 1 {
+        None
+    } else {
+        expressions.pop()
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::frontend::parse_type;
 
     #[test]

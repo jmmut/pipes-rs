@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Branch, Chain, Composed, Expression, ExpressionSpan, Function, Inspect, Loop, LoopOr, Map,
-    Replace, Something, Times, TimesOr, Transformation, Type, TypedIdentifier,
+    Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
@@ -289,21 +289,26 @@ fn track_identifiers_recursive_chain(
     import_state: &mut ImportState,
     chain: &mut Chain,
 ) -> Result<(), AnyError> {
-    track_identifiers_recursive(chain.initial.as_mut(), import_state)?;
+    if let Some(initial) = &mut chain.initial {
+        track_identifiers_recursive(initial.as_mut(), import_state)?;
+    }
     let mut identifiers_defined_in_this_chain = Vec::new();
-    for Transformation { operator, operand } in &mut chain.transformations {
-        if let (
-            OperatorSpan {
-                operator: Operator::Assignment,
-                span,
-            },
-            Expression::Identifier(name),
-        ) = (operator, operand.syn_type().clone())
-        {
-            identifiers_defined_in_this_chain.push(name.clone());
-            import_state.assignments.push(name)
+    for Operation { operator, operands } in &mut chain.operations {
+        let operand = operands.get_mut(0);
+        if let Some(operand) = operand {
+            if let (
+                OperatorSpan {
+                    operator: Operator::Assignment,
+                    span,
+                },
+                Expression::Identifier(name),
+            ) = (operator, operand.syn_type().clone())
+            {
+                identifiers_defined_in_this_chain.push(name.clone());
+                import_state.assignments.push(name)
+            }
+            track_identifiers_recursive(operand, import_state)?;
         }
-        track_identifiers_recursive(operand, import_state)?;
     }
 
     // unregister assignments done by this chain

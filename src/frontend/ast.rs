@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Branch, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Transformation, Type,
+    Branch, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Operation, Type,
     TypedIdentifier,
 };
 use crate::frontend::lexer::{lex, TokenizedSource};
@@ -123,8 +123,8 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>, span: Span) -> Resu
             PartialExpression::Expression(e) => {
                 accumulated.push(PartialExpression::expression_no_span(Expression::Chain(
                     Chain {
-                        initial: Box::new(e),
-                        transformations: transformations.into_iter().collect::<Vec<_>>(),
+                        initial: Some(Box::new(e)),
+                        operations: transformations.into_iter().collect::<Vec<_>>(),
                     },
                 )));
                 return Ok(());
@@ -150,9 +150,9 @@ fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), A
     if let Some(PartialExpression::Expression(operand)) = elem {
         let elem = accumulated.pop();
         if let Some(PartialExpression::Operator(operator)) = elem {
-            accumulated.push(PartialExpression::Operation(Transformation {
+            accumulated.push(PartialExpression::Operation(Operation {
                 operator: OperatorSpan::spanless(operator),
-                operand,
+                operands: vec![operand],
             }));
             Ok(())
         } else {

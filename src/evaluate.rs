@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr,
-    Transformation, TypedIdentifier,
+    Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, LoopOr, Map,
+    Operation, TimesOr, TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
@@ -220,12 +220,13 @@ impl<R: Read, W: Write> Runtime<R, W> {
         &mut self,
         Chain {
             initial,
-            transformations,
+            operations: transformations,
         }: &Chain,
     ) -> Result<i64, AnyError> {
         let mut identifiers = HashMap::<String, usize>::new();
-        let mut accumulated = self.evaluate_recursive(&*initial)?;
-        for Transformation { operator, operand } in transformations {
+        let mut accumulated = self.evaluate_recursive(&*initial.as_ref().unwrap())?;
+        for Operation { operator, operands } in transformations {
+            let operand = operands.first().unwrap();
             match &operator.operator {
                 Operator::Add => accumulated += self.evaluate_recursive(operand)?,
                 Operator::Substract => accumulated -= self.evaluate_recursive(operand)?,

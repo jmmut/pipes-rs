@@ -205,7 +205,7 @@ impl SourceCode {
     }
     // advances the cursor to the byte *after* the last successful predicate
     pub fn consume_while<F: Fn(u8, usize) -> bool>(&mut self, predicate: F) -> bool {
-        return if let Some(consumed) =
+        return if let Some(_consumed) =
             self.consume_if(|f, i| if predicate(f, i) { Some(()) } else { None })
         {
             self.next();

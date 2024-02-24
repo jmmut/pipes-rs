@@ -4,8 +4,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::{
-    Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Map, Replace,
-    Transformation, Type, TypedIdentifier,
+    Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Map, Operation, Replace,
+    Type, TypedIdentifier,
 };
 use crate::frontend::location::{SourceCode, Span};
 use crate::frontend::parse_type;
@@ -189,26 +189,37 @@ impl<'a> Typer<'a> {
     }
 
     fn check_types_chain(&mut self, chain: &Chain) -> Result<Type, AnyError> {
-        let mut accumulated_type = self.get_type(chain.initial.syn_type())?;
+        let mut accumulated_type = if let Some(initial) = &chain.initial {
+            self.get_type(initial.syn_type())?
+        } else {
+            builtin_types::ANY
+        };
+
         let mut assigned_in_this_chain = HashMap::new();
-        for t in &chain.transformations {
-            accumulated_type =
-                self.get_operation_type(&accumulated_type, t.operator, &t.operand)?;
-            if let Transformation {
+        for t in &chain.operations {
+            accumulated_type = self.get_operation_type(
+                &accumulated_type,
+                t.operator,
+                &t.operands.get(0).unwrap(),
+            )?;
+            if let Operation {
                 operator:
                     OperatorSpan {
                         operator: Operator::Assignment,
                         span: op_span,
                     },
-                operand:
-                    ExpressionSpan {
-                        syntactic_type: Expression::Identifier(name),
-                        span,
-                    },
+                operands,
             } = t
             {
-                *assigned_in_this_chain.entry(name.clone()).or_insert(0) += 1;
-                self.bind_identifier_type(name.clone(), accumulated_type.clone());
+                let operand = operands.first();
+                if let Some(ExpressionSpan {
+                    syntactic_type: Expression::Identifier(name),
+                    span,
+                }) = operand
+                {
+                    *assigned_in_this_chain.entry(name.clone()).or_insert(0) += 1;
+                    self.bind_identifier_type(name.clone(), accumulated_type.clone());
+                }
             }
         }
         for (to_unbind, times) in assigned_in_this_chain {
