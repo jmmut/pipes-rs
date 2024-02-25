@@ -714,7 +714,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::assert_mentions;
+    use crate::common::{assert_mentions, unwrap_display};
     use crate::frontend::lex_and_parse;
     use crate::frontend::location::SourceCode;
     use std::path::PathBuf;
@@ -722,7 +722,7 @@ mod tests {
     use super::*;
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
-        let expression = lex_and_parse(code_text).unwrap();
+        let expression = unwrap_display(lex_and_parse(code_text));
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result.unwrap()
     }

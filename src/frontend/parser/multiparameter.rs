@@ -111,7 +111,10 @@ fn construct_chain(pes: &mut PartialExpressions, open_brace_span: Span) -> Resul
         {
             push_e(
                 pes,
-                Expression::Chain(Chain{initial: Some(Box::new(initial)), operations}),
+                Expression::Chain(Chain {
+                    initial: Some(Box::new(initial)),
+                    operations,
+                }),
                 open_brace_span.merge(&close_span),
             );
             Ok(())
