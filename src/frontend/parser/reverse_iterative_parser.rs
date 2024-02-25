@@ -203,7 +203,7 @@ fn construct_transformation(
         span,
     };
     let accumulated = &mut parser.accumulated;
-    let elem_operand = accumulated.pop_front();
+    let mut elem_operand = accumulated.pop_front();
     let transformation = if let Operator::Type = raw_operator {
         if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Identifier(typename),
@@ -221,6 +221,28 @@ fn construct_transformation(
             Operation::single(operator, operand)
         } else {
             error_expected("type or type name after type operator ':'", elem_operand)?
+        }
+    } else if let Operator::Call = raw_operator {
+        let mut operands = Vec::new();
+        while let Some(PartialExpression::Expression(expr)) = elem_operand {
+            elem_operand = accumulated.pop_front();
+            operands.push(expr);
+        }
+        if let Some(elem) = elem_operand {
+            accumulated.push_front(elem);
+        }
+        if operands.len() > 0 {
+            let last_expr_span = operands.last().unwrap().span;
+            Operation {
+                operator: OperatorSpan {
+                    operator: raw_operator,
+                    span: span.merge(&last_expr_span),
+                },
+                operands,
+            }
+        } else {
+            let actual = accumulated.front();
+            err(expected("some callable expression", actual))?
         }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {

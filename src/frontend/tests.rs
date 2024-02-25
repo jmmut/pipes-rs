@@ -2,9 +2,14 @@ use crate::common::unwrap_display;
 use std::path::PathBuf;
 
 use crate::frontend::ast::ast_deserialize;
-use crate::frontend::expression::Expression;
+use crate::frontend::expression::{Chain, Expression, ExpressionSpan, Operation};
+use crate::frontend::token::{Operator, OperatorSpan};
 
 use super::*;
+
+fn mock_program(expression: Expression) -> Program {
+    Program::new(ExpressionSpan::new_spanless(expression))
+}
 
 #[test]
 fn test_nothing() {
@@ -89,6 +94,25 @@ fn test_complex() {
     let parsed = lex_and_parse("[ {5 +7 |print_char}  8 ]");
     let expected = ast_deserialize("[ 5 +7 Op |print_char Op Chain 8 ]").unwrap();
     assert_eq!(parsed.unwrap(), expected);
+}
+
+#[test]
+fn test_operators() {
+    let program = unwrap_display(lex_and_parse("3 |print_char 4 5"));
+    assert_eq!(
+        program,
+        mock_program(Expression::Chain(Chain {
+            initial: Some(Box::new(ExpressionSpan::new_spanless(Expression::Value(3)))),
+            operations: vec![Operation {
+                operator: OperatorSpan::spanless(Operator::Call),
+                operands: vec![
+                    ExpressionSpan::new_spanless(Expression::Identifier("print_char".to_string())),
+                    ExpressionSpan::new_spanless(Expression::Value(4)),
+                    ExpressionSpan::new_spanless(Expression::Value(5)),
+                ],
+            }],
+        }))
+    );
 }
 
 #[test]
