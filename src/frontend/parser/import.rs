@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Branch, Chain, Composed, Expression, ExpressionSpan, Function, Inspect, Loop, LoopOr, Map,
-    Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
+    Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
@@ -97,41 +97,65 @@ fn track_identifiers_recursive(
             }
             Ok(())
         }
-        Expression::Function(Function { parameter, body }) => {
-            track_identifiers_recursive_scope(import_state, parameter, body)
+        Expression::Function(Function { parameters, body }) => {
+            track_identifiers_recursive_scope(import_state, parameters.iter(), body)
         }
         Expression::Composed(Composed::Loop(Loop {
             iteration_elem,
             body,
-        })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        })) => track_identifiers_recursive_scope(
+            import_state,
+            vec![&*iteration_elem].into_iter(),
+            body,
+        ),
         Expression::Composed(Composed::LoopOr(LoopOr {
             iteration_elem,
             body,
             otherwise,
         })) => {
-            track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
+            track_identifiers_recursive_scope(
+                import_state,
+                vec![&*iteration_elem].into_iter(),
+                body,
+            )?;
             track_identifiers_recursive_chain(import_state, otherwise)
         }
         Expression::Composed(Composed::Times(Times {
             iteration_elem,
             body,
-        })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        })) => track_identifiers_recursive_scope(
+            import_state,
+            vec![&*iteration_elem].into_iter(),
+            body,
+        ),
         Expression::Composed(Composed::TimesOr(TimesOr {
             iteration_elem,
             body,
             otherwise,
         })) => {
-            track_identifiers_recursive_scope(import_state, iteration_elem, body)?;
+            track_identifiers_recursive_scope(
+                import_state,
+                vec![&*iteration_elem].into_iter(),
+                body,
+            )?;
             track_identifiers_recursive_chain(import_state, otherwise)
         }
         Expression::Composed(Composed::Replace(Replace {
             iteration_elem,
             body,
-        })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        })) => track_identifiers_recursive_scope(
+            import_state,
+            vec![&*iteration_elem].into_iter(),
+            body,
+        ),
         Expression::Composed(Composed::Map(Map {
             iteration_elem,
             body,
-        })) => track_identifiers_recursive_scope(import_state, iteration_elem, body),
+        })) => track_identifiers_recursive_scope(
+            import_state,
+            vec![&*iteration_elem].into_iter(),
+            body,
+        ),
         Expression::Composed(Composed::Branch(Branch { yes, no })) => {
             track_identifiers_recursive_chain(import_state, yes)?;
             track_identifiers_recursive_chain(import_state, no)
@@ -141,11 +165,11 @@ fn track_identifiers_recursive(
             something,
             nothing,
         })) => {
-            track_identifiers_recursive_scope(import_state, elem, something)?;
+            track_identifiers_recursive_scope(import_state, vec![&*elem].into_iter(), something)?;
             track_identifiers_recursive_chain(import_state, nothing)
         }
         Expression::Composed(Composed::Inspect(Inspect { elem, body })) => {
-            track_identifiers_recursive_scope(import_state, elem, body)
+            track_identifiers_recursive_scope(import_state, vec![&*elem].into_iter(), body)
         }
         Expression::Composed(Composed::Cast(_)) => Ok(()), // TODO: might need to import user-defined types
     }
@@ -274,14 +298,20 @@ fn import_identifier(
     }
 }
 
-fn track_identifiers_recursive_scope(
+fn track_identifiers_recursive_scope<'a, T: Iterator<Item = &'a TypedIdentifier>>(
     import_state: &mut ImportState,
-    parameter: &TypedIdentifier,
+    parameters: T,
     body: &mut Chain,
 ) -> Result<(), AnyError> {
-    import_state.parameter_stack.push(parameter.name.clone());
+    let mut params = 0;
+    for parameter in parameters {
+        import_state.parameter_stack.push(parameter.name.clone());
+        params += 1;
+    }
     let res = track_identifiers_recursive_chain(import_state, body);
-    import_state.parameter_stack.pop();
+    for _ in 0..params {
+        import_state.parameter_stack.pop();
+    }
     res
 }
 

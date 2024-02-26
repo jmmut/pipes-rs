@@ -191,8 +191,8 @@ pub fn construct_function_from_chain(
     let elem = accumulated.pop();
     match elem {
         Some(PartialExpression::Keyword(Keyword::Function)) => {
-            let parameter = TypedIdentifier::nameless(Type::nothing());
-            Ok(Function { parameter, body })
+            let parameters = Vec::new();
+            Ok(Function { parameters, body })
         }
         Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Identifier(param),
@@ -202,8 +202,8 @@ pub fn construct_function_from_chain(
             match elem {
                 Some(PartialExpression::Keyword(Keyword::Function)) => {
                     // TODO: accept typed parameter definition
-                    let parameter = TypedIdentifier::any(param);
-                    Ok(Function { parameter, body })
+                    let parameters = vec![TypedIdentifier::any(param)];
+                    Ok(Function { parameters, body })
                 }
                 _ => {
                     let err = Err((anyerror_expected("'function'", &elem), body));

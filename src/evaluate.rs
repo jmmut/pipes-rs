@@ -376,12 +376,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn call_function_expression(
         &mut self,
         argument: i64,
-        Function { parameter, body }: &Function,
+        Function { parameters, body }: &Function,
         closure: &Closure,
     ) -> Result<i64, AnyError> {
         let mut identifiers_inside = closure.clone().to_identifiers();
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
-        self.bind_identifier(parameter.name.clone(), argument);
+        for parameter in parameters {
+            self.bind_identifier(parameter.name.clone(), argument);
+        }
 
         let result = self.evaluate_chain(body)?;
 

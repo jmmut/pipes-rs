@@ -327,7 +327,7 @@ fn construct_function(
         }
 
         Ok(PartialExpression::expression_no_span(Expression::Type(
-            Type::function(parameter, returned),
+            Type::function_single(parameter, returned),
         )))
     }
 }

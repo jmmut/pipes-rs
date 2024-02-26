@@ -106,7 +106,10 @@ impl Expression {
     }
     #[allow(unused)]
     pub fn function(parameter: TypedIdentifier, body: Chain) -> Self {
-        Self::Function(Function { parameter, body })
+        Self::Function(Function {
+            parameters: vec![parameter],
+            body,
+        })
     }
     #[allow(unused)]
     pub fn loop_(elem: TypedIdentifier, body: Chain) -> Self {
@@ -219,7 +222,7 @@ pub enum Type {
         children: TypedIdentifiers,
     },
     Function {
-        parameter: Box<TypedIdentifier>,
+        parameters: TypedIdentifiers,
         returned: Box<TypedIdentifier>,
     },
 }
@@ -268,10 +271,32 @@ impl Type {
     pub fn nothing() -> Type {
         builtin_types::NOTHING
     }
-    pub fn function(parameter: TypedIdentifier, returned: TypedIdentifier) -> Type {
+    pub fn function_single(parameter: TypedIdentifier, returned: TypedIdentifier) -> Type {
         Type::Function {
-            parameter: Box::new(parameter),
+            parameters: vec![parameter],
             returned: Box::new(returned),
+        }
+    }
+    pub fn function(parameters: TypedIdentifiers, returned: TypedIdentifier) -> Type {
+        Type::Function {
+            parameters,
+            returned: Box::new(returned),
+        }
+    }
+
+    fn compare_typed_identifiers(
+        children_1: &TypedIdentifiers,
+        children_2: &TypedIdentifiers,
+    ) -> bool {
+        if children_1.len() == children_2.len() {
+            for (child_1, child_2) in children_1.iter().zip(children_2) {
+                if child_1.type_ != child_2.type_ {
+                    return false;
+                }
+            }
+            true
+        } else {
+            false
         }
     }
 }
@@ -283,18 +308,18 @@ impl Type {
             Type::Function { .. } => BuiltinType::Function.name(),
         }
     }
-
-    pub fn as_function(&self) -> Result<Option<(Type, Type)>, AnyError> {
-        if let Type::Function {
-            parameter,
-            returned,
-        } = self
-        {
-            Ok(Some((parameter.type_.clone(), returned.type_.clone())))
-        } else {
-            Ok(None)
-        }
-    }
+    //
+    // pub fn as_function(&self) -> Result<Option<(Type, Type)>, AnyError> {
+    //     if let Type::Function {
+    //         parameter,
+    //         returned,
+    //     } = self
+    //     {
+    //         Ok(Some((parameter.type_.clone(), returned.type_.clone())))
+    //     } else {
+    //         Ok(None)
+    //     }
+    // }
     pub fn array_element(&self) -> Result<TypedIdentifier, AnyError> {
         if let Type::Nested {
             type_name,
@@ -334,19 +359,14 @@ impl PartialEq for Type {
                     children_1 == children_2 // this comparison includes the name of the typed identifiers
                 } else {
                     // if not structs, only compare the types, not the names
-                    for (child_1, child_2) in children_1.iter().zip(children_2) {
-                        if child_1.type_ != child_2.type_ {
-                            return false;
-                        }
-                    }
-                    true
+                    Self::compare_typed_identifiers(children_1, children_2)
                 }
             }
             #[rustfmt::skip]
             (
-                Type::Function { parameter: param_1, returned: ret_1},
-                Type::Function { parameter: param_2, returned: ret_2},
-            ) => param_1.type_ == param_2.type_ && ret_1.type_ == ret_2.type_,
+                Type::Function { parameters: param_1, returned: ret_1},
+                Type::Function { parameters: param_2, returned: ret_2},
+            ) => Self::compare_typed_identifiers(param_1, param_2) && ret_1.type_ == ret_2.type_,
             (Type::Simple { .. }, Type::Nested { .. }) => false,
             (Type::Simple { .. }, Type::Function { .. }) => false,
 
@@ -377,10 +397,9 @@ impl Display for Type {
                 )
             }
             Type::Function {
-                parameter,
+                parameters,
                 returned,
             } => {
-                let parameters = vec![*parameter.clone()];
                 let returneds = vec![*returned.clone()];
                 let force_param_parens = returned.type_ != builtin_types::NOTHING;
                 write!(
@@ -449,7 +468,7 @@ impl Operation {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Function {
-    pub parameter: TypedIdentifier, // TODO: Vec<TypedIdentifier> ?
+    pub parameters: TypedIdentifiers,
     pub body: Chain,
 }
 
