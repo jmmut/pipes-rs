@@ -621,7 +621,7 @@ fn construct_array(
         ))
     } else if let Some(PartialExpression::Operation(Operation { operator, operands })) = elem {
         println!("span: {:?}", last_span);
-        let expected_message = expected("array end or expression", operator.operator);
+        let expected_message = expected("array end or expression", Some(operator.operator));
         let message = format!(
             "List elements need braces ('{{' and '}}') if they are chained operations.\n{}",
             expected_message

@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
@@ -73,7 +73,7 @@ fn construct_list(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyErr
         ));
         Ok(())
     } else {
-        error_expected("array start or expression", elem)
+        error_expected("array start or expression", elem.as_ref())
     }
 }
 
@@ -136,13 +136,13 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>, span: Span) -> Resu
                     ));
                     Ok(())
                 } else {
-                    error_expected("expression or operation", pe)
+                    error_expected("expression or operation", Some(pe))
                 }
             }
-            _ => return error_expected("expression or operation", pe),
+            _ => return error_expected("expression or operation", Some(pe)),
         }
     }
-    error_expected("expression", None::<()>)
+    error_expected("expression", None::<PartialExpression>)
 }
 
 fn construct_operation(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
@@ -206,7 +206,7 @@ pub fn construct_function_from_chain(
                     Ok(Function { parameters, body })
                 }
                 _ => {
-                    let err = Err((anyerror_expected("'function'", &elem), body));
+                    let err = Err((anyerror_expected("'function'", elem.as_ref()), body));
                     if let Some(to_push) = elem {
                         accumulated.push(to_push);
                     }
@@ -216,7 +216,7 @@ pub fn construct_function_from_chain(
         }
         _ => {
             let err = Err((
-                anyerror_expected("'function' or parameter name", &elem),
+                anyerror_expected("'function' or parameter name", elem.as_ref()),
                 body,
             ));
             if let Some(elem) = elem {
@@ -279,7 +279,7 @@ pub fn construct_loop_from_chain(
                     })
                 }
                 _ => {
-                    let err = Err((anyerror_expected("'loop'", &elem), body));
+                    let err = Err((anyerror_expected("'loop'", elem.as_ref()), body));
                     if let Some(to_push) = elem {
                         accumulated.push(to_push);
                     }
@@ -289,7 +289,7 @@ pub fn construct_loop_from_chain(
         }
         _ => {
             let err = Err((
-                anyerror_expected("'loop' or iteration element name", &elem),
+                anyerror_expected("'loop' or iteration element name", elem.as_ref()),
                 body,
             ));
             if let Some(elem) = elem {
@@ -418,14 +418,21 @@ fn finish_construction_expression(
     err(format!("unfinished code: {:?}", accumulated))
 }
 
-pub fn expected<T: Debug, S: AsRef<str>>(expected: S, actual: T) -> String {
-    format!("expected {} but was {:?}", expected.as_ref(), actual)
+pub fn error_expected<T: Display, R, S: AsRef<str>>(
+    expected: S,
+    actual: Option<T>,
+) -> Result<R, AnyError> {
+    Err(anyerror_expected(expected, actual))
 }
-pub fn error_expected<T: Debug, R, S: AsRef<str>>(expected: S, actual: T) -> Result<R, AnyError> {
-    Err(anyerror_expected(expected, &actual))
-}
-pub fn anyerror_expected<T: Debug, S: AsRef<str>>(expected_: S, actual: &T) -> AnyError {
+pub fn anyerror_expected<T: Display, S: AsRef<str>>(expected_: S, actual: Option<T>) -> AnyError {
     expected(expected_.as_ref(), actual).into()
+}
+pub fn expected<T: Display, S: AsRef<str>>(expected: S, actual: Option<T>) -> String {
+    if let Some(actual) = actual.as_ref() {
+        format!("expected {} but was '{}'", expected.as_ref(), actual)
+    } else {
+        format!("expected {} but was None", expected.as_ref())
+    }
 }
 #[cfg(test)]
 mod tests {
