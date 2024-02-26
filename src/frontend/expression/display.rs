@@ -110,7 +110,7 @@ impl Display for Type {
     }
 }
 
-fn typed_identifiers_to_str(children: &TypedIdentifiers, force_parenthesis: bool) -> String {
+pub fn typed_identifiers_to_str(children: &TypedIdentifiers, force_parenthesis: bool) -> String {
     if children.len() == 0 && !force_parenthesis {
         "".to_string()
     } else if children.len() == 1 && children[0].type_ == builtin_types::NOTHING {

@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::ast::{error_expected, expected};
+use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     take_single, Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Operation, Operations,
     Type, TypedIdentifier, TypedIdentifiers,
@@ -55,6 +57,26 @@ impl PartialExpression {
     }
     pub fn expression(e: Expression, span: Span) -> PartialExpression {
         PartialExpression::Expression(ExpressionSpan::new(e, span))
+    }
+}
+impl Display for PartialExpression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PartialExpression::OpenBracket(_) => write!(f, "["),
+            PartialExpression::CloseBracket(_) => write!(f, "]"),
+            PartialExpression::OpenBrace(_) => write!(f, "{{"),
+            PartialExpression::CloseBrace(_) => write!(f, "}}"),
+            PartialExpression::OpenParenthesis(_) => write!(f, "("),
+            PartialExpression::CloseParenthesis(_) => write!(f, ")"),
+            PartialExpression::Expression(expr) => write!(f, "{}", expr),
+            PartialExpression::Operation(op) => write!(f, "{}", op),
+            PartialExpression::Operator(op) => write!(f, "{}", op),
+            PartialExpression::Keyword(keyword) => write!(f, "{}", keyword.name()),
+            PartialExpression::ChildrenTypes(types) => {
+                write!(f, "{}", typed_identifiers_to_str(types, true))
+            }
+            PartialExpression::TypedIdentifier(name) => write!(f, "{}", name),
+        }
     }
 }
 
@@ -222,7 +244,7 @@ fn construct_transformation(
         } else {
             error_expected("type or type name after type operator ':'", elem_operand)?
         }
-    } else if let Operator::Call = raw_operator {
+    } else if Operator::Call == raw_operator || Operator::Concatenate == raw_operator {
         let mut operands = Vec::new();
         while let Some(PartialExpression::Expression(expr)) = elem_operand {
             elem_operand = accumulated.pop_front();

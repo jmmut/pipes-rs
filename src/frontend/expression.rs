@@ -1,4 +1,4 @@
-mod display;
+pub mod display;
 
 use crate::common::{err, AnyError};
 use crate::frontend::location::{Span, NO_SPAN};

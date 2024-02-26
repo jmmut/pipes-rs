@@ -242,7 +242,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 }
                 Operator::Overwrite => self.evaluate_overwrite(accumulated, operand)?,
                 Operator::Concatenate => {
-                    accumulated = self.evaluate_concatenate(accumulated, operand)?
+                    accumulated = self.evaluate_concatenate(accumulated, operands)?
                 }
                 Operator::Comparison(comparison) => {
                     accumulated = self.evaluate_compare(accumulated, *comparison, operand)?
@@ -676,21 +676,24 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn evaluate_concatenate(
         &mut self,
         accumulated: GenericValue,
-        operand: &ExpressionSpan,
+        operands: &Expressions,
     ) -> Result<ListPointer, AnyError> {
-        let second_pointer = match operand.syn_type() {
-            Expression::StaticList { elements } => self.evaluate_list(&elements),
-            Expression::Identifier(name) => self.get_identifier(name),
-            Expression::Chain(chain) => self.evaluate_chain(chain),
-            _ => err(format!(
-                "Expected to concatenate two lists, second operand is {:?}",
-                operand
-            )),
-        }?;
         let first_elems = self.get_list(accumulated)?;
-        let second_elems = self.get_list(second_pointer)?;
         let mut new_list = first_elems.clone();
-        new_list.append(&mut second_elems.clone());
+        for (i, operand) in operands.iter().enumerate() {
+            let second_pointer = match operand.syn_type() {
+                Expression::StaticList { elements } => self.evaluate_list(&elements),
+                Expression::Identifier(name) => self.get_identifier(name),
+                Expression::Chain(chain) => self.evaluate_chain(chain),
+                _ => err(format!(
+                    "Expected to concatenate two or more lists, operand #{} is {:?}",
+                    i + 1,
+                    operand,
+                )),
+            }?;
+            let second_elems = self.get_list(second_pointer)?;
+            new_list.append(&mut second_elems.clone());
+        }
         Ok(self.allocate_list(new_list))
     }
 
@@ -944,6 +947,10 @@ mod tests {
         assert_eq!(interpret("[10 11] |function(list) {list ++[12 13] #2}"), 12);
         assert_eq!(interpret("[10 11] |function(list) {[12 13] ++list #2}"), 10);
         assert_eq!(interpret("[10 11] ++{[12] ++[13]} #2"), 12);
+    }
+    #[test]
+    fn test_concat_several() {
+        assert_eq!(interpret("[10 11] ++[12 13] [14] [15 16] #6"), 16);
     }
 
     #[test]
