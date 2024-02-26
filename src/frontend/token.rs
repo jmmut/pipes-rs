@@ -1,4 +1,5 @@
 use crate::frontend::location::{Span, NO_SPAN};
+use std::fmt::{Display, Formatter};
 use strum_macros::EnumIter;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -54,6 +55,25 @@ impl PartialEq for OperatorSpan {
     }
 }
 
+pub const ADD: u8 = b'+';
+pub const SUBSTRACT: u8 = b'-';
+pub const MULTIPLY: &str = "|*";
+pub const DIVIDE: &str = "|/";
+pub const MODULO: u8 = b'%';
+pub const IGNORE: u8 = b';';
+pub const CALL: u8 = b'|';
+pub const GET: u8 = b'#';
+pub const TYPE: u8 = b':';
+pub const ASSIGNMENT: u8 = b'=';
+pub const OVERWRITE: &str = "=>";
+pub const CONCATENATE: &str = "++";
+
+pub const EQUALS: &str = "=?";
+pub const LESS_THAN: u8 = b'<';
+pub const GREATER_THAN: u8 = b'>';
+pub const LESS_THAN_EQUALS: &str = "<=";
+pub const GREATER_THAN_EQUALS: &str = ">=";
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Operator {
     Add,
@@ -78,6 +98,32 @@ pub enum Comparison {
     GreaterThan,
     LessThanEquals,
     GreaterThanEquals,
+}
+
+impl Display for Operator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Operator::Add => write!(f, "{}", ADD as char),
+            Operator::Substract => write!(f, "{}", SUBSTRACT as char),
+            Operator::Multiply => write!(f, "{}", MULTIPLY),
+            Operator::Divide => write!(f, "{}", DIVIDE),
+            Operator::Modulo => write!(f, "{}", MODULO as char),
+            Operator::Ignore => write!(f, "{}", IGNORE as char),
+            Operator::Call => write!(f, "{}", CALL as char),
+            Operator::Get => write!(f, "{}", GET as char),
+            Operator::Type => write!(f, "{}", TYPE as char),
+            Operator::Assignment => write!(f, "{}", ASSIGNMENT as char),
+            Operator::Overwrite => write!(f, "{}", OVERWRITE),
+            Operator::Concatenate => write!(f, "{}", CONCATENATE),
+            Operator::Comparison(Comparison::Equals) => write!(f, "{}", EQUALS),
+            Operator::Comparison(Comparison::LessThan) => write!(f, "{}", LESS_THAN as char),
+            Operator::Comparison(Comparison::GreaterThan) => write!(f, "{}", GREATER_THAN as char),
+            Operator::Comparison(Comparison::LessThanEquals) => write!(f, "{}", LESS_THAN_EQUALS),
+            Operator::Comparison(Comparison::GreaterThanEquals) => {
+                write!(f, "{}", GREATER_THAN_EQUALS)
+            }
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Debug, EnumIter)]

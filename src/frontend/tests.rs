@@ -118,14 +118,9 @@ fn test_complex() {
 
 #[test]
 fn test_operators() {
-    let program = unwrap_display(lex_and_parse("3 |print_char 4 5"));
-    assert_eq!(
-        program.main().syntactic_type,
-        chain(
-            Value(3),
-            vec![op(Call, vec![ident("print_char"), Value(8), Value(5)])]
-        )
-    );
+    let code = "3 |print_char 4 5";
+    let program = unwrap_display(lex_and_parse(code));
+    assert_eq!(program.main().to_string(), code);
 }
 
 #[test]
