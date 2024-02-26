@@ -220,12 +220,12 @@ impl<R: Read, W: Write> Runtime<R, W> {
         &mut self,
         Chain {
             initial,
-            operations: transformations,
+            operations,
         }: &Chain,
     ) -> Result<i64, AnyError> {
         let mut identifiers = HashMap::<String, usize>::new();
         let mut accumulated = self.evaluate_recursive(&*initial.as_ref().unwrap())?;
-        for Operation { operator, operands } in transformations {
+        for Operation { operator, operands } in operations {
             let operand = operands.first().unwrap();
             match &operator.operator {
                 Operator::Add => accumulated += self.evaluate_recursive(operand)?,
@@ -234,7 +234,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Divide => accumulated /= self.evaluate_recursive(operand)?,
                 Operator::Modulo => accumulated %= self.evaluate_recursive(operand)?,
                 Operator::Ignore => accumulated = self.evaluate_recursive(operand)?,
-                Operator::Call => accumulated = self.call_callable(accumulated, operand)?,
+                Operator::Call => accumulated = self.call_callable(accumulated, operands)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
                 Operator::Type => {}
                 Operator::Assignment => {
@@ -292,11 +292,16 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .push(value);
     }
 
-    fn call_callable(&mut self, argument: i64, callable: &ExpressionSpan) -> Result<i64, AnyError> {
+    fn call_callable(&mut self, argument: i64, operands: &Expressions) -> Result<i64, AnyError> {
+        let callable = operands.first().unwrap();
+        let mut evaluated_arguments = vec![argument];
+        for operand in &operands[1..] {
+            evaluated_arguments.push(self.evaluate_recursive(operand)?);
+        }
         match callable.syn_type() {
             Expression::Identifier(function_name) => {
                 let function_ptr = self.get_identifier(function_name)?;
-                self.call_function_pointer(argument, function_ptr)
+                self.call_function_pointer(&evaluated_arguments, function_ptr)
                     .map_err(|err| {
                         format!(
                             "Bug: Identifier '{}' is not a valid function. Details: {}",
@@ -306,7 +311,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     })
             }
             Expression::Function(function) => self.call_function_expression(
-                argument,
+                &evaluated_arguments,
                 function,
                 &Closure::new_from_current_scope(&self.identifiers),
             ),
@@ -343,7 +348,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Composed(Composed::Cast(_)) => Ok(argument),
             Expression::Chain(chain) => {
                 let function_pointer = self.evaluate_chain(chain)?;
-                self.call_function_pointer(argument, function_pointer)
+                self.call_function_pointer(&evaluated_arguments, function_pointer)
             }
             Expression::Nothing
             | Expression::Value(_)
@@ -357,16 +362,16 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
     fn call_function_pointer(
         &mut self,
-        argument: i64,
+        arguments: &[i64],
         function_ptr: GenericValue,
     ) -> Result<i64, AnyError> {
         if let Some(function_expr) = self.functions.get(function_ptr as usize).cloned() {
             match function_expr.as_ref() {
                 FunctionOrIntrinsic::Function(function, closure) => {
-                    self.call_function_expression(argument, function, closure)
+                    self.call_function_expression(arguments, function, closure)
                 }
                 FunctionOrIntrinsic::Intrinsic(intrinsic) => {
-                    self.call_intrinsic(argument, *intrinsic)
+                    self.call_intrinsic(arguments[0], *intrinsic)
                 }
             }
         } else {
@@ -375,14 +380,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
     }
     fn call_function_expression(
         &mut self,
-        argument: i64,
+        arguments: &[i64],
         Function { parameters, body }: &Function,
         closure: &Closure,
     ) -> Result<i64, AnyError> {
         let mut identifiers_inside = closure.clone().to_identifiers();
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
-        for parameter in parameters {
-            self.bind_identifier(parameter.name.clone(), argument);
+        for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+            self.bind_identifier(parameter.name.clone(), *argument);
         }
 
         let result = self.evaluate_chain(body)?;
@@ -789,6 +794,13 @@ mod tests {
         assert_eq!(interpret("5 |function(x) {x}"), 5);
         let err = interpret_fallible("4|3").expect_err("should have failed");
         assert_mentions(err, &["as a function", "3"])
+    }
+    #[test]
+    fn test_function_parameters() {
+        assert_eq!(
+            interpret("5 |function(x  y :i64  z) {x |*10 +y |*10 +z} 6 7"),
+            567
+        );
     }
     #[test]
     fn test_function_closure() {

@@ -693,11 +693,11 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
     } else {
         let error_message = format!("unfinished code: {:?}", accumulated);
         accumulated.push_back(PartialExpression::CloseBrace(NO_SPAN));
-        let e = construct_chain(accumulated, &parser.source, NO_SPAN)?;
+        let expr = construct_chain(accumulated, &parser.source, NO_SPAN)?;
         if !accumulated.is_empty() {
             return err(error_message);
         } else {
-            e
+            expr
         }
     };
 
