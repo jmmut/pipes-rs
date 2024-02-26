@@ -2,10 +2,30 @@ use crate::common::unwrap_display;
 use std::path::PathBuf;
 
 use crate::frontend::ast::ast_deserialize;
-use crate::frontend::expression::{Chain, Expression, ExpressionSpan, Operation};
+use crate::frontend::expression::Expression::Value;
+use crate::frontend::expression::{
+    Chain, Expression, ExpressionSpan, Expressions, Operation, Operations,
+};
+use crate::frontend::token::Operator::Call;
 use crate::frontend::token::{Operator, OperatorSpan};
 
 use super::*;
+
+fn chain(initial: Expression, operations: Operations) -> Expression {
+    Expression::chain(Box::new(ExpressionSpan::new_spanless(initial)), operations)
+}
+fn op(operator: Operator, expressions: Vec<Expression>) -> Operation {
+    Operation::several(
+        OperatorSpan::spanless(operator),
+        expressions
+            .into_iter()
+            .map(|e| ExpressionSpan::new_spanless(e))
+            .collect(),
+    )
+}
+fn ident(name: &str) -> Expression {
+    Expression::Identifier(name.to_string())
+}
 
 fn mock_program(expression: Expression) -> Program {
     Program::new(ExpressionSpan::new_spanless(expression))
@@ -100,18 +120,11 @@ fn test_complex() {
 fn test_operators() {
     let program = unwrap_display(lex_and_parse("3 |print_char 4 5"));
     assert_eq!(
-        program,
-        mock_program(Expression::Chain(Chain {
-            initial: Some(Box::new(ExpressionSpan::new_spanless(Expression::Value(3)))),
-            operations: vec![Operation {
-                operator: OperatorSpan::spanless(Operator::Call),
-                operands: vec![
-                    ExpressionSpan::new_spanless(Expression::Identifier("print_char".to_string())),
-                    ExpressionSpan::new_spanless(Expression::Value(4)),
-                    ExpressionSpan::new_spanless(Expression::Value(5)),
-                ],
-            }],
-        }))
+        program.main().syntactic_type,
+        chain(
+            Value(3),
+            vec![op(Call, vec![ident("print_char"), Value(8), Value(5)])]
+        )
     );
 }
 

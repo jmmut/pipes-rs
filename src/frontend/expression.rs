@@ -105,11 +105,14 @@ impl Expression {
         })
     }
     #[allow(unused)]
-    pub fn function(parameter: TypedIdentifier, body: Chain) -> Self {
+    pub fn function_single(parameter: TypedIdentifier, body: Chain) -> Self {
         Self::Function(Function {
             parameters: vec![parameter],
             body,
         })
+    }
+    pub fn function(parameters: TypedIdentifiers, body: Chain) -> Self {
+        Self::Function(Function { parameters, body })
     }
     #[allow(unused)]
     pub fn loop_(elem: TypedIdentifier, body: Chain) -> Self {
@@ -463,6 +466,9 @@ impl Operation {
             operator,
             operands: vec![operand],
         }
+    }
+    pub fn several(operator: OperatorSpan, operands: Expressions) -> Operation {
+        Operation { operator, operands }
     }
 }
 

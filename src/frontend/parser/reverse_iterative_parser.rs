@@ -306,9 +306,13 @@ fn construct_function(
     accumulated: &mut VecDeque<PartialExpression>,
     span: Span,
 ) -> Result<PartialExpression, AnyError> {
-    let elem = accumulated.pop_front();
-
-    let (parameter, elem) = extract_single_child_type(accumulated, elem);
+    let mut elem = accumulated.pop_front();
+    let parameters = if let Some(PartialExpression::ChildrenTypes(children)) = elem {
+        elem = accumulated.pop_front();
+        children
+    } else {
+        Vec::new()
+    };
 
     if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Chain(body),
@@ -316,7 +320,7 @@ fn construct_function(
     })) = elem
     {
         Ok(PartialExpression::expression(
-            Expression::function(parameter, body),
+            Expression::function(parameters, body),
             span.merge(&chain_span),
         ))
     } else {
@@ -327,7 +331,7 @@ fn construct_function(
         }
 
         Ok(PartialExpression::expression_no_span(Expression::Type(
-            Type::function_single(parameter, returned),
+            Type::function(parameters, returned),
         )))
     }
 }
