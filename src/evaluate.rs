@@ -806,13 +806,6 @@ mod tests {
             interpret("5 |function(x  y :i64  z) {x |*10 +y |*10 +z} 6 7"),
             567
         );
-
-        let main_path = PathBuf::from("./untracked/advent_of_code_2023/common.pipes");
-        let code = SourceCode::new(main_path.clone()).unwrap();
-        let parsed = unwrap_display(lex_and_parse(code));
-
-        let result = Runtime::evaluate(parsed, std::io::stdin(), std::io::stdout());
-        assert_eq!(result.unwrap(), NOTHING);
     }
     #[test]
     fn test_function_closure() {
@@ -875,7 +868,7 @@ mod tests {
         let code = "
             function (x) { x + 1 }
             =increment
-            |function {
+            |function(inc) {
                 function(x) { x - 1 }
                 =increment // this is really decrement, but shadows the outer increment
                 ;5

@@ -520,11 +520,19 @@ impl<'a> Typer<'a> {
             parameters: actual_params,
             returned: Box::new(TypedIdentifier::nameless(builtin_types::ANY)),
         };
-        let unified_callable = self.assert_type_unifies(&actual_function_type, callable_type, operator_span)?;
-        if let Type::Function {parameters, returned} = unified_callable {
+        let unified_callable =
+            self.assert_type_unifies(&actual_function_type, callable_type, operator_span)?;
+        if let Type::Function {
+            parameters,
+            returned,
+        } = unified_callable
+        {
             Ok(returned.type_)
         } else {
-            err(format!("Bug: unified type of callable should be a function but was {}", unified_callable))
+            err(format!(
+                "Bug: unified type of callable should be a function but was {}",
+                unified_callable
+            ))
         }
     }
 
