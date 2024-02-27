@@ -92,7 +92,7 @@ fn unify_name(first: &String, second: &String) -> String {
     }
 }
 
-fn unify_typed_identifiers(
+pub fn unify_typed_identifiers(
     firsts: &TypedIdentifiers,
     seconds: &TypedIdentifiers,
 ) -> Option<TypedIdentifiers> {

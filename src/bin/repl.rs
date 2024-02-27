@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::Duration;
 
+/// Continuously (~10 times per second) try to interpret (or typecheck) a pipes program.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {

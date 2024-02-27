@@ -565,38 +565,55 @@ fn construct_cast(parser: &mut Parser) -> Result<PartialExpression, AnyError> {
 fn construct_chain(
     accumulated: &mut VecDeque<PartialExpression>,
     source: &SourceCode,
-    span: Span,
+    open_brace_span: Span,
 ) -> Result<ExpressionSpan, AnyError> {
     let elem_expression = accumulated.pop_front();
     match elem_expression {
-        Some(PartialExpression::CloseBrace(span)) => {
-            Ok(ExpressionSpan::new_spanless(Expression::empty_chain()))
-        }
+        Some(PartialExpression::CloseBrace(span)) => Ok(ExpressionSpan::new(
+            Expression::empty_chain(),
+            open_brace_span.merge(&span),
+        )),
         Some(PartialExpression::Expression(initial)) => {
-            construct_chain_transformations(accumulated, initial)
+            construct_chain_transformations(accumulated, initial, source, open_brace_span)
         }
-        _ => error_expected("expression or closing brace", elem_expression),
+        _ => err_span(
+            expected("expression or closing brace", elem_expression),
+            source,
+            open_brace_span,
+        ),
     }
 }
 
 fn construct_chain_transformations(
     accumulated: &mut VecDeque<PartialExpression>,
     initial: ExpressionSpan,
+    source: &SourceCode,
+    open_brace_span: Span,
 ) -> Result<ExpressionSpan, AnyError> {
     let mut transformations = Operations::new();
+    let mut last_span = open_brace_span;
     loop {
         let elem_operator = accumulated.pop_front();
         match elem_operator {
             Some(PartialExpression::CloseBrace(span)) => {
-                return Ok(ExpressionSpan::new_spanless(Expression::chain(
-                    Box::new(initial),
-                    transformations,
-                )))
+                return Ok(ExpressionSpan::new(
+                    Expression::chain(Box::new(initial), transformations),
+                    open_brace_span.merge(&span),
+                ))
             }
             Some(PartialExpression::Operation(transformation)) => {
+                last_span = transformation
+                    .operands
+                    .last()
+                    .map(|o| o.span)
+                    .unwrap_or(transformation.operator.span);
                 transformations.push(transformation);
             }
-            _ => error_expected("operator or closing brace", elem_operator)?,
+            _ => err_span(
+                expected("operator or closing brace", elem_operator),
+                source,
+                open_brace_span.merge(&last_span),
+            )?,
         }
     }
 }
@@ -617,10 +634,9 @@ fn construct_array(
     if let Some(PartialExpression::CloseBracket(span)) = elem {
         Ok(ExpressionSpan::new(
             Expression::StaticList { elements },
-            span,
+            open_bracket_span.merge(&span),
         ))
     } else if let Some(PartialExpression::Operation(Operation { operator, operands })) = elem {
-        println!("span: {:?}", last_span);
         let expected_message = expected("array end or expression", Some(operator.operator));
         let message = format!(
             "List elements need braces ('{{' and '}}') if they are chained operations.\n{}",
@@ -628,7 +644,6 @@ fn construct_array(
         );
         err_span(message, source, operator.span)
     } else {
-        println!("span: {:?}", last_span);
         err_span(
             expected("array end or expression", elem),
             source,
