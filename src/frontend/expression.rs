@@ -1,8 +1,9 @@
+pub mod display;
+
 use crate::common::{err, AnyError};
 use crate::frontend::location::{Span, NO_SPAN};
 use crate::frontend::token::OperatorSpan;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
-use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub struct ExpressionSpan {
@@ -97,16 +98,22 @@ impl Expression {
     pub fn empty_chain() -> Self {
         Self::Chain(Chain::empty())
     }
-    #[allow(unused)]
-    pub fn chain(initial: Box<ExpressionSpan>, transformations: Transformations) -> Self {
+
+    pub fn chain(initial: Box<ExpressionSpan>, operations: Operations) -> Self {
         Self::Chain(Chain {
-            initial,
-            transformations,
+            initial: Some(initial),
+            operations,
         })
     }
     #[allow(unused)]
-    pub fn function(parameter: TypedIdentifier, body: Chain) -> Self {
-        Self::Function(Function { parameter, body })
+    pub fn function_single(parameter: TypedIdentifier, body: Chain) -> Self {
+        Self::Function(Function {
+            parameters: vec![parameter],
+            body,
+        })
+    }
+    pub fn function(parameters: TypedIdentifiers, body: Chain) -> Self {
+        Self::Function(Function { parameters, body })
     }
     #[allow(unused)]
     pub fn loop_(elem: TypedIdentifier, body: Chain) -> Self {
@@ -199,16 +206,6 @@ impl<S: Into<String> + AsRef<str>> From<S> for TypeName {
     }
 }
 
-impl Display for TypeName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            TypeName::Builtin(name) => name,
-            TypeName::UserDefined(name) => name.as_str(),
-        };
-        write!(f, "{}", name)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Type {
     Simple {
@@ -219,7 +216,7 @@ pub enum Type {
         children: TypedIdentifiers,
     },
     Function {
-        parameter: Box<TypedIdentifier>,
+        parameters: TypedIdentifiers,
         returned: Box<TypedIdentifier>,
     },
 }
@@ -268,10 +265,32 @@ impl Type {
     pub fn nothing() -> Type {
         builtin_types::NOTHING
     }
-    pub fn function(parameter: TypedIdentifier, returned: TypedIdentifier) -> Type {
+    pub fn function_single(parameter: TypedIdentifier, returned: TypedIdentifier) -> Type {
         Type::Function {
-            parameter: Box::new(parameter),
+            parameters: vec![parameter],
             returned: Box::new(returned),
+        }
+    }
+    pub fn function(parameters: TypedIdentifiers, returned: TypedIdentifier) -> Type {
+        Type::Function {
+            parameters,
+            returned: Box::new(returned),
+        }
+    }
+
+    fn compare_typed_identifiers(
+        children_1: &TypedIdentifiers,
+        children_2: &TypedIdentifiers,
+    ) -> bool {
+        if children_1.len() == children_2.len() {
+            for (child_1, child_2) in children_1.iter().zip(children_2) {
+                if child_1.type_ != child_2.type_ {
+                    return false;
+                }
+            }
+            true
+        } else {
+            false
         }
     }
 }
@@ -283,18 +302,18 @@ impl Type {
             Type::Function { .. } => BuiltinType::Function.name(),
         }
     }
-
-    pub fn as_function(&self) -> Result<Option<(Type, Type)>, AnyError> {
-        if let Type::Function {
-            parameter,
-            returned,
-        } = self
-        {
-            Ok(Some((parameter.type_.clone(), returned.type_.clone())))
-        } else {
-            Ok(None)
-        }
-    }
+    //
+    // pub fn as_function(&self) -> Result<Option<(Type, Type)>, AnyError> {
+    //     if let Type::Function {
+    //         parameter,
+    //         returned,
+    //     } = self
+    //     {
+    //         Ok(Some((parameter.type_.clone(), returned.type_.clone())))
+    //     } else {
+    //         Ok(None)
+    //     }
+    // }
     pub fn array_element(&self) -> Result<TypedIdentifier, AnyError> {
         if let Type::Nested {
             type_name,
@@ -334,19 +353,14 @@ impl PartialEq for Type {
                     children_1 == children_2 // this comparison includes the name of the typed identifiers
                 } else {
                     // if not structs, only compare the types, not the names
-                    for (child_1, child_2) in children_1.iter().zip(children_2) {
-                        if child_1.type_ != child_2.type_ {
-                            return false;
-                        }
-                    }
-                    true
+                    Self::compare_typed_identifiers(children_1, children_2)
                 }
             }
             #[rustfmt::skip]
             (
-                Type::Function { parameter: param_1, returned: ret_1},
-                Type::Function { parameter: param_2, returned: ret_2},
-            ) => param_1.type_ == param_2.type_ && ret_1.type_ == ret_2.type_,
+                Type::Function { parameters: param_1, returned: ret_1},
+                Type::Function { parameters: param_2, returned: ret_2},
+            ) => Self::compare_typed_identifiers(param_1, param_2) && ret_1.type_ == ret_2.type_,
             (Type::Simple { .. }, Type::Nested { .. }) => false,
             (Type::Simple { .. }, Type::Function { .. }) => false,
 
@@ -359,90 +373,41 @@ impl PartialEq for Type {
     }
 }
 
-impl Display for Type {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Type::Simple { type_name } => {
-                write!(f, "{}", type_name)
-            }
-            Type::Nested {
-                type_name,
-                children,
-            } => {
-                write!(
-                    f,
-                    "{}{}",
-                    type_name,
-                    typed_identifiers_to_str(&children, false)
-                )
-            }
-            Type::Function {
-                parameter,
-                returned,
-            } => {
-                let parameters = vec![*parameter.clone()];
-                let returneds = vec![*returned.clone()];
-                let force_param_parens = returned.type_ != builtin_types::NOTHING;
-                write!(
-                    f,
-                    "function{}{}",
-                    typed_identifiers_to_str(&parameters, force_param_parens),
-                    typed_identifiers_to_str(&returneds, false)
-                )
-            }
-        }
-    }
-}
-
-fn typed_identifiers_to_str(children: &TypedIdentifiers, force_parenthesis: bool) -> String {
-    if children.len() == 0 && !force_parenthesis {
-        "".to_string()
-    } else if children.len() == 1 && children[0].type_ == builtin_types::NOTHING {
-        if force_parenthesis {
-            "()".to_string()
-        } else {
-            "".to_string()
-        }
-    } else {
-        let mut accum = "(".to_string();
-        for child in children {
-            accum += &child.to_string();
-            accum += "  ";
-        }
-        if !children.is_empty() {
-            accum.pop();
-            accum.pop();
-        }
-        accum += ")";
-        accum
-    }
-}
-
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
-    pub initial: Box<ExpressionSpan>,
-    pub transformations: Transformations,
-    // pub type_: Type,
-    // pub identifiers
+    pub initial: Option<Box<ExpressionSpan>>,
+    pub operations: Operations,
 }
 
 impl Chain {
     pub fn empty() -> Self {
         Self {
-            initial: Box::new(ExpressionSpan::new(Expression::Nothing, NO_SPAN)),
-            transformations: Vec::new(),
+            initial: Some(Box::new(ExpressionSpan::new(Expression::Nothing, NO_SPAN))),
+            operations: Vec::new(),
         }
     }
 }
+
 #[derive(PartialEq, Debug, Clone)]
-pub struct Transformation {
+pub struct Operation {
     pub operator: OperatorSpan,
-    pub operand: ExpressionSpan, // TODO: list of expressions?
+    pub operands: Expressions,
+}
+impl Operation {
+    pub fn single(operator: OperatorSpan, operand: ExpressionSpan) -> Operation {
+        Operation {
+            operator,
+            operands: vec![operand],
+        }
+    }
+    pub fn several(operator: OperatorSpan, operands: Expressions) -> Operation {
+        Operation { operator, operands }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Function {
-    pub parameter: TypedIdentifier, // TODO: Vec<TypedIdentifier> ?
+    pub parameters: TypedIdentifiers,
     pub body: Chain,
 }
 
@@ -483,16 +448,6 @@ impl TypedIdentifier {
         Self {
             name: "".to_string(),
             type_,
-        }
-    }
-}
-
-impl Display for TypedIdentifier {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.name.is_empty() {
-            write!(f, ":{}", self.type_)
-        } else {
-            write!(f, "{} :{}", self.name, self.type_)
         }
     }
 }
@@ -556,31 +511,12 @@ pub struct Cast {
 }
 
 pub type Expressions = Vec<ExpressionSpan>;
-pub type Transformations = Vec<Transformation>;
+pub type Operations = Vec<Operation>;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::frontend::parse_type;
-
-    #[test]
-    fn test_display_simple_type() {
-        assert_type_displayed("simple_name");
-    }
-    #[test]
-    fn test_display_nested_type() {
-        assert_type_displayed("array(:i64)");
-    }
-    #[test]
-    fn test_display_function_type() {
-        assert_type_displayed("function(param_name :param_type)(return_name :return_type)");
-        assert_type_displayed("function");
-        assert_type_displayed("function()(:i64)");
-    }
-
-    fn assert_type_displayed(code: &str) {
-        let type_ = parse_type(code);
-        let displayed = format!("{}", type_);
-        assert_eq!(displayed, code);
+pub fn take_single(mut expressions: Expressions) -> Option<ExpressionSpan> {
+    if expressions.len() != 1 {
+        None
+    } else {
+        expressions.pop()
     }
 }

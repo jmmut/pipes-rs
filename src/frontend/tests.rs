@@ -2,9 +2,34 @@ use crate::common::unwrap_display;
 use std::path::PathBuf;
 
 use crate::frontend::ast::ast_deserialize;
-use crate::frontend::expression::Expression;
+use crate::frontend::expression::Expression::Value;
+use crate::frontend::expression::{
+    Chain, Expression, ExpressionSpan, Expressions, Operation, Operations,
+};
+use crate::frontend::token::Operator::Call;
+use crate::frontend::token::{Operator, OperatorSpan};
 
 use super::*;
+
+fn chain(initial: Expression, operations: Operations) -> Expression {
+    Expression::chain(Box::new(ExpressionSpan::new_spanless(initial)), operations)
+}
+fn op(operator: Operator, expressions: Vec<Expression>) -> Operation {
+    Operation::several(
+        OperatorSpan::spanless(operator),
+        expressions
+            .into_iter()
+            .map(|e| ExpressionSpan::new_spanless(e))
+            .collect(),
+    )
+}
+fn ident(name: &str) -> Expression {
+    Expression::Identifier(name.to_string())
+}
+
+fn mock_program(expression: Expression) -> Program {
+    Program::new(ExpressionSpan::new_spanless(expression))
+}
 
 #[test]
 fn test_nothing() {
@@ -89,6 +114,13 @@ fn test_complex() {
     let parsed = lex_and_parse("[ {5 +7 |print_char}  8 ]");
     let expected = ast_deserialize("[ 5 +7 Op |print_char Op Chain 8 ]").unwrap();
     assert_eq!(parsed.unwrap(), expected);
+}
+
+#[test]
+fn test_operators() {
+    let code = "3 |print_char 4 5";
+    let program = unwrap_display(lex_and_parse(code));
+    assert_eq!(program.main().to_string(), code);
 }
 
 #[test]

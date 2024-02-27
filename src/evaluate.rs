@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, LoopOr, Map, TimesOr,
-    Transformation, TypedIdentifier,
+    Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, LoopOr, Map,
+    Operation, TimesOr, TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
@@ -220,12 +220,13 @@ impl<R: Read, W: Write> Runtime<R, W> {
         &mut self,
         Chain {
             initial,
-            transformations,
+            operations,
         }: &Chain,
     ) -> Result<i64, AnyError> {
         let mut identifiers = HashMap::<String, usize>::new();
-        let mut accumulated = self.evaluate_recursive(&*initial)?;
-        for Transformation { operator, operand } in transformations {
+        let mut accumulated = self.evaluate_recursive(&*initial.as_ref().unwrap())?;
+        for Operation { operator, operands } in operations {
+            let operand = operands.first().unwrap();
             match &operator.operator {
                 Operator::Add => accumulated += self.evaluate_recursive(operand)?,
                 Operator::Substract => accumulated -= self.evaluate_recursive(operand)?,
@@ -233,7 +234,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Divide => accumulated /= self.evaluate_recursive(operand)?,
                 Operator::Modulo => accumulated %= self.evaluate_recursive(operand)?,
                 Operator::Ignore => accumulated = self.evaluate_recursive(operand)?,
-                Operator::Call => accumulated = self.call_callable(accumulated, operand)?,
+                Operator::Call => accumulated = self.call_callable(accumulated, operands)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
                 Operator::Type => {}
                 Operator::Assignment => {
@@ -241,7 +242,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 }
                 Operator::Overwrite => self.evaluate_overwrite(accumulated, operand)?,
                 Operator::Concatenate => {
-                    accumulated = self.evaluate_concatenate(accumulated, operand)?
+                    accumulated = self.evaluate_concatenate(accumulated, operands)?
                 }
                 Operator::Comparison(comparison) => {
                     accumulated = self.evaluate_compare(accumulated, *comparison, operand)?
@@ -291,11 +292,16 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .push(value);
     }
 
-    fn call_callable(&mut self, argument: i64, callable: &ExpressionSpan) -> Result<i64, AnyError> {
+    fn call_callable(&mut self, argument: i64, operands: &Expressions) -> Result<i64, AnyError> {
+        let callable = operands.first().unwrap();
+        let mut evaluated_arguments = vec![argument];
+        for operand in &operands[1..] {
+            evaluated_arguments.push(self.evaluate_recursive(operand)?);
+        }
         match callable.syn_type() {
             Expression::Identifier(function_name) => {
                 let function_ptr = self.get_identifier(function_name)?;
-                self.call_function_pointer(argument, function_ptr)
+                self.call_function_pointer(&evaluated_arguments, function_ptr)
                     .map_err(|err| {
                         format!(
                             "Bug: Identifier '{}' is not a valid function. Details: {}",
@@ -305,7 +311,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     })
             }
             Expression::Function(function) => self.call_function_expression(
-                argument,
+                &evaluated_arguments,
                 function,
                 &Closure::new_from_current_scope(&self.identifiers),
             ),
@@ -342,7 +348,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Composed(Composed::Cast(_)) => Ok(argument),
             Expression::Chain(chain) => {
                 let function_pointer = self.evaluate_chain(chain)?;
-                self.call_function_pointer(argument, function_pointer)
+                self.call_function_pointer(&evaluated_arguments, function_pointer)
             }
             Expression::Nothing
             | Expression::Value(_)
@@ -356,16 +362,16 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
     fn call_function_pointer(
         &mut self,
-        argument: i64,
+        arguments: &[i64],
         function_ptr: GenericValue,
     ) -> Result<i64, AnyError> {
         if let Some(function_expr) = self.functions.get(function_ptr as usize).cloned() {
             match function_expr.as_ref() {
                 FunctionOrIntrinsic::Function(function, closure) => {
-                    self.call_function_expression(argument, function, closure)
+                    self.call_function_expression(arguments, function, closure)
                 }
                 FunctionOrIntrinsic::Intrinsic(intrinsic) => {
-                    self.call_intrinsic(argument, *intrinsic)
+                    self.call_intrinsic(arguments[0], *intrinsic)
                 }
             }
         } else {
@@ -374,13 +380,15 @@ impl<R: Read, W: Write> Runtime<R, W> {
     }
     fn call_function_expression(
         &mut self,
-        argument: i64,
-        Function { parameter, body }: &Function,
+        arguments: &[i64],
+        Function { parameters, body }: &Function,
         closure: &Closure,
     ) -> Result<i64, AnyError> {
         let mut identifiers_inside = closure.clone().to_identifiers();
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
-        self.bind_identifier(parameter.name.clone(), argument);
+        for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+            self.bind_identifier(parameter.name.clone(), *argument);
+        }
 
         let result = self.evaluate_chain(body)?;
 
@@ -668,21 +676,24 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn evaluate_concatenate(
         &mut self,
         accumulated: GenericValue,
-        operand: &ExpressionSpan,
+        operands: &Expressions,
     ) -> Result<ListPointer, AnyError> {
-        let second_pointer = match operand.syn_type() {
-            Expression::StaticList { elements } => self.evaluate_list(&elements),
-            Expression::Identifier(name) => self.get_identifier(name),
-            Expression::Chain(chain) => self.evaluate_chain(chain),
-            _ => err(format!(
-                "Expected to concatenate two lists, second operand is {:?}",
-                operand
-            )),
-        }?;
         let first_elems = self.get_list(accumulated)?;
-        let second_elems = self.get_list(second_pointer)?;
         let mut new_list = first_elems.clone();
-        new_list.append(&mut second_elems.clone());
+        for (i, operand) in operands.iter().enumerate() {
+            let second_pointer = match operand.syn_type() {
+                Expression::StaticList { elements } => self.evaluate_list(&elements),
+                Expression::Identifier(name) => self.get_identifier(name),
+                Expression::Chain(chain) => self.evaluate_chain(chain),
+                _ => err(format!(
+                    "Expected to concatenate two or more lists, operand #{} is {:?}",
+                    i + 1,
+                    operand,
+                )),
+            }?;
+            let second_elems = self.get_list(second_pointer)?;
+            new_list.append(&mut second_elems.clone());
+        }
         Ok(self.allocate_list(new_list))
     }
 
@@ -713,15 +724,17 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::assert_mentions;
+    use crate::common::{assert_mentions, unwrap_display};
     use crate::frontend::lex_and_parse;
     use crate::frontend::location::SourceCode;
+    use crate::middleend::typing::check_types;
     use std::path::PathBuf;
 
     use super::*;
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
-        let expression = lex_and_parse(code_text).unwrap();
+        let expression = unwrap_display(lex_and_parse(code_text));
+        unwrap_display(check_types(&expression));
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result.unwrap()
     }
@@ -786,6 +799,20 @@ mod tests {
         assert_eq!(interpret("5 |function(x) {x}"), 5);
         let err = interpret_fallible("4|3").expect_err("should have failed");
         assert_mentions(err, &["as a function", "3"])
+    }
+    #[test]
+    fn test_function_parameters() {
+        assert_eq!(
+            interpret("5 |function(x  y :i64  z) {x |*10 +y |*10 +z} 6 7"),
+            567
+        );
+
+        let main_path = PathBuf::from("./untracked/advent_of_code_2023/common.pipes");
+        let code = SourceCode::new(main_path.clone()).unwrap();
+        let parsed = unwrap_display(lex_and_parse(code));
+
+        let result = Runtime::evaluate(parsed, std::io::stdin(), std::io::stdout());
+        assert_eq!(result.unwrap(), NOTHING);
     }
     #[test]
     fn test_function_closure() {
@@ -929,6 +956,10 @@ mod tests {
         assert_eq!(interpret("[10 11] |function(list) {list ++[12 13] #2}"), 12);
         assert_eq!(interpret("[10 11] |function(list) {[12 13] ++list #2}"), 10);
         assert_eq!(interpret("[10 11] ++{[12] ++[13]} #2"), 12);
+    }
+    #[test]
+    fn test_concat_several() {
+        assert_eq!(interpret("[10 11] ++[12 13] [14] [15 16] #6"), 16);
     }
 
     #[test]

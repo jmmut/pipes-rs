@@ -26,12 +26,12 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
         },
         #[rustfmt::skip]
         (
-            Type::Function { parameter: param_1, returned: returned_1},
-            Type::Function { parameter: param_2, returned: returned_2},
+            Type::Function { parameters: param_1, returned: returned_1},
+            Type::Function { parameters: param_2, returned: returned_2},
         ) => {
-            let parameter = Box::new(unify_typed_identifier(param_1, param_2)?);
+            let parameters = unify_typed_identifiers(param_1, param_2)?;
             let returned = Box::new(unify_typed_identifier(returned_1, returned_2)?);
-            Some(Type::Function {parameter, returned})
+            Some(Type::Function { parameters, returned})
         }
         (_, _) => None,
     }
@@ -65,7 +65,7 @@ fn unify_nested(
     children_1: &TypedIdentifiers,
     children_2: &TypedIdentifiers,
 ) -> Option<Type> {
-    if let Some(children) = unify_list(children_1, children_2) {
+    if let Some(children) = unify_typed_identifiers(children_1, children_2) {
         Some(Type::from(second_name, children))
     } else {
         None
@@ -92,7 +92,10 @@ fn unify_name(first: &String, second: &String) -> String {
     }
 }
 
-fn unify_list(firsts: &TypedIdentifiers, seconds: &TypedIdentifiers) -> Option<TypedIdentifiers> {
+fn unify_typed_identifiers(
+    firsts: &TypedIdentifiers,
+    seconds: &TypedIdentifiers,
+) -> Option<TypedIdentifiers> {
     if firsts.len() == seconds.len() {
         let mut unified_types = Vec::new();
         for i in 0..firsts.len() {

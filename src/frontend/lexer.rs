@@ -1,6 +1,10 @@
 use crate::common::{context, err_loc, err_since, err_span};
 use crate::frontend::location::SourceCode;
-use crate::frontend::token::{Comparison, Keyword, LocatedToken, LocatedTokens, Operator, Token};
+use crate::frontend::token::{
+    Comparison, Keyword, LocatedToken, LocatedTokens, Operator, Token, ADD, ASSIGNMENT, CALL,
+    CONCATENATE, DIVIDE, EQUALS, GET, GREATER_THAN, GREATER_THAN_EQUALS, IGNORE, LESS_THAN,
+    LESS_THAN_EQUALS, MODULO, MULTIPLY, OVERWRITE, SUBSTRACT, TYPE,
+};
 use crate::AnyError;
 use strum::IntoEnumIterator;
 
@@ -135,13 +139,19 @@ fn try_consume_multichar_tokens(code: &mut SourceCode) -> Option<LocatedTokens> 
         Some(Vec::new())
     } else {
         let operators = &[
-            ("++", Operator::Concatenate),
-            ("=?", Operator::Comparison(Comparison::Equals)),
-            ("=>", Operator::Overwrite),
-            ("<=", Operator::Comparison(Comparison::LessThanEquals)),
-            (">=", Operator::Comparison(Comparison::GreaterThanEquals)),
-            ("|*", Operator::Multiply),
-            ("|/", Operator::Divide),
+            (CONCATENATE, Operator::Concatenate),
+            (EQUALS, Operator::Comparison(Comparison::Equals)),
+            (OVERWRITE, Operator::Overwrite),
+            (
+                LESS_THAN_EQUALS,
+                Operator::Comparison(Comparison::LessThanEquals),
+            ),
+            (
+                GREATER_THAN_EQUALS,
+                Operator::Comparison(Comparison::GreaterThanEquals),
+            ),
+            (MULTIPLY, Operator::Multiply),
+            (DIVIDE, Operator::Divide),
         ];
         for (text, operator) in *operators {
             if code.consume(text) {
@@ -164,16 +174,16 @@ fn try_consume_operator(code: &mut SourceCode) -> Option<LocatedToken> {
 
 pub fn parse_operator(letter: u8) -> Option<Operator> {
     match letter {
-        b'+' => Some(Operator::Add),
-        b'-' => Some(Operator::Substract),
-        b'%' => Some(Operator::Modulo),
-        b';' => Some(Operator::Ignore),
-        b'|' => Some(Operator::Call),
-        b'#' => Some(Operator::Get),
-        b':' => Some(Operator::Type),
-        b'=' => Some(Operator::Assignment),
-        b'<' => Some(Operator::Comparison(Comparison::LessThan)),
-        b'>' => Some(Operator::Comparison(Comparison::GreaterThan)),
+        ADD => Some(Operator::Add),
+        SUBSTRACT => Some(Operator::Substract),
+        MODULO => Some(Operator::Modulo),
+        IGNORE => Some(Operator::Ignore),
+        CALL => Some(Operator::Call),
+        GET => Some(Operator::Get),
+        TYPE => Some(Operator::Type),
+        ASSIGNMENT => Some(Operator::Assignment),
+        LESS_THAN => Some(Operator::Comparison(Comparison::LessThan)),
+        GREATER_THAN => Some(Operator::Comparison(Comparison::GreaterThan)),
         _ => None,
     }
 }

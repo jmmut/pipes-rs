@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::ast::{error_expected, expected};
+use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Transformation, Transformations,
+    take_single, Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Operation, Operations,
     Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::TokenizedSource;
@@ -42,7 +44,7 @@ pub enum PartialExpression {
     OpenParenthesis(Span),
     CloseParenthesis(Span),
     Expression(ExpressionSpan),
-    Operation(Transformation),
+    Operation(Operation),
     Operator(Operator),
     Keyword(Keyword),
     ChildrenTypes(TypedIdentifiers),
@@ -55,6 +57,26 @@ impl PartialExpression {
     }
     pub fn expression(e: Expression, span: Span) -> PartialExpression {
         PartialExpression::Expression(ExpressionSpan::new(e, span))
+    }
+}
+impl Display for PartialExpression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PartialExpression::OpenBracket(_) => write!(f, "["),
+            PartialExpression::CloseBracket(_) => write!(f, "]"),
+            PartialExpression::OpenBrace(_) => write!(f, "{{"),
+            PartialExpression::CloseBrace(_) => write!(f, "}}"),
+            PartialExpression::OpenParenthesis(_) => write!(f, "("),
+            PartialExpression::CloseParenthesis(_) => write!(f, ")"),
+            PartialExpression::Expression(expr) => write!(f, "{}", expr),
+            PartialExpression::Operation(op) => write!(f, "{}", op),
+            PartialExpression::Operator(op) => write!(f, "{}", op),
+            PartialExpression::Keyword(keyword) => write!(f, "{}", keyword.name()),
+            PartialExpression::ChildrenTypes(types) => {
+                write!(f, "{}", typed_identifiers_to_str(types, true))
+            }
+            PartialExpression::TypedIdentifier(name) => write!(f, "{}", name),
+        }
     }
 }
 
@@ -126,20 +148,26 @@ impl Parser {
                 "Could not parse as a type because there are extra unused expressions: {:?}",
                 parser.accumulated
             ))
-        } else if let Some(PartialExpression::Operation(Transformation {
+        } else if let Some(PartialExpression::Operation(Operation {
             operator:
                 OperatorSpan {
                     operator: Operator::Type,
                     ..
                 },
-            operand:
-                ExpressionSpan {
-                    syntactic_type: Expression::Type(type_),
-                    ..
-                },
+            operands,
         })) = expression
         {
-            Ok(type_)
+            let operand = take_single(operands);
+            match operand {
+                Some(ExpressionSpan {
+                    syntactic_type: Expression::Type(type_),
+                    span,
+                }) => Ok(type_),
+                _ => err(format!(
+                    "Could not parse as a type because resulting expression is not a type: {:?}",
+                    operand
+                )),
+            }
         } else {
             err(format!(
                 "Could not parse as a type because resulting expression is not a type: {:?}",
@@ -197,7 +225,7 @@ fn construct_transformation(
         span,
     };
     let accumulated = &mut parser.accumulated;
-    let elem_operand = accumulated.pop_front();
+    let mut elem_operand = accumulated.pop_front();
     let transformation = if let Operator::Type = raw_operator {
         if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Identifier(typename),
@@ -205,20 +233,42 @@ fn construct_transformation(
         })) = elem_operand
         {
             let operand = get_type_maybe_pop_children(accumulated, typename);
-            Transformation { operator, operand }
+            Operation::single(operator, operand)
         } else if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Type(type_),
             span,
         })) = elem_operand
         {
             let operand = ExpressionSpan::new_spanless(Expression::Type(type_));
-            Transformation { operator, operand }
+            Operation::single(operator, operand)
         } else {
             error_expected("type or type name after type operator ':'", elem_operand)?
         }
+    } else if Operator::Call == raw_operator || Operator::Concatenate == raw_operator {
+        let mut operands = Vec::new();
+        while let Some(PartialExpression::Expression(expr)) = elem_operand {
+            elem_operand = accumulated.pop_front();
+            operands.push(expr);
+        }
+        if let Some(elem) = elem_operand {
+            accumulated.push_front(elem);
+        }
+        if operands.len() > 0 {
+            let last_expr_span = operands.last().unwrap().span;
+            Operation {
+                operator: OperatorSpan {
+                    operator: raw_operator,
+                    span: span.merge(&last_expr_span),
+                },
+                operands,
+            }
+        } else {
+            let actual = accumulated.front();
+            err(expected("some callable expression", actual))?
+        }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
-            Transformation { operator, operand }
+            Operation::single(operator, operand)
         } else if raw_operator == Operator::Ignore {
             let operand = if let None = elem_operand {
                 Expression::empty_chain()
@@ -229,7 +279,7 @@ fn construct_transformation(
                 error_expected("expression or close brace or end of file", elem_operand)?
             };
             let operand = ExpressionSpan::new_spanless(operand);
-            Transformation { operator, operand }
+            Operation::single(operator, operand)
         } else {
             error_expected("operand after operator", elem_operand)?
         }
@@ -278,9 +328,13 @@ fn construct_function(
     accumulated: &mut VecDeque<PartialExpression>,
     span: Span,
 ) -> Result<PartialExpression, AnyError> {
-    let elem = accumulated.pop_front();
-
-    let (parameter, elem) = extract_single_child_type(accumulated, elem);
+    let mut elem = accumulated.pop_front();
+    let parameters = if let Some(PartialExpression::ChildrenTypes(children)) = elem {
+        elem = accumulated.pop_front();
+        children
+    } else {
+        Vec::new()
+    };
 
     if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Chain(body),
@@ -288,7 +342,7 @@ fn construct_function(
     })) = elem
     {
         Ok(PartialExpression::expression(
-            Expression::function(parameter, body),
+            Expression::function(parameters, body),
             span.merge(&chain_span),
         ))
     } else {
@@ -299,7 +353,7 @@ fn construct_function(
         }
 
         Ok(PartialExpression::expression_no_span(Expression::Type(
-            Type::function(parameter, returned),
+            Type::function(parameters, returned),
         )))
     }
 }
@@ -453,36 +507,38 @@ fn construct_public(parser: &mut Parser) -> Result<PartialExpression, AnyError> 
     let elem = parser.accumulated.pop_front();
     if let Some(PartialExpression::Expression(expr)) = elem {
         let elem = parser.accumulated.pop_front();
-        if let Some(PartialExpression::Operation(Transformation {
+        if let Some(PartialExpression::Operation(Operation {
             operator:
                 OperatorSpan {
                     operator: Operator::Assignment,
                     ..
                 },
-            operand:
-                ExpressionSpan {
-                    syntactic_type: Expression::Identifier(name),
-                    span,
-                },
+            operands,
         })) = elem
         {
-            // parser.identifiers.insert(name.clone(), expr);
-            let qualified = if let (Some(root), Some(file)) =
-                (parser.root.as_ref(), parser.source.file.as_ref())
+            let operand = take_single(operands);
+            if let Some(ExpressionSpan {
+                syntactic_type: Expression::Identifier(name),
+                span,
+            }) = operand
             {
-                qualify(&name, root, file)?
+                // parser.identifiers.insert(name.clone(), expr);
+                let qualified = if let (Some(root), Some(file)) =
+                    (parser.root.as_ref(), parser.source.file.as_ref())
+                {
+                    qualify(&name, root, file)?
+                } else {
+                    name
+                };
+                parser.exported.insert(qualified.clone(), expr);
+                Ok(PartialExpression::expression_no_span(
+                    Expression::Identifier(qualified),
+                ))
             } else {
-                name
-            };
-            parser.exported.insert(qualified.clone(), expr);
-            Ok(PartialExpression::expression_no_span(
-                Expression::Identifier(qualified),
-            ))
+                error_expected("identifier after 'public <expression> ='", operand)
+            }
         } else {
-            error_expected(
-                "assignment and identifier after 'public <expression>'",
-                elem,
-            )
+            error_expected("assignment after 'public <expression>'", elem)
         }
     } else {
         error_expected("expression after 'public'", elem)
@@ -527,7 +583,7 @@ fn construct_chain_transformations(
     accumulated: &mut VecDeque<PartialExpression>,
     initial: ExpressionSpan,
 ) -> Result<ExpressionSpan, AnyError> {
-    let mut transformations = Transformations::new();
+    let mut transformations = Operations::new();
     loop {
         let elem_operator = accumulated.pop_front();
         match elem_operator {
@@ -563,9 +619,9 @@ fn construct_array(
             Expression::StaticList { elements },
             span,
         ))
-    } else if let Some(PartialExpression::Operation(Transformation { operator, operand })) = elem {
+    } else if let Some(PartialExpression::Operation(Operation { operator, operands })) = elem {
         println!("span: {:?}", last_span);
-        let expected_message = expected("array end or expression", operator.operator);
+        let expected_message = expected("array end or expression", Some(operator.operator));
         let message = format!(
             "List elements need braces ('{{' and '}}') if they are chained operations.\n{}",
             expected_message
@@ -597,28 +653,33 @@ fn construct_children_types(
                 }
                 name_opt = Some(name)
             }
-            Some(PartialExpression::Operation(Transformation {
+            Some(PartialExpression::Operation(Operation {
                 operator:
                     OperatorSpan {
                         operator: Operator::Type,
                         ..
                     },
-                operand:
-                    ExpressionSpan {
-                        syntactic_type: Expression::Type(type_),
-                        span,
-                    },
+                operands,
             })) => {
-                let typed_identifier = if let Some(previous_name) = name_opt {
-                    name_opt = None;
-                    TypedIdentifier {
-                        name: previous_name,
-                        type_,
-                    }
+                let operand = take_single(operands);
+                if let Some(ExpressionSpan {
+                    syntactic_type: Expression::Type(type_),
+                    span,
+                }) = operand
+                {
+                    let typed_identifier = if let Some(previous_name) = name_opt {
+                        name_opt = None;
+                        TypedIdentifier {
+                            name: previous_name,
+                            type_,
+                        }
+                    } else {
+                        TypedIdentifier::nameless(type_)
+                    };
+                    types.push(typed_identifier);
                 } else {
-                    TypedIdentifier::nameless(type_)
-                };
-                types.push(typed_identifier);
+                    return error_expected("type after ':'", operand);
+                }
             }
             Some(PartialExpression::CloseParenthesis(span)) => {
                 if let Some(previous_name) = name_opt {
@@ -654,11 +715,11 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
     } else {
         let error_message = format!("unfinished code: {:?}", accumulated);
         accumulated.push_back(PartialExpression::CloseBrace(NO_SPAN));
-        let e = construct_chain(accumulated, &parser.source, NO_SPAN)?;
+        let expr = construct_chain(accumulated, &parser.source, NO_SPAN)?;
         if !accumulated.is_empty() {
             return err(error_message);
         } else {
-            e
+            expr
         }
     };
 
