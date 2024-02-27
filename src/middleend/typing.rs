@@ -602,7 +602,7 @@ impl<'a> Typer<'a> {
 
 fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type) -> String {
     format!(
-        "Type mismatch for expression '{:?}':\
+        "Type mismatch for expression '{}':\
         \n  actual:   {}\
         \n  expected: {}\n",
         actual_expression, actual, expected
@@ -610,7 +610,7 @@ fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type)
 }
 fn type_mismatch_op(operator: Operator, actual: &Type, expected: &Type) -> String {
     format!(
-        "Type mismatch before operator '{:?}':\
+        "Type mismatch before operator '{}':\
         \n  actual:   {}\
         \n  expected: {}\n",
         operator, actual, expected
