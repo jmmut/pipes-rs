@@ -520,7 +520,12 @@ impl<'a> Typer<'a> {
             parameters: actual_params,
             returned: Box::new(TypedIdentifier::nameless(builtin_types::ANY)),
         };
-        self.assert_type_unifies(&actual_function_type, callable_type, operator_span)
+        let unified_callable = self.assert_type_unifies(&actual_function_type, callable_type, operator_span)?;
+        if let Type::Function {parameters, returned} = unified_callable {
+            Ok(returned.type_)
+        } else {
+            err(format!("Bug: unified type of callable should be a function but was {}", unified_callable))
+        }
     }
 
     fn is_castable_to(
@@ -667,6 +672,11 @@ mod tests {
     #[test]
     fn test_basic_function_type() {
         assert_types_ok("function{4} :function()(:i64)");
+    }
+
+    #[test]
+    fn test_basic_call_type() {
+        assert_type_eq("function(x){4} =f ; 5 |f", "i64");
     }
 
     #[test]

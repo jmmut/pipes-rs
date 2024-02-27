@@ -727,12 +727,14 @@ mod tests {
     use crate::common::{assert_mentions, unwrap_display};
     use crate::frontend::lex_and_parse;
     use crate::frontend::location::SourceCode;
+    use crate::middleend::typing::check_types;
     use std::path::PathBuf;
 
     use super::*;
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
         let expression = unwrap_display(lex_and_parse(code_text));
+        unwrap_display(check_types(&expression));
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result.unwrap()
     }
@@ -804,6 +806,13 @@ mod tests {
             interpret("5 |function(x  y :i64  z) {x |*10 +y |*10 +z} 6 7"),
             567
         );
+
+        let main_path = PathBuf::from("./untracked/advent_of_code_2023/common.pipes");
+        let code = SourceCode::new(main_path.clone()).unwrap();
+        let parsed = unwrap_display(lex_and_parse(code));
+
+        let result = Runtime::evaluate(parsed, std::io::stdin(), std::io::stdout());
+        assert_eq!(result.unwrap(), NOTHING);
     }
     #[test]
     fn test_function_closure() {
