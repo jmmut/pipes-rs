@@ -11,9 +11,9 @@ This repo contains an interpreter written in rust and a couple related tools, li
 - [x] branching
 - [x] iteration
 - [x] functions
-- [ ] semantic types (`:t` meaning "the previous expression is of type t")
+- [x] semantic types (`:t` meaning "the previous expression is of type t")
 - [/] file imports, in a way that is compatible with LSP
-- [ ] code location (for better error messages)
+- [/] code location (for better error messages)
 - [x] assignment to identifiers
 
 
@@ -37,9 +37,9 @@ With these operations:
 - [x] Statement separator (e.g. `2 ;3` (which evaluates to 3))
 - [x] Function call (e.g. `arg |func` (the usual syntax would be `func(arg)` but this is forbidden)
 - [x] Loops
-  - `loop_or`: iterates list, maybe breaks, returns some value. E.g.:
-    - `[1 2 3] |loop_or(x) {x +42} {1000}` returns 43
-    - `[1 2 3] |loop_or(x) {x +42;} {1000}` returns 1000
+  - `browse_or`: iterates list, maybe breaks, returns some value. E.g.:
+    - `[1 2 3] |browse_or(x) {x +42} {1000}` returns 43
+    - `[1 2 3] |browse_or(x) {x +42;} {1000}` returns 1000
   - `times`: loops indexes, returns count (e.g. `3 |times(i) {i |to_str |print}` prints `0\n1\n2\n` and returns 3)
   - `times_or`: loops indexes, maybe breaks, returns some value. E.g.:
     - `3 |times_or(i) {x +42} {1000}` returns 42
@@ -53,16 +53,16 @@ With these operations:
   - `something`: if an optional value is present, run the first chain, but if it's nothing, run the second chain
     - `5 |something(x) {x} {0}` returns 5
     - `{} |something(x) {x} {0}` returns 0. "nothing" is an empty chain or a chain that ends in `;`
-  - `inspect`: runs a chain, returning the initial value. Useful for debugging with prints
+  - `inspect`: runs a chain, returning the initial value. Useful for side-effects, e.g. debugging with prints
     - `5 |inspect(x) {"some side effect " ++{x |to_str} |print}` returns 5 and prints "some side effect 5"
-- [ ] Type annotation (e.g. `2 :int64`)
+- [x] Type annotation (e.g. `2 :int64`)
 - [ ] Struct field access (e.g. given `a :struct(x :int64)`, you can do `a.x` or `a .x`. The space is 
   significant, those are different things, TODO: explain below)
 - [x] Comments, ignoring the rest of the line (e.g. `42 // the answer`)
 
 ### Nice to haves
 
-- [ ] print source location in errors
+- [/] print source location in errors
 - [ ] be able to print call stacks in pipes code
 - [ ] const
 

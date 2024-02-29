@@ -390,17 +390,17 @@ impl<'a> Typer<'a> {
             Expression::Composed(Composed::Cast(cast)) => {
                 self.is_castable_to(input_type, &cast.target_type)
             }
-            Expression::Composed(Composed::Loop(loop_)) => {
+            Expression::Composed(Composed::Browse(browse)) => {
                 let unified_elem =
-                    self.assert_iterates_elems(input_type, &loop_.iteration_elem, span)?;
-                let body_type = self.check_types_scope_single(unified_elem, &loop_.body)?;
+                    self.assert_iterates_elems(input_type, &browse.iteration_elem, span)?;
+                let body_type = self.check_types_scope_single(unified_elem, &browse.body)?;
                 Ok(body_type)
             }
-            Expression::Composed(Composed::LoopOr(loop_or)) => {
+            Expression::Composed(Composed::BrowseOr(browse_or)) => {
                 let unified_elem =
-                    self.assert_iterates_elems(input_type, &loop_or.iteration_elem, span)?;
-                let body_type = self.check_types_scope_single(unified_elem, &loop_or.body)?;
-                self.assert_same_unless_nothing(&body_type, &loop_or.otherwise, span)
+                    self.assert_iterates_elems(input_type, &browse_or.iteration_elem, span)?;
+                let body_type = self.check_types_scope_single(unified_elem, &browse_or.body)?;
+                self.assert_same_unless_nothing(&body_type, &browse_or.otherwise, span)
             }
             Expression::Composed(Composed::Times(times)) => {
                 let unified_input =
@@ -803,15 +803,15 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        assert_type_eq("[1] |loop(e) {e}", "i64");
-        assert_type_eq("[1] |loop(e) {}", "nothing");
-        assert_types_wrong("1 |loop(e) {e}");
+        assert_type_eq("[1] |browse(e) {e}", "i64");
+        assert_type_eq("[1] |browse(e) {}", "nothing");
+        assert_types_wrong("1 |browse(e) {e}");
     }
     #[test]
     fn test_loop_or() {
-        assert_type_eq("[1] |loop_or(e) {e} {0}", "i64");
-        assert_type_eq("[1] |loop_or(e) {} {0}", "i64");
-        assert_types_wrong("[1] |loop_or(e) {e} {[]}");
+        assert_type_eq("[1] |browse_or(e) {e} {0}", "i64");
+        assert_type_eq("[1] |browse_or(e) {} {0}", "i64");
+        assert_types_wrong("[1] |browse_or(e) {e} {[]}");
     }
     #[test]
     fn test_times() {

@@ -191,7 +191,7 @@ mod function {
 
 #[test]
 fn test_loop() {
-    assert_eq_ast("loop(x) {5}", "loop x 5 Chain Loop");
+    assert_eq_ast("browse(x) {5}", "browse x 5 Chain Loop");
 }
 fn assert_eq_ast(code: &str, ast: &str) {
     let parsed = lex_and_parse(code);
@@ -221,7 +221,7 @@ fn test_import() {
 
 #[test]
 fn test_undefined_in_else() {
-    lex_and_parse("[]|loop_or(e) {} {e}").expect_err("should fail");
+    lex_and_parse("[]|browse_or(e) {} {e}").expect_err("should fail");
     lex_and_parse("[]|times_or(e) {} {e}").expect_err("should fail");
     lex_and_parse("0|something(e) {} {e}").expect_err("should fail");
 }

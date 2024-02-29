@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display};
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Branch, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Operation, Type,
+    Branch, Browse, Chain, Composed, Expression, ExpressionSpan, Function, Operation, Type,
     TypedIdentifier,
 };
 use crate::frontend::lexer::{lex, TokenizedSource};
@@ -37,7 +37,7 @@ pub fn deserialize_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> 
             Token::Keyword(keyword) => accumulated.push(PartialExpression::Keyword(keyword)),
             Token::Identifier(ident) => match ident.as_str() {
                 "Chain" => construct_chain(&mut accumulated, span)?,
-                "Loop" => construct_loop(&mut accumulated)?,
+                "Loop" => construct_browse(&mut accumulated)?,
                 "Op" => construct_operation(&mut accumulated)?,
                 "Fn" => construct_function(&mut accumulated)?,
                 "Br" => construct_branch(&mut accumulated)?,
@@ -227,39 +227,39 @@ pub fn construct_function_from_chain(
     }
 }
 
-fn construct_loop(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
+fn construct_browse(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyError> {
     let elem = accumulated.pop();
     return if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Chain(chain),
         span,
     })) = elem
     {
-        match construct_loop_from_chain(accumulated, chain) {
-            Ok(loop_) => {
+        match construct_browse_from_chain(accumulated, chain) {
+            Ok(browse) => {
                 accumulated.push(PartialExpression::expression_no_span(Expression::Composed(
-                    Composed::Loop(loop_),
+                    Composed::Browse(browse),
                 )));
                 Ok(())
             }
             Err((error, _chain)) => Err(error),
         }
     } else {
-        error_expected("loop body (chain)", elem)
+        error_expected("browse body (chain)", elem)
     };
 }
 
-pub fn construct_loop_from_chain(
+pub fn construct_browse_from_chain(
     accumulated: &mut Vec<PartialExpression>,
     body: Chain,
-) -> Result<Loop, (AnyError, Chain)> {
+) -> Result<Browse, (AnyError, Chain)> {
     let elem = accumulated.pop();
     match elem {
-        Some(PartialExpression::Keyword(Keyword::Loop)) => {
+        Some(PartialExpression::Keyword(Keyword::Browse)) => {
             let elem = TypedIdentifier {
                 name: "".to_string(),
                 type_: Type::nothing(),
             };
-            Ok(Loop {
+            Ok(Browse {
                 iteration_elem: elem,
                 body,
             })
@@ -270,16 +270,16 @@ pub fn construct_loop_from_chain(
         })) => {
             let elem = accumulated.pop();
             match elem {
-                Some(PartialExpression::Keyword(Keyword::Loop)) => {
+                Some(PartialExpression::Keyword(Keyword::Browse)) => {
                     // TODO: accept typed parameter definition
                     let iteration_elem = TypedIdentifier::any(param);
-                    Ok(Loop {
+                    Ok(Browse {
                         iteration_elem,
                         body,
                     })
                 }
                 _ => {
-                    let err = Err((anyerror_expected("'loop'", elem.as_ref()), body));
+                    let err = Err((anyerror_expected("'browse'", elem.as_ref()), body));
                     if let Some(to_push) = elem {
                         accumulated.push(to_push);
                     }
@@ -289,7 +289,7 @@ pub fn construct_loop_from_chain(
         }
         _ => {
             let err = Err((
-                anyerror_expected("'loop' or iteration element name", elem.as_ref()),
+                anyerror_expected("'browse' or iteration element name", elem.as_ref()),
                 body,
             ));
             if let Some(elem) = elem {

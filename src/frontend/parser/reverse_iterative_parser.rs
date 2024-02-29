@@ -310,8 +310,8 @@ fn construct_keyword(
     let accumulated = &mut parser.accumulated;
     match keyword {
         Keyword::Function => construct_function(accumulated, span),
-        Keyword::Loop => construct_loop(accumulated),
-        Keyword::LoopOr => construct_loop_or(accumulated),
+        Keyword::Browse => construct_browse(accumulated),
+        Keyword::BrowseOr => construct_browse_or(accumulated),
         Keyword::Times => construct_times(accumulated),
         Keyword::TimesOr => construct_times_or(accumulated),
         Keyword::Replace => construct_replace(accumulated),
@@ -358,16 +358,16 @@ fn construct_function(
     }
 }
 
-fn construct_loop(
+fn construct_browse(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    construct_type_chain(accumulated, Expression::loop_, "loop")
+    construct_type_chain(accumulated, Expression::browse, "loop")
 }
 
-fn construct_loop_or(
+fn construct_browse_or(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<PartialExpression, AnyError> {
-    construct_type_chain_chain(accumulated, Expression::loop_or, "loop_or")
+    construct_type_chain_chain(accumulated, Expression::browse_or, "loop_or")
 }
 
 fn construct_times(

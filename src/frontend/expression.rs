@@ -82,8 +82,8 @@ impl Expression {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Composed {
-    Loop(Loop),
-    LoopOr(LoopOr),
+    Browse(Browse),
+    BrowseOr(BrowseOr),
     Times(Times),
     TimesOr(TimesOr),
     Replace(Replace),
@@ -116,15 +116,15 @@ impl Expression {
         Self::Function(Function { parameters, body })
     }
     #[allow(unused)]
-    pub fn loop_(elem: TypedIdentifier, body: Chain) -> Self {
-        Self::Composed(Composed::Loop(Loop {
+    pub fn browse(elem: TypedIdentifier, body: Chain) -> Self {
+        Self::Composed(Composed::Browse(Browse {
             iteration_elem: elem,
             body,
         }))
     }
     #[allow(unused)]
-    pub fn loop_or(elem: TypedIdentifier, body: Chain, otherwise: Chain) -> Self {
-        Self::Composed(Composed::LoopOr(LoopOr {
+    pub fn browse_or(elem: TypedIdentifier, body: Chain, otherwise: Chain) -> Self {
+        Self::Composed(Composed::BrowseOr(BrowseOr {
             iteration_elem: elem,
             body,
             otherwise,
@@ -453,12 +453,12 @@ impl TypedIdentifier {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct Loop {
+pub struct Browse {
     pub iteration_elem: TypedIdentifier,
     pub body: Chain,
 }
 #[derive(PartialEq, Debug, Clone)]
-pub struct LoopOr {
+pub struct BrowseOr {
     pub iteration_elem: TypedIdentifier,
     pub body: Chain,
     pub otherwise: Chain,

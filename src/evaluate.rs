@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, LoopOr, Map,
+    Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Map,
     Operation, TimesOr, TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
@@ -315,15 +315,15 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 function,
                 &Closure::new_from_current_scope(&self.identifiers),
             ),
-            Expression::Composed(Composed::Loop(Loop {
+            Expression::Composed(Composed::Browse(Browse {
                 iteration_elem,
                 body,
-            })) => self.call_loop_expression(argument, iteration_elem, body),
-            Expression::Composed(Composed::LoopOr(loop_or)) => {
-                self.call_loop_or_expression(argument, loop_or)
+            })) => self.call_browse_expression(argument, iteration_elem, body),
+            Expression::Composed(Composed::BrowseOr(browse_or)) => {
+                self.call_browse_or_expression(argument, browse_or)
             }
-            Expression::Composed(Composed::Times(times)) => {
-                self.call_times_expression(argument, times)
+            Expression::Composed(Composed::Times(browse)) => {
+                self.call_times_expression(argument, browse)
             }
             Expression::Composed(Composed::TimesOr(times_or)) => {
                 self.call_times_or_expression(argument, times_or)
@@ -395,7 +395,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
         Ok(result)
     }
-    fn call_loop_expression(
+    fn call_browse_expression(
         &mut self,
         argument: i64,
         iteration_elem: &TypedIdentifier,
@@ -413,16 +413,16 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
         Ok(default_result)
     }
-    fn call_loop_or_expression(
+    fn call_browse_or_expression(
         &mut self,
         argument: i64,
-        LoopOr {
+        BrowseOr {
             iteration_elem,
             body,
             otherwise,
-        }: &LoopOr,
+        }: &BrowseOr,
     ) -> Result<i64, AnyError> {
-        let result = self.call_loop_expression(argument, iteration_elem, body)?;
+        let result = self.call_browse_expression(argument, iteration_elem, body)?;
         if result == NOTHING {
             self.evaluate_chain(otherwise)
         } else {
@@ -957,7 +957,8 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let (result, print_output) = interpret_io("[10 11] |loop(n :i64) {n |to_str |print;}", &[]);
+        let (result, print_output) =
+            interpret_io("[10 11] |browse(n :i64) {n |to_str |print;}", &[]);
         assert_eq!(result, NOTHING);
         assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n11\n")
     }
@@ -965,20 +966,20 @@ mod tests {
     #[test]
     fn test_loop_broken() {
         let (result, print_output) =
-            interpret_io("[10 11] |loop(n :i64) {n |to_str |print; 5}", &[]);
+            interpret_io("[10 11] |browse(n :i64) {n |to_str |print; 5}", &[]);
         assert_eq!(result, 5);
         assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n")
     }
 
     #[test]
     fn test_loop_or() {
-        let result = interpret("[10 11] |loop_or(n :i64) {n;} {5}");
+        let result = interpret("[10 11] |browse_or(n :i64) {n;} {5}");
         assert_eq!(result, 5);
     }
 
     #[test]
     fn test_loop_or_broken() {
-        let result = interpret("[10 11] |loop_or(n :i64) {n} {5}");
+        let result = interpret("[10 11] |browse_or(n :i64) {n} {5}");
         assert_eq!(result, 10);
     }
 
