@@ -129,6 +129,7 @@ impl Display for Operator {
 #[derive(Copy, Clone, PartialEq, Debug, EnumIter)]
 pub enum Keyword {
     Function,
+    Loop,
     Browse,
     BrowseOr,
     Times,
@@ -146,6 +147,7 @@ impl Keyword {
     pub fn name(&self) -> &'static str {
         match self {
             Keyword::Function => "function",
+            Keyword::Loop => "loop",
             Keyword::Browse => "browse",
             Keyword::BrowseOr => "browse_or",
             Keyword::Times => "times",

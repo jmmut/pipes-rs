@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Map, Operation, Replace,
-    Type, TypedIdentifier, TypedIdentifiers,
+    Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Loop, Map, Operation,
+    Replace, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::location::{SourceCode, Span};
 use crate::frontend::parse_type;
@@ -390,6 +390,7 @@ impl<'a> Typer<'a> {
             Expression::Composed(Composed::Cast(cast)) => {
                 self.is_castable_to(input_type, &cast.target_type)
             }
+            Expression::Composed(Composed::Loop(Loop { body })) => self.check_types_chain(body),
             Expression::Composed(Composed::Browse(browse)) => {
                 let unified_elem =
                     self.assert_iterates_elems(input_type, &browse.iteration_elem, span)?;

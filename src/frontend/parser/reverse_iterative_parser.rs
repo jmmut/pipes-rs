@@ -6,8 +6,8 @@ use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::ast::{error_expected, expected};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    take_single, Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Operation, Operations,
-    Type, TypedIdentifier, TypedIdentifiers,
+    take_single, Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Loop, Operation,
+    Operations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::TokenizedSource;
 use crate::frontend::location::{SourceCode, Span, NO_SPAN};
@@ -310,6 +310,7 @@ fn construct_keyword(
     let accumulated = &mut parser.accumulated;
     match keyword {
         Keyword::Function => construct_function(accumulated, span),
+        Keyword::Loop => construct_loop(accumulated),
         Keyword::Browse => construct_browse(accumulated),
         Keyword::BrowseOr => construct_browse_or(accumulated),
         Keyword::Times => construct_times(accumulated),
@@ -355,6 +356,29 @@ fn construct_function(
         Ok(PartialExpression::expression_no_span(Expression::Type(
             Type::function(parameters, returned),
         )))
+    }
+}
+
+fn chain(
+    partial_expr: Option<PartialExpression>,
+) -> Result<(Chain, Span), Option<PartialExpression>> {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::Chain(body),
+        span,
+    })) = partial_expr
+    {
+        Ok((body, span))
+    } else {
+        Err(partial_expr)
+    }
+}
+
+fn construct_loop(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<PartialExpression, AnyError> {
+    match chain(accumulated.pop_front()) {
+        Ok((body, span)) => Ok(PartialExpression::expression(Expression::loop_(body), span)),
+        Err(elem) => error_expected(format!("chain for the {} body", "loop"), elem),
     }
 }
 

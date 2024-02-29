@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Map,
+    Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, Map,
     Operation, TimesOr, TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
@@ -315,6 +315,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 function,
                 &Closure::new_from_current_scope(&self.identifiers),
             ),
+            Expression::Composed(Composed::Loop(Loop { body })) => self.call_loop_expression(body),
             Expression::Composed(Composed::Browse(Browse {
                 iteration_elem,
                 body,
@@ -394,6 +395,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
         Ok(result)
+    }
+    fn call_loop_expression(&mut self, body: &Chain) -> Result<i64, AnyError> {
+        loop {
+            let result = self.evaluate_chain(&body)?;
+            if result != NOTHING {
+                return Ok(result);
+            }
+        }
     }
     fn call_browse_expression(
         &mut self,
@@ -745,7 +754,7 @@ mod tests {
     }
     fn interpret_io(code_text: &str, read_input: &[u8]) -> (GenericValue, Vec<u8>) {
         let print_output = Vec::<u8>::new();
-        let expression = lex_and_parse(code_text).unwrap();
+        let expression = unwrap_display(lex_and_parse(code_text));
         let mut runtime = Runtime::new(read_input, print_output);
         let result = runtime.evaluate_recursive(&expression.main());
         (result.unwrap(), runtime.print_output)
@@ -957,6 +966,20 @@ mod tests {
 
     #[test]
     fn test_loop() {
+        let (result, print_output) = interpret_io("{}|loop {\" \"|print}", &[]);
+        assert_eq!(&String::from_utf8(print_output).unwrap(), " \n")
+    }
+    #[test]
+    fn test_loop_3_times() {
+        let (result, print_output) = interpret_io(
+            "0 =i;{}|loop {i +1 =>i |inspect(x) {x |to_str |print} =? 3 |branch {i}{}}",
+            &[],
+        );
+        assert_eq!(result, 3);
+        assert_eq!(&String::from_utf8(print_output).unwrap(), "1\n2\n3\n")
+    }
+    #[test]
+    fn test_browse() {
         let (result, print_output) =
             interpret_io("[10 11] |browse(n :i64) {n |to_str |print;}", &[]);
         assert_eq!(result, NOTHING);
@@ -964,7 +987,7 @@ mod tests {
     }
 
     #[test]
-    fn test_loop_broken() {
+    fn test_browse_broken() {
         let (result, print_output) =
             interpret_io("[10 11] |browse(n :i64) {n |to_str |print; 5}", &[]);
         assert_eq!(result, 5);
@@ -972,13 +995,13 @@ mod tests {
     }
 
     #[test]
-    fn test_loop_or() {
+    fn test_browse_or() {
         let result = interpret("[10 11] |browse_or(n :i64) {n;} {5}");
         assert_eq!(result, 5);
     }
 
     #[test]
-    fn test_loop_or_broken() {
+    fn test_browse_or_broken() {
         let result = interpret("[10 11] |browse_or(n :i64) {n} {5}");
         assert_eq!(result, 10);
     }

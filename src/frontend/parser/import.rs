@@ -4,8 +4,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Function, Inspect, Map,
-    Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
+    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Function, Inspect, Loop,
+    Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
@@ -99,6 +99,9 @@ fn track_identifiers_recursive(
         }
         Expression::Function(Function { parameters, body }) => {
             track_identifiers_recursive_scope(import_state, parameters.iter(), body)
+        }
+        Expression::Composed(Composed::Loop(Loop { body })) => {
+            track_identifiers_recursive_scope(import_state, [].iter(), body)
         }
         Expression::Composed(Composed::Browse(Browse {
             iteration_elem,
