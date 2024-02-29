@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::fmt::{Debug, Display};
+use std::fmt::Display;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
@@ -94,11 +94,11 @@ fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Res
         types.push_front(typed_identifier);
         elem = accumulated.pop();
     }
-    if let Some(PartialExpression::OpenParenthesis(span)) = elem {
+    if let Some(PartialExpression::OpenParenthesis(_span)) = elem {
         elem = accumulated.pop();
         if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Identifier(parent),
-            span,
+            ..
         })) = elem
         {
             let a_type = Type::from(parent, types.into_iter().collect::<Vec<_>>());
@@ -114,7 +114,7 @@ fn construct_type_with_children(accumulated: &mut Vec<PartialExpression>) -> Res
     }
 }
 
-fn construct_chain(accumulated: &mut Vec<PartialExpression>, span: Span) -> Result<(), AnyError> {
+fn construct_chain(accumulated: &mut Vec<PartialExpression>, _span: Span) -> Result<(), AnyError> {
     let mut transformations = VecDeque::new();
 
     while let Some(pe) = accumulated.pop() {
@@ -129,7 +129,7 @@ fn construct_chain(accumulated: &mut Vec<PartialExpression>, span: Span) -> Resu
                 )));
                 return Ok(());
             }
-            PartialExpression::OpenBrace(span) => {
+            PartialExpression::OpenBrace(_span) => {
                 return if transformations.is_empty() {
                     accumulated.push(PartialExpression::expression_no_span(
                         Expression::empty_chain(),
@@ -167,7 +167,7 @@ fn construct_function(accumulated: &mut Vec<PartialExpression>) -> Result<(), An
     let elem = accumulated.pop();
     return if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Chain(chain),
-        span,
+        ..
     })) = elem
     {
         match construct_function_from_chain(accumulated, chain) {
@@ -196,7 +196,7 @@ pub fn construct_function_from_chain(
         }
         Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Identifier(param),
-            span,
+            ..
         })) => {
             let elem = accumulated.pop();
             match elem {
@@ -231,7 +231,7 @@ fn construct_browse(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyE
     let elem = accumulated.pop();
     return if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Chain(chain),
-        span,
+        ..
     })) = elem
     {
         match construct_browse_from_chain(accumulated, chain) {
@@ -266,7 +266,7 @@ pub fn construct_browse_from_chain(
         }
         Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Identifier(param),
-            span,
+            ..
         })) => {
             let elem = accumulated.pop();
             match elem {
@@ -304,13 +304,13 @@ fn construct_branch(accumulated: &mut Vec<PartialExpression>) -> Result<(), AnyE
     let elem = accumulated.pop();
     if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Chain(no),
-        span,
+        ..
     })) = elem
     {
         let elem = accumulated.pop();
         if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Chain(yes),
-            span,
+            ..
         })) = elem
         {
             let elem = accumulated.pop();
@@ -334,7 +334,7 @@ fn construct_named_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), 
     let elem = accumulated.pop();
     if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Type(type_),
-        span,
+        ..
     })) = elem
     {
         let elem = accumulated.pop();
@@ -342,7 +342,7 @@ fn construct_named_type(accumulated: &mut Vec<PartialExpression>) -> Result<(), 
             let elem = accumulated.pop();
             if let Some(PartialExpression::Expression(ExpressionSpan {
                 syntactic_type: Expression::Identifier(name),
-                span,
+                ..
             })) = elem
             {
                 accumulated.push(PartialExpression::TypedIdentifier(TypedIdentifier {
@@ -364,7 +364,7 @@ fn construct_unnamed_type(accumulated: &mut Vec<PartialExpression>) -> Result<()
     let elem = accumulated.pop();
     if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Type(type_),
-        span,
+        ..
     })) = elem
     {
         let elem = accumulated.pop();
@@ -385,7 +385,7 @@ fn construct_name_untyped(accumulated: &mut Vec<PartialExpression>) -> Result<()
     let elem = accumulated.pop();
     if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Identifier(name),
-        span,
+        ..
     })) = elem
     {
         accumulated.push(PartialExpression::TypedIdentifier(TypedIdentifier::any(

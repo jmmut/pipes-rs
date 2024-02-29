@@ -66,12 +66,6 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn new(expression: Expression, span: Span) -> Self {
-        expression
-    }
-    pub fn new_spanless(expression: Expression) -> Self {
-        Self::new(expression, NO_SPAN)
-    }
     pub fn syn_type(&self) -> &Expression {
         self
     }

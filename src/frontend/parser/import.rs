@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Function, Inspect, Loop,
-    Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
+    Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
 };
 use crate::frontend::lexer::lex;
 use crate::frontend::location::SourceCode;
