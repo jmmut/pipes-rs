@@ -1,5 +1,6 @@
 use crate::frontend::expression::{
-    Chain, Expression, ExpressionSpan, Operation, Type, TypeName, TypedIdentifier, TypedIdentifiers,
+    BrowseOr, Chain, Composed, Expression, ExpressionSpan, Loop, Map, Operation, Type, TypeName,
+    TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::token::Keyword;
 use crate::middleend::intrinsics::builtin_types;
@@ -33,7 +34,30 @@ impl Display for Expression {
                 typed_identifiers_to_str(&function.parameters, false),
                 function.body,
             ),
-            Expression::Composed(_composed) => unimplemented!(),
+            Expression::Composed(Composed::Loop(Loop { body })) => {
+                write!(f, "{} {}", Keyword::Loop.name(), body)
+            }
+            Expression::Composed(Composed::Map(Map {
+                iteration_elem,
+                body,
+            })) => {
+                write!(f, "{}({}) {{{}}}", Keyword::Map.name(), iteration_elem, body,)
+            }
+            Expression::Composed(Composed::BrowseOr(BrowseOr {
+                iteration_elem,
+                body,
+                otherwise,
+            })) => {
+                write!(
+                    f,
+                    "{}({}) {{{}}} {{{}}}",
+                    Keyword::BrowseOr.name(),
+                    iteration_elem,
+                    body,
+                    otherwise
+                )
+            }
+            _ => unimplemented!("missing diplay for {:?}", self),
         }
     }
 }

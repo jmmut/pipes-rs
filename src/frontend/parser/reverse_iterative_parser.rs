@@ -598,7 +598,7 @@ fn construct_chain_transformations(
                 transformations.push(transformation);
             }
             _ => err_span(
-                expected("operator or closing brace", elem_operator),
+                expected("operator or closing brace after highlighted code", elem_operator),
                 source,
                 open_brace_span.merge(&last_span),
             )?,
