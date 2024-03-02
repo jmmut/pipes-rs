@@ -244,7 +244,9 @@ impl Type {
         )
     }
     pub fn simple<S: Into<String> + AsRef<str>>(type_name: S) -> Type {
-        if type_name.as_ref() == BuiltinType::Array.name() {
+        if type_name.as_ref() == BuiltinType::Array.name()
+            || type_name.as_ref() == BuiltinType::List.name()
+        {
             Type::children(
                 type_name,
                 vec![TypedIdentifier::nameless(builtin_types::ANY)],
@@ -316,19 +318,18 @@ impl Type {
     //         Ok(None)
     //     }
     // }
-    pub fn array_element(&self) -> Result<TypedIdentifier, AnyError> {
-        if let Type::Nested {
-            type_name,
-            children,
-        } = self
-        {
-            if type_name.name() == BuiltinType::Array.name() && children.len() == 1 {
+    pub fn single_element(&self) -> Result<TypedIdentifier, AnyError> {
+        if let Type::Nested { children, .. } = self {
+            if children.len() == 1 {
                 if let Some(elem) = children.last() {
                     return Ok(elem.clone());
                 }
             }
         }
-        err(format!("Bug: expected type to be an array: {:?}", self))
+        err(format!(
+            "Bug: expected type to be a nested type with 1 subtype: {:?}",
+            self
+        ))
     }
 }
 

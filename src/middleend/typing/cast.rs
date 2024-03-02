@@ -1,6 +1,6 @@
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
 use crate::middleend::intrinsics::{builtin_types, BuiltinType};
-use crate::middleend::typing::unify::all_same_type;
+use crate::middleend::typing::unify::{all_same_type, try_list};
 
 /// Add to `second` whatever we can from `first`, and return a copy of it.
 ///
@@ -13,6 +13,8 @@ pub fn cast(first: &Type, second: &Type) -> Option<Type> {
         return Some(second.clone());
     } else if second_name == BuiltinType::Any.name() {
         return Some(first.clone());
+    } else if let Some(unified) = try_list(first, second) {
+        return Some(unified);
     }
     match (first, second) {
         (Type::Simple { .. }, Type::Simple { .. }) => {

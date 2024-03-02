@@ -8,7 +8,7 @@ use crate::frontend::expression::{
     Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Loop, Map, Operation,
     Replace, Type, TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::location::{SourceCode, Span};
+use crate::frontend::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::frontend::token::{Operator, OperatorSpan};
@@ -192,7 +192,9 @@ impl<'a> Typer<'a> {
     }
 
     fn check_types_chain(&mut self, chain: &Chain) -> Result<Type, AnyError> {
+        let mut last_operand_span = None;
         let mut accumulated_type = if let Some(initial) = &chain.initial {
+            last_operand_span = Some(initial.span);
             self.get_type(initial.syn_type())?
         } else {
             builtin_types::ANY
@@ -200,6 +202,7 @@ impl<'a> Typer<'a> {
 
         let mut assigned_in_this_chain = HashMap::new();
         for operation in &chain.operations {
+            last_operand_span = operation.operands.last().map(|o| o.span);
             accumulated_type = self.get_operation_type(
                 &accumulated_type,
                 operation.operator,
@@ -220,6 +223,11 @@ impl<'a> Typer<'a> {
                     span,
                 }) = operand
                 {
+                    if accumulated_type == builtin_types::TYPE {
+                        let span = last_operand_span.unwrap_or(*op_span).merge(span);
+                        let message = format!("All type definitions need to be public, including '{}'.\nHint: to make it public do 'public <type> ={}'", name, name);
+                        return err_span(message, self.get_current_source(), span);
+                    }
                     *assigned_in_this_chain.entry(name.clone()).or_insert(0) += 1;
                     self.bind_identifier_type(name.clone(), accumulated_type.clone());
                 }
@@ -292,13 +300,10 @@ impl<'a> Typer<'a> {
             types.push(self.get_type(e.syn_type())?);
         }
         return if types.len() == 0 {
-            Ok(Type::from_nameless(
-                BuiltinType::Array.name(),
-                vec![builtin_types::ANY],
-            ))
-        } else if all_same_type(&types) {
-            types.truncate(1);
-            Ok(Type::from_nameless(BuiltinType::Array.name(), types))
+            Ok(Type::from_nameless(BuiltinType::Array.name(), vec![]))
+        // } else if all_same_type(&types) {
+        //     types.truncate(1);
+        //     Ok(Type::from_nameless(BuiltinType::Array.name(), types))
         } else {
             Ok(Type::from_nameless(BuiltinType::Tuple.name(), types))
         };
@@ -331,7 +336,7 @@ impl<'a> Typer<'a> {
                 return self.get_call_type(input, operands, operator.span);
             }
             Operator::Get => {
-                let array = parse_type("array(:any)"); // TODO: support tuples
+                let array = list_any();
                 let unified_input = self.assert_type_unifies(&input, &array, operator)?;
                 self.assert_expr_unifies(operand, &builtin_types::I64, *operand_span)?;
                 if let Type::Nested { children, .. } = unified_input {
@@ -352,7 +357,7 @@ impl<'a> Typer<'a> {
             }
             Operator::Assignment | Operator::Overwrite => Ok(input.clone()),
             Operator::Concatenate => {
-                let array = parse_type("array(:any)");
+                let array = list_any();
                 let unified_input = self.assert_type_unifies(input, &array, operator)?;
                 let unified_operand =
                     self.assert_expr_unifies(operand, &unified_input, operator.span)?;
@@ -411,7 +416,8 @@ impl<'a> Typer<'a> {
                 )
             }
             Expression::Composed(Composed::Cast(cast)) => {
-                self.is_castable_to(input_type, &cast.target_type, span)
+                self.is_castable_to(input_type, &cast.target_type.type_, span)?;
+                Ok(cast.target_type.type_.clone())
             }
             Expression::Composed(Composed::Loop(Loop { body })) => self.check_types_chain(body),
             Expression::Composed(Composed::Browse(browse)) => {
@@ -498,10 +504,7 @@ impl<'a> Typer<'a> {
         iteration_elem: &TypedIdentifier,
         span: Span,
     ) -> Result<TypedIdentifier, AnyError> {
-        let expected_input = Type::from(
-            BuiltinType::Array.name(),
-            vec![TypedIdentifier::nameless(builtin_types::ANY)],
-        );
+        let expected_input = list_any();
         let unified_input = self.assert_type_unifies(
             input_type,
             &expected_input,
@@ -510,7 +513,7 @@ impl<'a> Typer<'a> {
                 span,
             },
         )?;
-        let inner_input_type = unified_input.array_element()?;
+        let inner_input_type = unified_input.single_element()?;
         let unified_elem = self.assert_typed_identifier_unifies(
             &iteration_elem,
             &inner_input_type,
@@ -580,18 +583,17 @@ impl<'a> Typer<'a> {
     fn is_castable_to(
         &mut self,
         input_type: &Type,
-        target_type: &TypedIdentifier,
+        target_type: &Type,
         span: Span,
     ) -> Result<Type, AnyError> {
-        let unified = cast(
-            &self.expand(&input_type, span)?,
-            &self.expand(&target_type.type_, span)?,
-        );
+        let expanded_input = self.expand(&input_type, span);
+        let expanded_target = self.expand(target_type, span);
+        let unified = cast(&expanded_input?, &expanded_target?);
         if let Some(unified) = unified {
             Ok(unified)
         } else {
             err_span(
-                type_mismatch_op(Operator::Call, &input_type, &target_type.type_),
+                type_mismatch_op(Operator::Call, &input_type, target_type),
                 self.get_current_source(),
                 span,
             )
@@ -612,7 +614,8 @@ impl<'a> Typer<'a> {
                 {
                     Ok(expanded.clone())
                 } else {
-                    err_span(format!("Definition of type '{}' not found. Hint: add 'public' to its definition, like 'public <type> = {}'", type_name, type_name), self.get_current_source(), span)
+                    let message = format!("Definition of type '{}' not found.\nHint: add 'public' to its definition, like 'public <type> = {}'", type_name, type_name);
+                    err_span(message, self.get_current_source(), span)
                 }
             }
             Type::Nested {
@@ -667,7 +670,7 @@ impl<'a> Typer<'a> {
         span: Span,
     ) -> Result<Type, AnyError> {
         let actual_type = self.get_type(actual_expression)?;
-        let unified = unify(expected, &actual_type);
+        let unified = unify(&actual_type, expected);
         if let Some(unified) = unified {
             Ok(unified)
         } else {
@@ -685,7 +688,7 @@ impl<'a> Typer<'a> {
         expected: &Type,
         OperatorSpan { operator, span }: OperatorSpan,
     ) -> Result<Type, AnyError> {
-        let unified = unify(expected, &actual);
+        let unified = unify(&actual, expected);
         if let Some(unified) = unified {
             Ok(unified)
         } else {
@@ -735,6 +738,14 @@ impl<'a> Typer<'a> {
             ))
         }
     }
+}
+
+fn list_any() -> Type {
+    let expected_input = Type::from(
+        BuiltinType::List.name(),
+        vec![TypedIdentifier::nameless(builtin_types::ANY)],
+    );
+    expected_input
 }
 
 fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type) -> String {
@@ -799,7 +810,7 @@ mod tests {
         let program = &parse(code);
         let expected_type = parse_type(expected);
         let type_ = unwrap_display(get_type(program));
-        assert_eq!(type_, expected_type);
+        assert_eq!(type_.to_string(), expected_type.to_string());
     }
     fn assert_types_wrong(code: &str) {
         let program = &parse(code);
@@ -820,6 +831,13 @@ mod tests {
     fn test_basic_function_type() {
         assert_types_ok("function{4} :function()(:i64)");
     }
+    #[test]
+    fn test_empty_function() {
+        assert_eq!(
+            parse_type("function"),
+            Type::function(vec![], TypedIdentifier::nameless_any())
+        )
+    }
 
     #[test]
     fn test_basic_call_type() {
@@ -833,17 +851,17 @@ mod tests {
 
     #[test]
     fn test_basic_array() {
-        assert_types_ok("[1 2] :array(:i64)");
+        assert_types_ok("[1 2] :tuple(:i64 :i64)");
         assert_eq!(parse_type("array"), parse_type("array(:any)"));
     }
     #[test]
     fn test_basic_tuple() {
         assert_types_ok("[1 function{}] :tuple(:i64 :function)");
+        assert_types_ok("[1 2] :tuple(:i64 :i64)");
     }
     #[test]
     fn test_tuples_and_arrays_not_mixed() {
         assert_types_wrong("[1 function{}] :array(:i64)");
-        assert_types_wrong("[1 2] :tuple(:i64 :i64)");
     }
 
     #[test]
@@ -878,6 +896,9 @@ mod tests {
         assert_types_ok(
             "public tuple(x :i64  y :i64) =Coord ; [3 5] |cast(:Coord) |function (c :Coord) { c }",
         );
+        assert_types_ok(
+            "public tuple(x :i64  y :i64) =Coord ; [1] ++{[3 5] |cast(:Coord) |cast(:list)}",
+        );
     }
     #[test]
     fn test_forbid_non_public_structs() {
@@ -891,7 +912,7 @@ mod tests {
 
     #[test]
     fn test_chain_inside_array() {
-        assert_type_eq("[{5 + 4}]", "array(:i64)");
+        assert_type_eq("[{5 + 4}]", "tuple(:i64)");
     }
 
     #[test]
@@ -952,7 +973,7 @@ mod tests {
     fn test_branch() {
         assert_type_eq("1 |branch {1} {0}", "i64");
         assert_type_eq("1 |branch {[]} {0}", "or(:array(:any) :i64)");
-        assert_type_eq("1 |branch {[0]} {0}", "or(:array(:i64) :i64)");
+        assert_type_eq("1 |branch {[0]} {0}", "or(:tuple(:i64) :i64)");
         assert_type_eq("1 |branch {} {0}", "or(:nothing :i64)");
     }
 
@@ -964,7 +985,7 @@ mod tests {
     #[test]
     fn test_map() {
         assert_type_eq("[1] |map(e) {e +10}", "array(:i64)");
-        assert_type_eq("[1] |map(e) {[1]}", "array(:array(:i64))");
+        assert_type_eq("[1] |map(e) {[1]}", "array(:tuple(:i64))");
     }
     #[test]
     fn test_replace() {

@@ -34,7 +34,7 @@ impl Intrinsic {
             Intrinsic::PrintChar => parse_type("function(char_to_print :i64) (same_char :i64)"),
             Intrinsic::ReadChar => parse_type("function(reserved :i64) (char :i64)"),
             Intrinsic::Print => {
-                parse_type("function(str :array(letter :i64)) (same_input :array(letter :i64))")
+                parse_type("function(str :list(letter :i64)) (same_input :array(letter :i64))")
             }
             Intrinsic::ReadLines => {
                 parse_type("function(reserved :i64) (lines :array(line :array(letter :i64)))")
@@ -43,7 +43,7 @@ impl Intrinsic {
                 parse_type("function(number :i64) (number_str :array(digit_char :i64))")
             }
             Intrinsic::NewArray => parse_type("function(size :i64) (:array(:any))"),
-            Intrinsic::Size => parse_type("function(:array(:any)) (:i64)"),
+            Intrinsic::Size => parse_type("function(:list(:any)) (:i64)"),
             Intrinsic::Breakpoint => parse_type("function(t) (t)"),
         }
     }
@@ -58,6 +58,7 @@ pub enum BuiltinType {
     I64,
     Tuple, // maybe not needed, and any user defined type with children behaves the same
     Array,
+    List,
     Struct,
     Function,
     Type,
@@ -73,6 +74,7 @@ impl BuiltinType {
             BuiltinType::I64 => "i64",
             BuiltinType::Tuple => "tuple",
             BuiltinType::Array => "array",
+            BuiltinType::List => "list",
             BuiltinType::Struct => "struct",
             BuiltinType::Function => "function",
             BuiltinType::Type => "type",

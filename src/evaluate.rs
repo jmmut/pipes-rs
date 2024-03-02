@@ -148,13 +148,18 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut identifiers_vec = identifiers.into_iter().collect::<Vec<_>>();
         loop {
             let mut failed = Vec::new();
+            let mut errors = Vec::new();
             let identifiers_count_previous = identifiers_vec.len();
             for (name, expression) in identifiers_vec {
-                // let expression = ExpressionSpan::new_spanless(expression);
-                match context("Runtime setup", self.evaluate_recursive(&expression)) {
-                    Ok(value) => self.bind_static_identifier(name, value),
-                    Err(_) => {
-                        failed.push((name, expression));
+                if let ExpressionSpan {syntactic_type :Expression::Type(_), ..} = expression {
+                    self.bind_static_identifier(name, NOTHING);
+                } else {
+                    match context("Runtime setup", self.evaluate_recursive(&expression)) {
+                        Ok(value) => self.bind_static_identifier(name, value),
+                        Err(e) => {
+                            errors.push(e);
+                            failed.push((name, expression));
+                        }
                     }
                 }
             }
@@ -163,11 +168,18 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
             if failed.len() == identifiers_count_previous {
                 let failed_names = failed.iter().map(|(n, _e)| n).collect::<Vec<_>>();
-                return err(format!(
+                let error_intro = format!(
                     "it seems there are constants with cyclic dependencies. \
                 Program initialization failed for identifiers: {:?}",
                     failed_names
-                ));
+                );
+
+                let error_messages = errors
+                    .iter()
+                    .map(|e| e.to_string())
+                    .reduce(|accum, e| accum + "\n" + &e)
+                    .unwrap();
+                return err(format!("{}: {}", error_intro, error_messages));
             }
             identifiers_vec = failed;
         }

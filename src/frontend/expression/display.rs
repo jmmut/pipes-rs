@@ -1,6 +1,6 @@
 use crate::frontend::expression::{
-    Branch, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map, Operation,
-    Type, TypeName, TypedIdentifier, TypedIdentifiers,
+    Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map,
+    Operation, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::token::Keyword;
 use crate::middleend::intrinsics::builtin_types;
@@ -74,6 +74,9 @@ impl Display for Expression {
             }
             Expression::Composed(Composed::Branch(Branch { yes, no })) => {
                 write!(f, "{} {{{}}} {{{}}}", Keyword::Branch.name(), yes, no)
+            }
+            Expression::Composed(Composed::Cast(Cast { target_type })) => {
+                write!(f, "{}{}", Keyword::Cast.name(), target_type)
             }
             _ => unimplemented!("missing diplay for {:?}", self),
         }

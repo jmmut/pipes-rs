@@ -1,5 +1,6 @@
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
-use crate::middleend::intrinsics::BuiltinType;
+use crate::middleend::intrinsics::{builtin_types, BuiltinType};
+use crate::middleend::typing::cast::cast;
 
 /// Compare types semantically and merge them.
 /// In summary, the Any type can be casted implicitly to any type, and this function
@@ -13,6 +14,8 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
     } else if second_name == BuiltinType::Any.name() {
         return Some(first.clone());
     } else if let Some(unified) = try_or(first, second) {
+        return Some(unified);
+    } else if let Some(unified) = try_list(first, second) {
         return Some(unified);
     } else if first_name != second_name {
         return None;
@@ -58,6 +61,43 @@ fn try_or(first: &Type, second: &Type) -> Option<Type> {
         }
     }
     None
+}
+
+pub fn try_list(first: &Type, second: &Type) -> Option<Type> {
+    if first.name() == BuiltinType::List.name() {
+        if second.name() == BuiltinType::Array.name() {
+            unify_single_element(first, second, BuiltinType::Array.name())
+        } else {
+            None // forbid implicit conversion from list to tuple as we don't know the length
+        }
+    } else if second.name() == BuiltinType::List.name() {
+        if first.name() == BuiltinType::Array.name() {
+            unify_single_element(first, second, BuiltinType::List.name())
+        } else if first.name() == BuiltinType::Tuple.name() {
+            if let Type::Nested { children, .. } = first {
+                let list_type = second.single_element().unwrap();
+                if let Some(unified_subtype) = all_unify_to(children, list_type.type_) {
+                    Some(Type::from(BuiltinType::List.name(), vec![unified_subtype]))
+                } else {
+                    None
+                }
+            } else {
+                panic!("Bug: a tuple should have children")
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+fn unify_single_element(first: &Type, second: &Type, parent_name: &str) -> Option<Type> {
+    let unified_subtype = unify_typed_identifier(
+        &first.single_element().unwrap(),
+        &second.single_element().unwrap(),
+    )?;
+    Some(Type::from(parent_name, vec![unified_subtype]))
 }
 
 fn unify_nested(
@@ -126,9 +166,17 @@ pub fn all_same_type<T: PartialEq>(types: &Vec<T>) -> bool {
     }
 }
 
+pub fn all_unify_to(types: &TypedIdentifiers, mut accumulated: Type) -> Option<TypedIdentifier> {
+    for type_ in types {
+        accumulated = unify(&type_.type_, &accumulated)?;
+    }
+    Some(TypedIdentifier::nameless(accumulated))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::unwrap_display;
     use crate::frontend::expression::{Type, TypedIdentifier};
     use crate::frontend::parse_type;
     use crate::middleend::typing::builtin_types;
@@ -227,6 +275,57 @@ mod tests {
         let second = Type::from("array", vec![child.clone()]);
         let unified = unify(&first, &second);
         assert_eq!(unified, None);
+    }
+
+    #[test]
+    fn test_empty_tuple() {
+        let child = TypedIdentifier::nameless(builtin_types::I64);
+        let first = Type::from("tuple", vec![]);
+        let parsed_empty_tuple = parse_type("tuple");
+        assert_eq!(first, parsed_empty_tuple);
+    }
+    fn assert_unifies(first: &str, second: &str) {
+        let second_type = parse_type(second);
+        let unified = unify(&parse_type(first), &second_type);
+        assert_eq!(
+            unified.map(|u| u.to_string()),
+            Some(second_type.to_string())
+        )
+    }
+    fn assert_no_unify(first: &str, second: &str) {
+        let unified = unify(&parse_type(first), &parse_type(second));
+        assert_eq!(unified, None)
+    }
+    fn assert_unifies_to(first: &str, second: &str, expected: &str) {
+        let unified = unify(&parse_type(first), &parse_type(second));
+        let expected_type = parse_type(expected);
+        assert_eq!(
+            unified.map(|u| u.to_string()),
+            Some(expected_type.to_string())
+        )
+    }
+    #[test]
+    fn test_list() {
+        assert_unifies("list(:i64)", "array(:i64)");
+        assert_unifies("list(:any)", "array(:i64)");
+        assert_unifies("list", "array");
+        assert_unifies("array(:i64)", "list(:i64)");
+        assert_unifies_to("array(:i64)", "list(:any)", "list(:i64)");
+        assert_unifies_to("array(:i64)", "list", "list(:i64)");
+
+        assert_no_unify("list(:i64)", "tuple(:i64)");
+        assert_no_unify("list(:any)", "tuple(:i64)");
+        assert_no_unify("list", "tuple");
+        assert_unifies("tuple(:i64)", "list(:i64)");
+        assert_unifies("tuple(:i64 :i64)", "list(:i64)");
+        assert_unifies_to("tuple(:i64 :i64)", "list(:any)", "list(:i64)");
+        assert_unifies_to("tuple(:i64 :i64)", "list", "list(:i64)");
+
+        assert_no_unify("tuple(:i64 :function)", "list");
+    }
+    #[test]
+    fn test_nested_list() {
+        assert_unifies("tuple(:tuple(:i64) :array(:i64))", "list(:list(:i64))");
     }
 
     #[test]
