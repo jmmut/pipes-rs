@@ -12,7 +12,7 @@ use crate::frontend::location::{SourceCode, Span};
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::frontend::token::{Operator, OperatorSpan};
-use crate::middleend::intrinsics::{builtin_types, BuiltinType, Intrinsic};
+use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{
     all_same_type, unify, unify_typed_identifier, unify_typed_identifiers,
@@ -411,7 +411,7 @@ impl<'a> Typer<'a> {
                 )
             }
             Expression::Composed(Composed::Cast(cast)) => {
-                self.is_castable_to(input_type, &cast.target_type)
+                self.is_castable_to(input_type, &cast.target_type, span)
             }
             Expression::Composed(Composed::Loop(Loop { body })) => self.check_types_chain(body),
             Expression::Composed(Composed::Browse(browse)) => {
@@ -581,17 +581,83 @@ impl<'a> Typer<'a> {
         &mut self,
         input_type: &Type,
         target_type: &TypedIdentifier,
+        span: Span,
     ) -> Result<Type, AnyError> {
-        let unified = cast(&input_type, &target_type.type_);
+        let unified = cast(
+            &self.expand(&input_type, span)?,
+            &self.expand(&target_type.type_, span)?,
+        );
         if let Some(unified) = unified {
             Ok(unified)
         } else {
-            err(type_mismatch_op(
-                Operator::Call,
-                &input_type,
-                &target_type.type_,
-            ))
+            err_span(
+                type_mismatch_op(Operator::Call, &input_type, &target_type.type_),
+                self.get_current_source(),
+                span,
+            )
         }
+    }
+
+    fn expand(&self, type_: &Type, span: Span) -> Result<Type, AnyError> {
+        match type_ {
+            Type::Simple { type_name } => {
+                if is_builtin_type(type_name.name()).is_some() {
+                    Ok(Type::Simple {
+                        type_name: type_name.clone(),
+                    })
+                } else if let Some(ExpressionSpan {
+                    syntactic_type: Expression::Type(expanded),
+                    span,
+                }) = self.program.identifiers.get(type_name.name())
+                {
+                    Ok(expanded.clone())
+                } else {
+                    err_span(format!("Definition of type '{}' not found. Hint: add 'public' to its definition, like 'public <type> = {}'", type_name, type_name), self.get_current_source(), span)
+                }
+            }
+            Type::Nested {
+                type_name,
+                children,
+            } => {
+                let expanded = self.expand_children(children, span)?;
+                Ok(Type::Nested {
+                    type_name: type_name.clone(),
+                    children: expanded,
+                })
+            }
+            Type::Function {
+                parameters,
+                returned,
+            } => {
+                let expanded = self.expand_children(parameters, span)?;
+                Ok(Type::Function {
+                    parameters: expanded,
+                    returned: Box::new(self.expand_typed_identifier(returned, span)?),
+                })
+            }
+        }
+    }
+
+    fn expand_children(
+        &self,
+        children: &TypedIdentifiers,
+        span: Span,
+    ) -> Result<TypedIdentifiers, AnyError> {
+        let mut expanded = Vec::new();
+        for child in children {
+            expanded.push(self.expand_typed_identifier(child, span)?);
+        }
+        Ok(expanded)
+    }
+    fn expand_typed_identifier(
+        &self,
+        type_: &TypedIdentifier,
+        span: Span,
+    ) -> Result<TypedIdentifier, AnyError> {
+        Ok(TypedIdentifier {
+            name: type_.name.clone(),
+            type_: self.expand(&type_.type_, span)?,
+        })
     }
 
     fn assert_expr_unifies(
@@ -790,12 +856,33 @@ mod tests {
         )
     }
 
-    // #[test]
-    // fn test_struct() {
-    //     assert_types_ok("tuple(x :i64  y :i64) =Coord");
-    //     assert_types_ok("tuple(x :i64  y :i64) =Coord ; function (c :Coord) { c }");
-    //     assert_types_ok("tuple(x :i64  y :i64) =Coord ; [3 5] |function (c :Coord) { c }");
-    // }
+    #[test]
+    fn test_expand() {
+        let coord_type = Type::simple("Coord");
+        let mut program = Program::new_raw(Expression::Type(coord_type.clone()));
+        let expected_type = parse_type("tuple(x :i64  y :i64)");
+        program.identifiers.insert(
+            coord_type.name().to_string(),
+            ExpressionSpan::new_spanless(Expression::Type(expected_type.clone())),
+        );
+        let typer = unwrap_display(Typer::new(&program));
+        let expanded = unwrap_display(typer.expand(&coord_type, program.main().span));
+        assert_eq!(expanded, expected_type);
+    }
+
+    #[test]
+    fn test_struct() {
+        assert_types_ok("public tuple(x :i64  y :i64) =Coord");
+        assert_types_ok("public tuple(x :i64  y :i64) =Coord ; function (c :Coord) { c }");
+        assert_types_ok("public tuple(x :i64  y :i64) =Coord ; [3 5] |cast(:Coord) :Coord");
+        assert_types_ok(
+            "public tuple(x :i64  y :i64) =Coord ; [3 5] |cast(:Coord) |function (c :Coord) { c }",
+        );
+    }
+    #[test]
+    fn test_forbid_non_public_structs() {
+        assert_types_wrong("tuple(x :i64  y :i64) =Coord");
+    }
 
     #[test]
     fn test_cast() {
