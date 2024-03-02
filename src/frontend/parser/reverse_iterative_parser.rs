@@ -116,7 +116,10 @@ impl Parser {
                     let pe = construct_transformation(self, operator, span)?;
                     self.accumulated.push_front(pe);
                 }
-                Token::Identifier(ident) => self.push(Expression::Identifier(ident), span),
+                Token::Identifier(ident) => {
+                    let expression_span = construct_identifier(self, ident, span);
+                    self.push_es(expression_span);
+                }
                 Token::Keyword(keyword) => {
                     let (expr, span) = construct_keyword(self, keyword, span)?;
                     self.push(expr, span);
@@ -212,6 +215,21 @@ impl Parser {
     fn push_pe(&mut self, partial_expression: PartialExpression) {
         self.accumulated.push_front(partial_expression);
     }
+}
+
+fn construct_identifier(parser: &mut Parser, identifier: String, span: Span) -> ExpressionSpan {
+    let maybe_children = parser.accumulated.pop_front();
+    let expr = match maybe_children {
+        Some(PartialExpression::ChildrenTypes(children)) => {
+            Expression::Type(Type::from(identifier, children))
+        }
+        Some(not_children) => {
+            parser.accumulated.push_front(not_children);
+            Expression::Identifier(identifier)
+        }
+        None => Expression::Identifier(identifier),
+    };
+    return ExpressionSpan::new(expr, span);
 }
 
 fn construct_transformation(
@@ -716,7 +734,7 @@ pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
         .iter()
         .map(|b| ExpressionSpan::new(Expression::Value(*b as i64), span))
         .collect::<Vec<_>>();
-    PartialExpression::expression_no_span(Expression::StaticList { elements })
+    PartialExpression::expression(Expression::StaticList { elements }, span)
 }
 
 fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {

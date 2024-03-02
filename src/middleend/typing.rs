@@ -790,6 +790,13 @@ mod tests {
         )
     }
 
+    // #[test]
+    // fn test_struct() {
+    //     assert_types_ok("tuple(x :i64  y :i64) =Coord");
+    //     assert_types_ok("tuple(x :i64  y :i64) =Coord ; function (c :Coord) { c }");
+    //     assert_types_ok("tuple(x :i64  y :i64) =Coord ; [3 5] |function (c :Coord) { c }");
+    // }
+
     #[test]
     fn test_cast() {
         assert_types_ok("[] |cast(:array(:i64))");
