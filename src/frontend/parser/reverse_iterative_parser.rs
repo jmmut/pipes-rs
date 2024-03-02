@@ -15,6 +15,7 @@ use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
 use crate::frontend::token::{Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token};
+use crate::middleend::intrinsics::builtin_types;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
     context("Reverse parser", Parser::parse_tokens(tokens))
@@ -335,14 +336,18 @@ fn construct_function(
         Vec::new()
     };
 
+    let (returned, elem) = extract_single_child_type_or(
+        accumulated,
+        elem,
+        TypedIdentifier::nameless(builtin_types::ANY),
+    );
+
     match chain(elem) {
         Ok((body, chain_span)) => Ok((
-            Expression::function(parameters, body),
+            Expression::function(parameters, returned, body),
             span.merge(&chain_span),
         )),
         Err(elem) => {
-            let (returned, elem) = extract_single_child_type(accumulated, elem);
-
             if let Some(elem) = elem {
                 accumulated.push_front(elem);
             }
@@ -449,7 +454,14 @@ fn construct_type_chain(
 
 fn extract_single_child_type(
     accumulated: &mut VecDeque<PartialExpression>,
+    elem: Option<PartialExpression>,
+) -> (TypedIdentifier, Option<PartialExpression>) {
+    extract_single_child_type_or(accumulated, elem, TypedIdentifier::nothing())
+}
+fn extract_single_child_type_or(
+    accumulated: &mut VecDeque<PartialExpression>,
     mut elem: Option<PartialExpression>,
+    default: TypedIdentifier,
 ) -> (TypedIdentifier, Option<PartialExpression>) {
     let parameter = if let Some(PartialExpression::ChildrenTypes(mut children)) = elem {
         elem = accumulated.pop_front();
@@ -457,10 +469,10 @@ fn extract_single_child_type(
         if let Some(type_) = children.pop() {
             type_
         } else {
-            TypedIdentifier::nothing()
+            default
         }
     } else {
-        TypedIdentifier::nothing()
+        default
     };
     (parameter, elem)
 }
@@ -598,7 +610,10 @@ fn construct_chain_transformations(
                 transformations.push(transformation);
             }
             _ => err_span(
-                expected("operator or closing brace after highlighted code", elem_operator),
+                expected(
+                    "operator or closing brace after highlighted code",
+                    elem_operator,
+                ),
                 source,
                 open_brace_span.merge(&last_span),
             )?,

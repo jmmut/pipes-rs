@@ -232,10 +232,33 @@ impl<'a> Typer<'a> {
     }
 
     fn check_type_function(&mut self, function: &Function) -> Result<Type, AnyError> {
-        let Function { parameters, body } = function;
+        let Function {
+            parameters,
+            body,
+            returned,
+        } = function;
         let chain_type = self.check_types_scope(parameters.clone(), body)?;
-        let function = Type::function(parameters.clone(), TypedIdentifier::nameless(chain_type));
-        Ok(function)
+        let return_unified = unify(&chain_type, &returned.type_);
+        if let Some(unified) = return_unified {
+            let function = Type::function(
+                parameters.clone(),
+                TypedIdentifier {
+                    name: returned.name.clone(),
+                    type_: unified,
+                },
+            );
+            Ok(function)
+        } else {
+            err_span(
+                type_mismatch(
+                    &Expression::Chain(body.clone()),
+                    &chain_type,
+                    &returned.type_,
+                ),
+                self.get_current_source(),
+                body.content_span(),
+            )
+        }
     }
 
     fn check_types_scope(
@@ -794,7 +817,8 @@ mod tests {
         let mut main = lex_and_parse_with_identifiers("increment", lib).unwrap();
         main.identifiers = identifiers;
         let type_ = get_type(&main).unwrap();
-        assert_eq!(type_, parse_type("function(:i64) (:i64)"));
+        let expected = parse_type("function(x:i64) (:i64)").to_string();
+        assert_eq!(type_.to_string(), expected);
     }
 
     #[test]

@@ -102,13 +102,17 @@ impl Expression {
     }
     #[allow(unused)]
     pub fn function_single(parameter: TypedIdentifier, body: Chain) -> Self {
+        Self::Function(Function::any_return(vec![parameter], body))
+    }
+    pub fn function_any_return(parameters: TypedIdentifiers, body: Chain) -> Self {
+        Self::Function(Function::any_return(parameters, body))
+    }
+    pub fn function(parameters: TypedIdentifiers, returned: TypedIdentifier, body: Chain) -> Self {
         Self::Function(Function {
-            parameters: vec![parameter],
+            parameters,
+            returned,
             body,
         })
-    }
-    pub fn function(parameters: TypedIdentifiers, body: Chain) -> Self {
-        Self::Function(Function { parameters, body })
     }
     pub fn loop_(body: Chain) -> Self {
         Self::Composed(Composed::Loop(Loop { body }))
@@ -384,6 +388,17 @@ impl Chain {
             operations: Vec::new(),
         }
     }
+    pub fn content_span(&self) -> Span {
+        if let Some(last) = self.operations.last() {
+            if let Some(initial) = &self.initial {
+                initial.span.merge(&last.content_span())
+            } else {
+                last.content_span()
+            }
+        } else {
+            self.initial.as_ref().map(|i| i.span).unwrap_or(NO_SPAN)
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -401,14 +416,30 @@ impl Operation {
     pub fn several(operator: OperatorSpan, operands: Expressions) -> Operation {
         Operation { operator, operands }
     }
+    pub fn content_span(&self) -> Span {
+        if let Some(last) = self.operands.last() {
+            self.operator.span.merge(&last.span)
+        } else {
+            self.operator.span
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Function {
     pub parameters: TypedIdentifiers,
+    pub returned: TypedIdentifier,
     pub body: Chain,
 }
-
+impl Function {
+    pub fn any_return(parameters: TypedIdentifiers, body: Chain) -> Self {
+        Self {
+            parameters,
+            returned: TypedIdentifier::nameless_any(),
+            body,
+        }
+    }
+}
 #[derive(PartialEq, Debug, Clone)]
 pub struct TypedIdentifier {
     pub name: String,
@@ -441,6 +472,9 @@ impl TypedIdentifier {
             name,
             type_: builtin_types::ANY,
         }
+    }
+    pub fn nameless_any() -> Self {
+        Self::nameless(builtin_types::ANY)
     }
     pub fn nameless(type_: Type) -> Self {
         Self {

@@ -183,6 +183,10 @@ mod function {
     fn test_function_arg() {
         assert_eq_ast("function(x) {5}", "function x 5 Chain Fn");
     }
+    #[test]
+    fn test_function_return() {
+        lex_and_parse("function(a :i64)(b :i64) {a}").expect("should work");
+    }
 }
 
 #[test]

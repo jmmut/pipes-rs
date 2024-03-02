@@ -97,9 +97,9 @@ fn track_identifiers_recursive(
             }
             Ok(())
         }
-        Expression::Function(Function { parameters, body }) => {
-            track_identifiers_recursive_scope(import_state, parameters.iter(), body)
-        }
+        Expression::Function(Function {
+            parameters, body, ..
+        }) => track_identifiers_recursive_scope(import_state, parameters.iter(), body),
         Expression::Composed(Composed::Loop(Loop { body })) => {
             track_identifiers_recursive_scope(import_state, [].iter(), body)
         }

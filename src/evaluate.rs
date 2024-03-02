@@ -382,7 +382,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn call_function_expression(
         &mut self,
         arguments: &[i64],
-        Function { parameters, body }: &Function,
+        Function {
+            parameters, body, ..
+        }: &Function,
         closure: &Closure,
     ) -> Result<i64, AnyError> {
         let mut identifiers_inside = closure.clone().to_identifiers();

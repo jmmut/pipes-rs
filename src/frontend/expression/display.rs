@@ -1,6 +1,6 @@
 use crate::frontend::expression::{
-    BrowseOr, Chain, Composed, Expression, ExpressionSpan, Loop, Map, Operation, Type, TypeName,
-    TypedIdentifier, TypedIdentifiers,
+    BrowseOr, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map, Operation, Type,
+    TypeName, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::token::Keyword;
 use crate::middleend::intrinsics::builtin_types;
@@ -27,13 +27,22 @@ impl Display for Expression {
                 }
                 write!(f, " ]")
             }
-            Expression::Function(function) => write!(
-                f,
-                "{}{}{}",
-                Keyword::Function.name(),
-                typed_identifiers_to_str(&function.parameters, false),
-                function.body,
-            ),
+            Expression::Function(Function {
+                parameters,
+                returned,
+                body,
+            }) => {
+                let returneds = vec![returned.clone()];
+                let force_param_parens = returned.type_ != builtin_types::NOTHING;
+                write!(
+                    f,
+                    "{}{}{} {}",
+                    Keyword::Function.name(),
+                    typed_identifiers_to_str(&parameters, force_param_parens),
+                    typed_identifiers_to_str(&returneds, false),
+                    body,
+                )
+            }
             Expression::Composed(Composed::Loop(Loop { body })) => {
                 write!(f, "{} {}", Keyword::Loop.name(), body)
             }
@@ -41,7 +50,13 @@ impl Display for Expression {
                 iteration_elem,
                 body,
             })) => {
-                write!(f, "{}({}) {{{}}}", Keyword::Map.name(), iteration_elem, body,)
+                write!(
+                    f,
+                    "{}({}) {{{}}}",
+                    Keyword::Map.name(),
+                    iteration_elem,
+                    body,
+                )
             }
             Expression::Composed(Composed::BrowseOr(BrowseOr {
                 iteration_elem,
@@ -184,13 +199,13 @@ mod tests {
     #[test]
     fn test_display_function_type() {
         assert_type_displayed("function(param_name :param_type)(return_name :return_type)");
-        assert_type_displayed("function");
+        assert_eq!(parse_type("function").to_string(), "function()(:any)");
         assert_type_displayed("function()(:i64)");
     }
 
     fn assert_type_displayed(code: &str) {
         let type_ = parse_type(code);
-        let displayed = format!("{}", type_);
+        let displayed = type_.to_string();
         assert_eq!(displayed, code);
     }
 
