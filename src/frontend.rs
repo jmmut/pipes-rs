@@ -9,7 +9,6 @@ use crate::frontend::parser::{parse_tokens, reverse_iterative_parser};
 use crate::frontend::program::Program;
 use crate::AnyError;
 
-// pub mod ast;
 pub mod expression;
 pub mod lexer;
 pub mod location;
