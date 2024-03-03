@@ -418,22 +418,6 @@ fn finish_construction_expression(
     err(format!("unfinished code: {:?}", accumulated))
 }
 
-pub fn error_expected<T: Display, R, S: AsRef<str>>(
-    expected: S,
-    actual: Option<T>,
-) -> Result<R, AnyError> {
-    Err(anyerror_expected(expected, actual))
-}
-pub fn anyerror_expected<T: Display, S: AsRef<str>>(expected_: S, actual: Option<T>) -> AnyError {
-    expected(expected_.as_ref(), actual).into()
-}
-pub fn expected<T: Display, S: AsRef<str>>(expected: S, actual: Option<T>) -> String {
-    if let Some(actual) = actual.as_ref() {
-        format!("expected {} but was '{}'", expected.as_ref(), actual)
-    } else {
-        format!("expected {} but was None", expected.as_ref())
-    }
-}
 #[cfg(test)]
 mod tests {
     use crate::frontend::lex_and_parse;

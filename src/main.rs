@@ -5,7 +5,6 @@ use clap::Parser;
 
 use pipes_rs::common::AnyError;
 use pipes_rs::evaluate::{Runtime, NOTHING};
-use pipes_rs::frontend::ast::ast_deserialize_source;
 use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::location::SourceCode;
 use pipes_rs::middleend::typing::check_types;
@@ -23,10 +22,6 @@ struct Args {
     /// Only parse and check types, but don't interpret
     #[arg(short, long)]
     check: bool,
-
-    /// AST syntax, like `[ 5 +7 Op |print_char Op Chain 8 ]`
-    #[arg(short, long)]
-    ast: bool,
 
     /// Print the AST
     #[arg(short, long)]
@@ -54,20 +49,15 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         check,
         input_file,
         prettify,
-        ast,
         debug_ast,
     } = args;
     let code_string = SourceCode::new_from_string_or_file(evaluate_string, input_file)?;
-    let program = if ast {
-        ast_deserialize_source(&code_string)?
-    } else {
-        lex_and_parse(code_string)?
-    };
+    let program = lex_and_parse(code_string)?;
 
     // two ifs so that --debug-ast and --prettify only prints once, prettified
     if debug_ast || prettify {
         if prettify {
-            println!("Expression: {:#?}", program.main());
+            println!("Expression: {}", program.main());
         } else {
             println!("Expression: {:?}", program.main());
         }
@@ -111,7 +101,6 @@ mod tests {
             evaluate_string: None,
             check: false,
             input_file: Some(PathBuf::from("pipes_programs/demos/hello_world.pipes")),
-            ast: false,
             debug_ast: false,
             prettify: false,
         };

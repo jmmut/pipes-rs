@@ -3,7 +3,6 @@ use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
 use crate::common::{context, err, err_span, AnyError};
-use crate::frontend::ast::{error_expected, expected};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     take_single, Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Operation, Operations,
@@ -769,4 +768,21 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         sources: other_sources,
         main_source: parser.source,
     })
+}
+
+pub fn error_expected<T: Display, R, S: AsRef<str>>(
+    expected: S,
+    actual: Option<T>,
+) -> Result<R, AnyError> {
+    Err(anyerror_expected(expected, actual))
+}
+pub fn anyerror_expected<T: Display, S: AsRef<str>>(expected_: S, actual: Option<T>) -> AnyError {
+    expected(expected_.as_ref(), actual).into()
+}
+pub fn expected<T: Display, S: AsRef<str>>(expected: S, actual: Option<T>) -> String {
+    if let Some(actual) = actual.as_ref() {
+        format!("expected {} but was '{}'", expected.as_ref(), actual)
+    } else {
+        format!("expected {} but was None", expected.as_ref())
+    }
 }
