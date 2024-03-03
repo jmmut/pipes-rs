@@ -615,7 +615,7 @@ fn construct_chain_transformations(
         match elem_operator {
             Some(PartialExpression::CloseBrace(span)) => {
                 return Ok(ExpressionSpan::new(
-                    Expression::chain(Box::new(initial), transformations),
+                    Expression::chain(initial, transformations),
                     open_brace_span.merge(&span),
                 ))
             }

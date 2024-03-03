@@ -151,7 +151,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
             let mut errors = Vec::new();
             let identifiers_count_previous = identifiers_vec.len();
             for (name, expression) in identifiers_vec {
-                if let ExpressionSpan {syntactic_type :Expression::Type(_), ..} = expression {
+                if let ExpressionSpan {
+                    syntactic_type: Expression::Type(_),
+                    ..
+                } = expression
+                {
                     self.bind_static_identifier(name, NOTHING);
                 } else {
                     match context("Runtime setup", self.evaluate_recursive(&expression)) {

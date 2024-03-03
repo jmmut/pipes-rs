@@ -94,11 +94,11 @@ impl Expression {
         Self::Chain(Chain::empty())
     }
 
-    pub fn chain(initial: Box<ExpressionSpan>, operations: Operations) -> Self {
-        Self::Chain(Chain {
-            initial: Some(initial),
-            operations,
-        })
+    pub fn chain(initial: ExpressionSpan, operations: Operations) -> Self {
+        Self::Chain(Chain::new(initial, operations))
+    }
+    pub fn list(elements: Expressions) -> Self {
+        Self::StaticList { elements }
     }
     #[allow(unused)]
     pub fn function_single(parameter: TypedIdentifier, body: Chain) -> Self {
@@ -108,11 +108,7 @@ impl Expression {
         Self::Function(Function::any_return(parameters, body))
     }
     pub fn function(parameters: TypedIdentifiers, returned: TypedIdentifier, body: Chain) -> Self {
-        Self::Function(Function {
-            parameters,
-            returned,
-            body,
-        })
+        Self::Function(Function::new(parameters, returned, body))
     }
     pub fn loop_(body: Chain) -> Self {
         Self::Composed(Composed::Loop(Loop { body }))
@@ -383,6 +379,12 @@ pub struct Chain {
 }
 
 impl Chain {
+    pub fn new(initial: ExpressionSpan, operations: Operations) -> Self {
+        Self {
+            initial: Some(Box::new(initial)),
+            operations,
+        }
+    }
     pub fn empty() -> Self {
         Self {
             initial: Some(Box::new(ExpressionSpan::new(Expression::Nothing, NO_SPAN))),
@@ -433,6 +435,13 @@ pub struct Function {
     pub body: Chain,
 }
 impl Function {
+    pub fn new(parameters: TypedIdentifiers, returned: TypedIdentifier, body: Chain) -> Self {
+        Self {
+            parameters,
+            returned,
+            body,
+        }
+    }
     pub fn any_return(parameters: TypedIdentifiers, body: Chain) -> Self {
         Self {
             parameters,
@@ -450,6 +459,9 @@ pub struct TypedIdentifier {
 pub type TypedIdentifiers = Vec<TypedIdentifier>;
 
 impl TypedIdentifier {
+    pub fn new(name: String, type_: Type) -> Self {
+        Self { name, type_ }
+    }
     pub fn nothing() -> Self {
         Self {
             name: "".to_string(),

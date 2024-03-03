@@ -609,7 +609,7 @@ impl<'a> Typer<'a> {
                     })
                 } else if let Some(ExpressionSpan {
                     syntactic_type: Expression::Type(expanded),
-                    span,
+                    ..
                 }) = self.program.identifiers.get(type_name.name())
                 {
                     Ok(expanded.clone())

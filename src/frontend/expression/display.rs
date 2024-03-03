@@ -222,4 +222,11 @@ mod tests {
         let displayed = format!("{}", parsed.main());
         assert_eq!(code, displayed);
     }
+    #[test]
+    fn test_display_several_operands() {
+        let code = "4 |print_char 5 6";
+        let parsed = unwrap_display(lex_and_parse(code));
+        let displayed = format!("{}", parsed.main());
+        assert_eq!(code, displayed);
+    }
 }
