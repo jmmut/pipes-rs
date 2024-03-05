@@ -263,6 +263,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Comparison(comparison) => {
                     accumulated = self.evaluate_compare(accumulated, *comparison, operand)?
                 }
+                Operator::Field => {
+                    unimplemented()?;
+                    accumulated = self.evaluate_field(accumulated, operand)?
+                }
             }
         }
         for (identifier, times_redefined_in_this_chain) in identifiers {
@@ -698,6 +702,17 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Comparison::GreaterThanEquals => accumulated >= value,
         };
         Ok(compared as i64)
+    }
+
+    fn evaluate_field(
+        &mut self,
+        accumulated: GenericValue,
+        operand: &ExpressionSpan,
+    ) -> Result<GenericValue, AnyError> {
+        unimplemented!()
+        // let value = self.evaluate_recursive(operand)?;
+        //
+        // Ok(compared as i64)
     }
 
     fn evaluate_concatenate(

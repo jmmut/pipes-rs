@@ -102,7 +102,7 @@ fn branch(yes: impl Into<Chain>, no: impl Into<Chain>) -> Expression {
 }
 
 fn assert_expr_eq(code: &str, expected: Expression) {
-    let program = lex_and_parse(code).unwrap();
+    let program = unwrap_display(lex_and_parse(code));
     let actual = program.main().syn_type();
     assert_eq!(
         actual, &expected,
@@ -346,4 +346,12 @@ fn test_struct() {
     unwrap_display(lex_and_parse(
         "tuple(x :i64  y :i64) =Coord ; [3 5] |function (c :Coord) { c }",
     ));
+}
+
+#[test]
+fn test_field() {
+    assert_expr_eq(
+        "[] .x",
+        chain(list(&[]), &[op(Operator::Field, ident("x"))]),
+    );
 }

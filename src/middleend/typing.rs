@@ -369,6 +369,10 @@ impl<'a> Typer<'a> {
                 self.assert_expr_unifies(operand, &unified_input, operator.span)?;
                 Ok(i64) // TODO: really should be bool
             }
+
+            Operator::Field => {
+                unimplemented!()
+            }
         }
     }
 

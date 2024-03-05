@@ -67,6 +67,7 @@ pub const TYPE: u8 = b':';
 pub const ASSIGNMENT: u8 = b'=';
 pub const OVERWRITE: &str = "=>";
 pub const CONCATENATE: &str = "++";
+pub const FIELD: u8 = b'.';
 
 pub const EQUALS: &str = "=?";
 pub const LESS_THAN: u8 = b'<';
@@ -89,6 +90,7 @@ pub enum Operator {
     Overwrite,
     Concatenate,
     Comparison(Comparison),
+    Field,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -122,6 +124,7 @@ impl Display for Operator {
             Operator::Comparison(Comparison::GreaterThanEquals) => {
                 write!(f, "{}", GREATER_THAN_EQUALS)
             }
+            Operator::Field => write!(f, "{}", FIELD as char),
         }
     }
 }
