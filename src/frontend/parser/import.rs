@@ -332,15 +332,25 @@ fn track_identifiers_recursive_chain(
             if let (
                 OperatorSpan {
                     operator: Operator::Assignment,
-                    span,
+                    ..
                 },
                 Expression::Identifier(name),
-            ) = (operator, operand.syn_type().clone())
+            ) = (&operator, operand.syn_type().clone())
             {
                 identifiers_defined_in_this_chain.push(name.clone());
                 import_state.assignments.push(name)
             }
-            track_identifiers_recursive(operand, import_state)?;
+            if let (
+                OperatorSpan {
+                    operator: Operator::Field,
+                    ..
+                },
+                Expression::Identifier(name),
+            ) = (operator, operand.syn_type().clone())
+            { // field access should not be imported
+            } else {
+                track_identifiers_recursive(operand, import_state)?;
+            }
         }
     }
 

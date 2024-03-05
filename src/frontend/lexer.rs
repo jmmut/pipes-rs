@@ -2,7 +2,7 @@ use crate::common::{context, err_loc, err_since, err_span};
 use crate::frontend::location::SourceCode;
 use crate::frontend::token::{
     Comparison, Keyword, LocatedToken, LocatedTokens, Operator, Token, ADD, ASSIGNMENT, CALL,
-    CONCATENATE, DIVIDE, EQUALS, GET, GREATER_THAN, GREATER_THAN_EQUALS, IGNORE, LESS_THAN,
+    CONCATENATE, DIVIDE, EQUALS, FIELD, GET, GREATER_THAN, GREATER_THAN_EQUALS, IGNORE, LESS_THAN,
     LESS_THAN_EQUALS, MODULO, MULTIPLY, OVERWRITE, SUBSTRACT, TYPE,
 };
 use crate::AnyError;
@@ -184,6 +184,7 @@ pub fn parse_operator(letter: u8) -> Option<Operator> {
         ASSIGNMENT => Some(Operator::Assignment),
         LESS_THAN => Some(Operator::Comparison(Comparison::LessThan)),
         GREATER_THAN => Some(Operator::Comparison(Comparison::GreaterThan)),
+        FIELD => Some(Operator::Field),
         _ => None,
     }
 }
