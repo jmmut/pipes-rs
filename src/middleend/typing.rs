@@ -996,4 +996,12 @@ mod tests {
         assert_type_eq("[1] |replace(e) {e +10}", "array(:i64)");
         assert_types_wrong("[1] |replace(e) {[1]}");
     }
+
+    #[test]
+    fn test_field_access() {
+        assert_type_eq(
+            "public tuple(x :i64 y :i64) =Coords; [1 2] |cast(:Coords) .x",
+            "i64",
+        );
+    }
 }
