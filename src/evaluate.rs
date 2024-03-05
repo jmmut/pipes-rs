@@ -78,11 +78,6 @@ impl Closure {
     }
 }
 
-#[allow(unused)]
-fn unimplemented<T>() -> Result<T, AnyError> {
-    err("unimplemented")
-}
-
 impl<R: Read, W: Write> Runtime<R, W> {
     /// Executes a given program with a given standard input and output.
     ///
@@ -263,10 +258,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Comparison(comparison) => {
                     accumulated = self.evaluate_compare(accumulated, *comparison, operand)?
                 }
-                Operator::Field => {
-                    unimplemented()?;
-                    accumulated = self.evaluate_field(accumulated, operand)?
-                }
+                Operator::Field => accumulated = self.evaluate_field(accumulated, operand)?,
             }
         }
         for (identifier, times_redefined_in_this_chain) in identifiers {
@@ -710,9 +702,6 @@ impl<R: Read, W: Write> Runtime<R, W> {
         operand: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {
         unimplemented!()
-        // let value = self.evaluate_recursive(operand)?;
-        //
-        // Ok(compared as i64)
     }
 
     fn evaluate_concatenate(
@@ -778,7 +767,7 @@ mod tests {
         let expression = unwrap_display(lex_and_parse(code_text));
         unwrap_display(check_types(&expression));
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
-        result.unwrap()
+        unwrap_display(result)
     }
     fn interpret_fallible(code_text: &str) -> Result<GenericValue, AnyError> {
         let expression = lex_and_parse(code_text)?;
@@ -1128,5 +1117,13 @@ mod tests {
     #[test]
     fn test_inspect() {
         assert_eq!(interpret("3 |inspect(n) {n+1}"), 3);
+    }
+
+    #[test]
+    fn test_field_access() {
+        assert_eq!(
+            interpret("public tuple(x :i64 y :i64) =Coords; [1 2] |cast(:Coords) .y"),
+            2
+        );
     }
 }
