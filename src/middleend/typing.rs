@@ -6,12 +6,13 @@ use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Loop, Map, Operation,
-    Replace, Type, TypedIdentifier, TypedIdentifiers,
+    Replace, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
-use crate::frontend::token::{Operator, OperatorSpan};
+use crate::frontend::token::{Operator, OperatorSpan, FIELD};
+use crate::middleend::intrinsics::BuiltinType::Tuple;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{
@@ -369,10 +370,7 @@ impl<'a> Typer<'a> {
                 self.assert_expr_unifies(operand, &unified_input, operator.span)?;
                 Ok(i64) // TODO: really should be bool
             }
-
-            Operator::Field => {
-                unimplemented!()
-            }
+            Operator::Field => self.get_type_field(input, operator, operand),
         }
     }
 
@@ -499,6 +497,42 @@ impl<'a> Typer<'a> {
                 Ok(builtin_types::ANY) // TODO: implement
             }
             Expression::Composed(Composed::Inspect(_)) => Ok(input_type.clone()),
+        }
+    }
+
+    fn get_type_field(
+        &mut self,
+        input: &Type,
+        operator: OperatorSpan,
+        operand: &Expression,
+    ) -> Result<Type, AnyError> {
+        if let Expression::Identifier(used_field) = operand {
+            let expanded = if is_builtin_type(input.name()).is_some() {
+                input.clone()
+            } else {
+                self.expand(input, operator.span)?
+            };
+            if let Type::Nested {
+                type_name,
+                children,
+            } = expanded
+            {
+                if type_name.name() == BuiltinType::Tuple.name() {
+                    for existing_field in children {
+                        if existing_field.name == *used_field {
+                            return Ok(existing_field.type_);
+                        }
+                    }
+                }
+            }
+            let message = format!("Field '{}' doesn't exist in type {}", operand, input);
+            err_span(message, self.get_current_source(), operator.span)
+        } else {
+            let message = format!(
+                "Bug: After the field access operator '{}' only identifiers can appear, not {}",
+                FIELD, operand
+            );
+            err_span(message, self.get_current_source(), operator.span)
         }
     }
 
