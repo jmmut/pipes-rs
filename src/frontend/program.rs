@@ -12,6 +12,20 @@ pub struct Program {
 }
 
 impl Program {
+    pub fn new_from(
+        main: ExpressionSpan,
+        identifiers: HashMap<String, ExpressionSpan>,
+        main_source: SourceCode,
+        sources: HashMap<String, SourceCode>,
+    ) -> Self {
+        Self {
+            main,
+            identifiers,
+            main_source,
+            sources,
+        }
+    }
+
     pub fn new(expression: ExpressionSpan) -> Self {
         Self {
             main: expression,

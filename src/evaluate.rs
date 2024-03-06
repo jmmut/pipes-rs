@@ -764,9 +764,9 @@ mod tests {
     use super::*;
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
-        let expression = unwrap_display(lex_and_parse(code_text));
-        unwrap_display(check_types(&expression));
-        let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
+        let program = unwrap_display(lex_and_parse(code_text));
+        unwrap_display(check_types(&program));
+        let result = Runtime::evaluate(program, std::io::stdin(), std::io::stdout());
         unwrap_display(result)
     }
     fn interpret_fallible(code_text: &str) -> Result<GenericValue, AnyError> {

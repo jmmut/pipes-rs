@@ -4,7 +4,7 @@ use crate::common::AnyError;
 use crate::evaluate::{GenericValue, Runtime};
 use crate::frontend::lex_and_parse;
 use crate::frontend::location::SourceCode;
-use crate::middleend::typing::check_types;
+use crate::middleend::typing::{add_types, check_types};
 
 pub mod common;
 pub mod evaluate;

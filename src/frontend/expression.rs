@@ -12,7 +12,13 @@ pub struct ExpressionSpan {
 }
 
 impl ExpressionSpan {
-    pub fn new(syntactic_type: Expression, span: Span) -> Self {
+    pub fn new_typeless(syntactic_type: Expression, span: Span) -> Self {
+        Self {
+            syntactic_type,
+            span,
+        }
+    }
+    pub fn new(syntactic_type: Expression, semantic_type: Type, span: Span) -> Self {
         Self {
             syntactic_type,
             span,
@@ -32,6 +38,18 @@ impl ExpressionSpan {
     }
     pub fn syn_type_mut(&mut self) -> &mut Expression {
         &mut self.syntactic_type
+    }
+
+    /// semantic type, as opposed to the syntactic type. E.g.: the syntactic type of '{3+5}' is
+    /// `ExpressionType::Chain`, and the semantic type is `Type::simple("i64")`.
+    pub fn sem_type(&self) -> &Type {
+        unimplemented!()
+    }
+    pub fn sem_type_mut(&mut self) -> &mut Type {
+        unimplemented!()
+    }
+    pub fn take_sem_type(self) -> Type {
+        unimplemented!()
     }
     pub fn span(&self) -> Span {
         self.span
@@ -387,7 +405,10 @@ impl Chain {
     }
     pub fn empty() -> Self {
         Self {
-            initial: Some(Box::new(ExpressionSpan::new(Expression::Nothing, NO_SPAN))),
+            initial: Some(Box::new(ExpressionSpan::new_typeless(
+                Expression::Nothing,
+                NO_SPAN,
+            ))),
             operations: Vec::new(),
         }
     }

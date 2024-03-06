@@ -53,10 +53,10 @@ pub enum PartialExpression {
 
 impl PartialExpression {
     pub fn expression_no_span(e: Expression) -> PartialExpression {
-        PartialExpression::Expression(ExpressionSpan::new(e, NO_SPAN))
+        PartialExpression::Expression(ExpressionSpan::new_typeless(e, NO_SPAN))
     }
     pub fn expression(e: Expression, span: Span) -> PartialExpression {
-        PartialExpression::Expression(ExpressionSpan::new(e, span))
+        PartialExpression::Expression(ExpressionSpan::new_typeless(e, span))
     }
 }
 impl Display for PartialExpression {
@@ -204,7 +204,7 @@ impl Parser {
     }
 
     fn push(&mut self, expression: Expression, span: Span) {
-        self.push_pe(PartialExpression::Expression(ExpressionSpan::new(
+        self.push_pe(PartialExpression::Expression(ExpressionSpan::new_typeless(
             expression, span,
         )));
     }
@@ -228,7 +228,7 @@ fn construct_identifier(parser: &mut Parser, identifier: String, span: Span) -> 
         }
         None => Expression::Identifier(identifier),
     };
-    return ExpressionSpan::new(expr, span);
+    return ExpressionSpan::new_typeless(expr, span);
 }
 
 fn construct_transformation(
@@ -586,7 +586,7 @@ fn construct_chain(
 ) -> Result<ExpressionSpan, AnyError> {
     let elem_expression = accumulated.pop_front();
     match elem_expression {
-        Some(PartialExpression::CloseBrace(span)) => Ok(ExpressionSpan::new(
+        Some(PartialExpression::CloseBrace(span)) => Ok(ExpressionSpan::new_typeless(
             Expression::empty_chain(),
             open_brace_span.merge(&span),
         )),
@@ -613,7 +613,7 @@ fn construct_chain_transformations(
         let elem_operator = accumulated.pop_front();
         match elem_operator {
             Some(PartialExpression::CloseBrace(span)) => {
-                return Ok(ExpressionSpan::new(
+                return Ok(ExpressionSpan::new_typeless(
                     Expression::chain(initial, transformations),
                     open_brace_span.merge(&span),
                 ))
@@ -652,7 +652,7 @@ fn construct_array(
         elem = accumulated.pop_front()
     }
     if let Some(PartialExpression::CloseBracket(span)) = elem {
-        Ok(ExpressionSpan::new(
+        Ok(ExpressionSpan::new_typeless(
             Expression::StaticList { elements },
             open_bracket_span.merge(&span),
         ))
@@ -731,7 +731,7 @@ fn construct_children_types(
 pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
     let elements = string
         .iter()
-        .map(|b| ExpressionSpan::new(Expression::Value(*b as i64), span))
+        .map(|b| ExpressionSpan::new_typeless(Expression::Value(*b as i64), span))
         .collect::<Vec<_>>();
     PartialExpression::expression(Expression::StaticList { elements }, span)
 }
