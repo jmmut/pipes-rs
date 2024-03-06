@@ -205,10 +205,19 @@ impl<'a> Typer<'a> {
         let ExpressionSpan {
             syntactic_type,
             span,
+            ..
         } = expression_span;
         match &syntactic_type {
-            Expression::Nothing => Ok(expression_span.clone()),
-            Expression::Value(_) => Ok(expression_span.clone()),
+            Expression::Nothing => Ok(ExpressionSpan::new(
+                syntactic_type.clone(),
+                builtin_types::NOTHING,
+                *span,
+            )),
+            Expression::Value(_) => Ok(ExpressionSpan::new(
+                syntactic_type.clone(),
+                builtin_types::I64,
+                *span,
+            )),
             Expression::Identifier(name) => self.check_types_identifier(name, *span),
             Expression::Type(_) => Ok(ExpressionSpan::new(
                 syntactic_type.clone(),
@@ -267,6 +276,7 @@ impl<'a> Typer<'a> {
                 if let Some(ExpressionSpan {
                     syntactic_type: Expression::Identifier(name),
                     span,
+                    ..
                 }) = operand
                 {
                     if accumulated_type == builtin_types::TYPE {
@@ -393,6 +403,7 @@ impl<'a> Typer<'a> {
         let ExpressionSpan {
             syntactic_type: operand,
             span: operand_span,
+            ..
         } = operand_expr_span;
         match operator.operator {
             Operator::Add

@@ -245,14 +245,14 @@ fn construct_transformation(
     let transformation = if let Operator::Type = raw_operator {
         if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Identifier(typename),
-            span,
+            ..
         })) = elem_operand
         {
             let operand = get_type_maybe_pop_children(accumulated, typename);
             Operation::single(operator, operand)
         } else if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Type(type_),
-            span,
+            ..
         })) = elem_operand
         {
             let operand = ExpressionSpan::new_spanless(Expression::Type(type_));
@@ -380,6 +380,7 @@ fn chain(
     if let Some(PartialExpression::Expression(ExpressionSpan {
         syntactic_type: Expression::Chain(body),
         span,
+        ..
     })) = partial_expr
     {
         Ok((body, span))
@@ -538,6 +539,7 @@ fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError>
             if let Some(ExpressionSpan {
                 syntactic_type: Expression::Identifier(name),
                 span,
+                ..
             }) = operand
             {
                 // parser.identifiers.insert(name.clone(), expr);
@@ -681,7 +683,7 @@ fn construct_children_types(
         match elem {
             Some(PartialExpression::Expression(ExpressionSpan {
                 syntactic_type: Expression::Identifier(name),
-                span,
+                ..
             })) => {
                 if let Some(previous_name) = name_opt {
                     types.push(TypedIdentifier::any(previous_name));
@@ -699,7 +701,7 @@ fn construct_children_types(
                 let operand = take_single(operands);
                 if let Some(ExpressionSpan {
                     syntactic_type: Expression::Type(type_),
-                    span,
+                    ..
                 }) = operand
                 {
                     let typed_identifier = if let Some(previous_name) = name_opt {

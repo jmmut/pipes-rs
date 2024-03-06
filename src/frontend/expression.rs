@@ -8,28 +8,24 @@ use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 #[derive(Debug, Clone)]
 pub struct ExpressionSpan {
     pub syntactic_type: Expression,
+    pub semantic_type: Type,
     pub span: Span,
 }
 
 impl ExpressionSpan {
     pub fn new_typeless(syntactic_type: Expression, span: Span) -> Self {
-        Self {
-            syntactic_type,
-            span,
-        }
+        Self::new(syntactic_type, builtin_types::UNKNOWN, span)
     }
     pub fn new(syntactic_type: Expression, semantic_type: Type, span: Span) -> Self {
         Self {
             syntactic_type,
+            semantic_type,
             span,
         }
     }
     // TODO: most of the usages of this function should be removed to use a proper span
     pub fn new_spanless(syntactic_type: Expression) -> Self {
-        Self {
-            syntactic_type,
-            span: NO_SPAN,
-        }
+        Self::new_typeless(syntactic_type, NO_SPAN)
     }
     /// syntactic type, as opposed to the semantic type. E.g.: the syntactic type of '{3+5}' is
     /// `ExpressionType::Chain`, and the semantic type is `Type::simple("i64")`.
@@ -43,13 +39,13 @@ impl ExpressionSpan {
     /// semantic type, as opposed to the syntactic type. E.g.: the syntactic type of '{3+5}' is
     /// `ExpressionType::Chain`, and the semantic type is `Type::simple("i64")`.
     pub fn sem_type(&self) -> &Type {
-        unimplemented!()
+        &self.semantic_type
     }
     pub fn sem_type_mut(&mut self) -> &mut Type {
-        unimplemented!()
+        &mut self.semantic_type
     }
     pub fn take_sem_type(self) -> Type {
-        unimplemented!()
+        self.semantic_type
     }
     pub fn span(&self) -> Span {
         self.span
