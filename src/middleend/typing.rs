@@ -257,7 +257,6 @@ impl<'a> Typer<'a> {
 
         let mut assigned_in_this_chain = HashMap::new();
         for operation in &chain.operations {
-            last_operand_span = operation.operands.last().map(|o| o.span);
             accumulated_type = self.get_operation_type(
                 &accumulated_type,
                 operation.operator,
@@ -289,6 +288,7 @@ impl<'a> Typer<'a> {
                     self.bind_identifier_type(name.clone(), accumulated_type.clone());
                 }
             }
+            last_operand_span = operation.operands.last().map(|o| o.span);
         }
         for (to_unbind, times) in assigned_in_this_chain {
             self.unbind_identifier(&to_unbind, times)?;

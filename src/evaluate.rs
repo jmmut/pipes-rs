@@ -6,12 +6,12 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, Map,
-    Operation, TimesOr, Type, TypedIdentifier,
+    Operation, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::program::Program;
-use crate::frontend::token::{Comparison, Operator};
+use crate::frontend::token::{Comparison, Operator, FIELD};
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 
 pub type ListPointer = i64;
@@ -711,7 +711,28 @@ impl<R: Read, W: Write> Runtime<R, W> {
         accumulated_sem_type: &Type,
         operand: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {
-        unimplemented!()
+        if let Type::Nested { children, .. } = accumulated_sem_type {
+            if let ExpressionSpan {
+                syntactic_type: Expression::Identifier(name),
+                ..
+            } = operand
+            {
+                if let Ok(list) = self.get_list(accumulated) {
+                    let index = get_field_index(accumulated_sem_type, children, name)?;
+                    if let Some(elem) = list.get(index) {
+                        Ok(*elem)
+                    } else {
+                        err(format!("Bug: accumulated value {} is a pointer to a tuple with only fields {}. Not enough to access its field {}.{} with field index {}", accumulated, list.len(), accumulated_sem_type, name, index))
+                    }
+                } else {
+                    err(format!("Bug: accumulated value {} is not a pointer to a tuple. Required to access its field {}.{}", accumulated, accumulated_sem_type, name))
+                }
+            } else {
+                err(format!("Bug: the field operator '{}' can only be followed by a field identifier, but was '{}'", FIELD as char, operand))
+            }
+        } else {
+            err(format!("Bug: the field operator '{}' can only be applied to nested types, but appears after a '{}'", FIELD as char, accumulated_sem_type))
+        }
     }
 
     fn evaluate_concatenate(
@@ -761,6 +782,22 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .push(Rc::new(FunctionOrIntrinsic::Function(function, closure)));
         Ok((self.functions.len() - 1) as i64)
     }
+}
+
+fn get_field_index(
+    accumulated_sem_type: &Type,
+    children: &TypedIdentifiers,
+    name: &String,
+) -> Result<usize, AnyError> {
+    for (i, child) in children.iter().enumerate() {
+        if child.name == *name {
+            return Ok(i);
+        }
+    }
+    err(format!(
+        "Bug: field '{}' is not present in type '{}'",
+        name, accumulated_sem_type
+    ))
 }
 
 #[cfg(test)]
