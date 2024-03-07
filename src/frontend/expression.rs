@@ -399,6 +399,12 @@ impl Chain {
             operations,
         }
     }
+    pub fn new_opt_initial(initial: Option<Box<ExpressionSpan>>, operations: Operations) -> Self {
+        Self {
+            initial,
+            operations,
+        }
+    }
     pub fn empty() -> Self {
         Self {
             initial: Some(Box::new(ExpressionSpan::new_typeless(
@@ -438,6 +444,16 @@ impl Operation {
             operator,
             operands,
             sem_type: builtin_types::UNKNOWN,
+        }
+    }
+    pub fn single(operator: OperatorSpan, operand: ExpressionSpan, sem_type: Type) -> Operation {
+        Self::several(operator, vec![operand], sem_type)
+    }
+    pub fn several(operator: OperatorSpan, operands: Expressions, sem_type: Type) -> Operation {
+        Operation {
+            operator,
+            operands,
+            sem_type,
         }
     }
     pub fn content_span(&self) -> Span {

@@ -63,7 +63,7 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         }
     }
 
-    check_types(&program)?;
+    put_types(&mut program)?;
 
     if !check {
         let result = Runtime::evaluate(program, read_src, print_dst)?;

@@ -805,14 +805,14 @@ mod tests {
     use crate::common::{assert_mentions, unwrap_display};
     use crate::frontend::lex_and_parse;
     use crate::frontend::location::SourceCode;
-    use crate::middleend::typing::check_types;
+    use crate::middleend::typing::{check_types, put_types};
     use std::path::PathBuf;
 
     use super::*;
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
-        let program = unwrap_display(lex_and_parse(code_text));
-        unwrap_display(check_types(&program));
+        let mut program = unwrap_display(lex_and_parse(code_text));
+        unwrap_display(put_types(&mut program));
         let result = Runtime::evaluate(program, std::io::stdin(), std::io::stdout());
         unwrap_display(result)
     }

@@ -26,6 +26,12 @@ pub fn add_types(program: &Program) -> Result<ExpressionSpan, AnyError> {
     context("Type checking", Typer::add_types_to_program(program))
 }
 
+pub fn put_types(program: &mut Program)-> Result<(), AnyError> {
+    let typed_main = context("Type checking", Typer::add_types_to_program(program))?;
+    program.main = typed_main;
+    Ok(())
+}
+
 pub fn check_types(program: &Program) -> Result<(), AnyError> {
     add_types(program).map(|_| ())
 }
@@ -249,11 +255,13 @@ impl<'a> Typer<'a> {
         let mut typed_initial = None;
         if let Some(initial) = &chain.initial {
             last_operand_span = Some(initial.span);
-            typed_initial = Some(self.add_types(&*initial)?);
+            typed_initial = Some(Box::new(self.add_types(&*initial)?));
         }
         let mut accumulated_type = typed_initial
+            .as_ref()
             .map(|i| i.sem_type().clone())
             .unwrap_or(builtin_types::ANY);
+        let mut typed_operations = Vec::new();
 
         let mut assigned_in_this_chain = HashMap::new();
         for operation in &chain.operations {
@@ -288,6 +296,11 @@ impl<'a> Typer<'a> {
                     self.bind_identifier_type(name.clone(), accumulated_type.clone());
                 }
             }
+            typed_operations.push(Operation::several(
+                operation.operator,
+                operation.operands.clone(),
+                accumulated_type.clone(),
+            ));
             last_operand_span = operation.operands.last().map(|o| o.span);
         }
         for (to_unbind, times) in assigned_in_this_chain {
@@ -295,7 +308,7 @@ impl<'a> Typer<'a> {
         }
         // FIXME
         Ok(ExpressionSpan::new(
-            Expression::Chain(chain.clone()),
+            Expression::Chain(Chain::new_opt_initial(typed_initial, typed_operations)),
             accumulated_type,
             span,
         ))
@@ -1057,7 +1070,7 @@ mod tests {
         let mut main = lex_and_parse_with_identifiers("4 |increment", lib.clone()).unwrap();
         main.identifiers = identifiers.clone();
 
-        assert_ok(check_types(&main));
+        assert_ok(put_types(&mut main));
         let read_input: &[u8] = &[];
         let print_output = Vec::<u8>::new();
         let result = Runtime::evaluate(main, read_input, print_output);

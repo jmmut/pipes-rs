@@ -5,7 +5,7 @@ use crate::frontend::location::SourceCode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    main: ExpressionSpan,
+    pub main: ExpressionSpan,
     pub identifiers: HashMap<String, ExpressionSpan>,
     pub main_source: SourceCode,
     pub sources: HashMap<String, SourceCode>,
