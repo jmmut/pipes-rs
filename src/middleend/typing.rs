@@ -16,7 +16,7 @@ use crate::middleend::intrinsics::BuiltinType::Tuple;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{
-    all_same_type, unify, unify_typed_identifier, unify_typed_identifiers,
+    all_same_type, join_or, unify, unify_typed_identifier, unify_typed_identifiers,
 };
 
 pub mod cast;
@@ -112,10 +112,19 @@ impl<'a> Typer<'a> {
             for name in identifiers_vec {
                 self.current_source = Some(Self::identifier_to_source(name));
                 let identifier_expression = self.identifiers.get(name).unwrap().clone();
+                if name == "d03/tests/parse_number_location" {
+                    println!(
+                        "parse_number_location before: {}",
+                        identifier_expression.semantic_type
+                    );
+                }
                 let typed_identifier_expression =
                     context("Runtime setup", self.add_types(&identifier_expression));
                 match typed_identifier_expression {
                     Ok(expr_span) => {
+                        if name == "d03/tests/parse_number_location" {
+                            println!("parse_number_location after: {}", expr_span.semantic_type);
+                        }
                         self.bind_identifier_type(name.clone(), expr_span.sem_type().clone())
                     }
                     Err(e) => {
@@ -152,7 +161,7 @@ impl<'a> Typer<'a> {
         filename
     }
 
-    fn bind_typed_identifier(&mut self, TypedIdentifier { name, type_ }: TypedIdentifier) {
+    fn bind_typed_identifier(&mut self, TypedIdentifier { name, type_: type_ }: TypedIdentifier) {
         self.bind_identifier_type(name, type_);
     }
     fn bind_identifier_type(&mut self, identifier: String, type_: Type) {
@@ -306,7 +315,6 @@ impl<'a> Typer<'a> {
         for (to_unbind, times) in assigned_in_this_chain {
             self.unbind_identifier(&to_unbind, times)?;
         }
-        // FIXME
         Ok(ExpressionSpan::new(
             Expression::Chain(Chain::new_opt_initial(typed_initial, typed_operations)),
             accumulated_type,
@@ -489,6 +497,7 @@ impl<'a> Typer<'a> {
         match &callable.syntactic_type {
             Expression::Identifier(name) => {
                 let callable_type = self.get_identifier_type(name)?;
+                println!("{}", callable_type);
                 self.check_type_callable(input_type, operands, &callable_type, span)
             }
             Expression::Chain(chain) => {
@@ -592,10 +601,7 @@ impl<'a> Typer<'a> {
                 if let Some(same) = unify(&yes.sem_type(), &no.sem_type()) {
                     Ok(same)
                 } else {
-                    Ok(Type::from_nameless(
-                        BuiltinType::Or.name(),
-                        vec![yes.take_sem_type(), no.take_sem_type()],
-                    ))
+                    Ok(join_or(yes.sem_type(), no.sem_type()))
                 }
             }
             Expression::Composed(Composed::Something(something)) => {
@@ -673,15 +679,19 @@ impl<'a> Typer<'a> {
     ) -> Result<Type, AnyError> {
         let chain_type = self.check_types_chain(chain, span)?;
         if *expected != builtin_types::NOTHING {
-            let unified_output = self.assert_type_unifies(
-                &expected,
-                &chain_type.sem_type(),
-                OperatorSpan {
-                    operator: Operator::Call,
-                    span,
-                },
-            )?;
-            Ok(unified_output)
+            if *chain_type.sem_type() == builtin_types::NOTHING {
+                Ok(join_or(expected, chain_type.sem_type()))
+            } else {
+                let unified_output = self.assert_type_unifies(
+                    &expected,
+                    &chain_type.sem_type(),
+                    OperatorSpan {
+                        operator: Operator::Call,
+                        span,
+                    },
+                )?;
+                Ok(unified_output)
+            }
         } else {
             Ok(chain_type.take_sem_type())
         }
@@ -846,10 +856,14 @@ impl<'a> Typer<'a> {
     fn get_current_source(&self) -> &SourceCode {
         if let Some(source_path) = &self.current_source {
             if let Some(source) = self.sources.get(source_path) {
-                source
-            } else {
-                panic!("Bug: attempted to print source code '{}' but we didn't store it. Available: {:?}", source_path, self.sources.keys())
+                return source;
+            } else if let Some(source) = &self.main_source.file {
+                if source.to_string_lossy() == *source_path {
+                    return &self.main_source;
+                }
             }
+            println!("Bug: attempted to print source code '{}' but we didn't store it. Assuming it's the main source file. Available: {:?}", source_path, self.sources.keys());
+            &self.main_source
         } else {
             &self.main_source
         }
@@ -937,7 +951,7 @@ mod tests {
     use super::*;
 
     fn parse(code: &str) -> Program {
-        lex_and_parse(code).unwrap()
+        unwrap_display(lex_and_parse(code))
     }
 
     fn assert_ok<T>(res: Result<T, AnyError>) {
@@ -983,6 +997,13 @@ mod tests {
             parse_type("function"),
             Type::function(vec![], TypedIdentifier::nameless_any())
         )
+    }
+    #[test]
+    fn test_or_function() {
+        assert_type_eq(
+            "function {0|branch {} {0}}",
+            "function()(:or(:nothing :i64))",
+        );
     }
 
     #[test]
@@ -1111,6 +1132,7 @@ mod tests {
     fn test_times_or() {
         assert_type_eq("2 |times_or(i) {i} {0}", "i64");
         assert_type_eq("2 |times_or(i) {} {0}", "i64");
+        assert_type_eq("2 |times_or(i) {0} {}", "or(:i64 :nothing)");
         assert_types_wrong("[] |times_or(i) {} {0}");
         assert_types_wrong("3 |times_or(i :array) {} {0}");
         assert_types_wrong("3 |times_or(i) {i ++[]} {0}");
@@ -1122,6 +1144,14 @@ mod tests {
         assert_type_eq("1 |branch {[]} {0}", "or(:array(:any) :i64)");
         assert_type_eq("1 |branch {[0]} {0}", "or(:tuple(:i64) :i64)");
         assert_type_eq("1 |branch {} {0}", "or(:nothing :i64)");
+    }
+
+    #[test]
+    fn test_nested_branch() {
+        assert_type_eq("1 |branch {1 |branch { }{0}} { }", "or(:i64 :nothing)");
+        assert_type_eq("1 |branch {1 |branch {0}{0}} { }", "or(:i64 :nothing)");
+        assert_type_eq("1 |branch {1 |branch { }{0}} {0}", "or(:i64 :nothing)");
+        assert_type_eq("1 |branch {1 |branch {0}{0}} {0}", "i64");
     }
 
     #[test]

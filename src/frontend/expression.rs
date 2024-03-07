@@ -2,7 +2,7 @@ pub mod display;
 
 use crate::common::{err, AnyError};
 use crate::frontend::location::{Span, NO_SPAN};
-use crate::frontend::token::OperatorSpan;
+use crate::frontend::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 #[derive(Debug, Clone)]
@@ -102,6 +102,23 @@ pub enum Composed {
     Inspect(Inspect),
     Cast(Cast),
 }
+impl Composed {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Composed::Loop(_) => Keyword::Loop.name(),
+            Composed::Browse(_) => Keyword::Browse.name(),
+            Composed::BrowseOr(_) => Keyword::BrowseOr.name(),
+            Composed::Times(_) => Keyword::Times.name(),
+            Composed::TimesOr(_) => Keyword::TimesOr.name(),
+            Composed::Replace(_) => Keyword::Replace.name(),
+            Composed::Map(_) => Keyword::Map.name(),
+            Composed::Branch(_) => Keyword::Branch.name(),
+            Composed::Something(_) => Keyword::Something.name(),
+            Composed::Inspect(_) => Keyword::Inspect.name(),
+            Composed::Cast(_) => Keyword::Cast.name(),
+        }
+    }
+}
 
 impl Expression {
     pub fn empty_chain() -> Self {
@@ -185,7 +202,7 @@ impl Expression {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq, Hash)]
 pub enum TypeName {
     // None,
     Builtin(&'static str),
@@ -218,7 +235,7 @@ impl<S: Into<String> + AsRef<str>> From<S> for TypeName {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Hash)]
 pub enum Type {
     Simple {
         type_name: TypeName,
@@ -487,7 +504,7 @@ impl Function {
         }
     }
 }
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq, Hash)]
 pub struct TypedIdentifier {
     pub name: String,
     pub type_: Type,
@@ -497,7 +514,7 @@ pub type TypedIdentifiers = Vec<TypedIdentifier>;
 
 impl TypedIdentifier {
     pub fn new(name: String, type_: Type) -> Self {
-        Self { name, type_ }
+        Self { name, type_: type_ }
     }
     pub fn nothing() -> Self {
         Self {
@@ -529,7 +546,7 @@ impl TypedIdentifier {
     pub fn nameless(type_: Type) -> Self {
         Self {
             name: "".to_string(),
-            type_,
+            type_: type_,
         }
     }
 }

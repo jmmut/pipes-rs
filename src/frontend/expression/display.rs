@@ -1,6 +1,6 @@
 use crate::frontend::expression::{
     Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map,
-    Operation, Type, TypeName, TypedIdentifier, TypedIdentifiers,
+    Operation, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::token::Keyword;
 use crate::middleend::intrinsics::builtin_types;
@@ -43,13 +43,23 @@ impl Display for Expression {
                     body,
                 )
             }
-            Expression::Composed(Composed::Loop(Loop { body })) => {
+            Expression::Composed(composed) => composed.fmt(f),
+            _ => unimplemented!("missing diplay for {:?}", self),
+        }
+    }
+}
+
+impl Display for Composed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let name = self.name();
+        match self {
+            Composed::Loop(Loop { body }) => {
                 write!(f, "{} {}", Keyword::Loop.name(), body)
             }
-            Expression::Composed(Composed::Map(Map {
+            Composed::Map(Map {
                 iteration_elem,
                 body,
-            })) => {
+            }) => {
                 write!(
                     f,
                     "{}({}) {{{}}}",
@@ -58,29 +68,34 @@ impl Display for Expression {
                     body,
                 )
             }
-            Expression::Composed(Composed::BrowseOr(BrowseOr {
-                iteration_elem,
-                body,
-                otherwise,
-            })) => {
-                write!(
-                    f,
-                    "{}({}) {{{}}} {{{}}}",
-                    Keyword::BrowseOr.name(),
-                    iteration_elem,
-                    body,
-                    otherwise
-                )
-            }
-            Expression::Composed(Composed::Branch(Branch { yes, no })) => {
+            #[rustfmt::skip]
+            Composed::BrowseOr(BrowseOr { iteration_elem, body, otherwise, })
+            | Composed::TimesOr(TimesOr { iteration_elem, body, otherwise, }) => {
+                write_types_chain_chain(f, name, iteration_elem, body, otherwise)
+            },
+            Composed::Branch(Branch { yes, no }) => {
                 write!(f, "{} {{{}}} {{{}}}", Keyword::Branch.name(), yes, no)
             }
-            Expression::Composed(Composed::Cast(Cast { target_type })) => {
+            Composed::Cast(Cast { target_type }) => {
                 write!(f, "{}{}", Keyword::Cast.name(), target_type)
             }
             _ => unimplemented!("missing diplay for {:?}", self),
         }
     }
+}
+
+fn write_types_chain_chain(
+    f: &mut Formatter,
+    composed_name: &str,
+    iteration_elem: &TypedIdentifier,
+    body: &Chain,
+    otherwise: &Chain,
+) -> std::fmt::Result {
+    write!(
+        f,
+        "{}({}) {{{}}} {{{}}}",
+        composed_name, iteration_elem, body, otherwise
+    )
 }
 
 impl Display for Chain {

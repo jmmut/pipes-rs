@@ -82,7 +82,7 @@ fn cast_typed_identifier(
 ) -> Option<TypedIdentifier> {
     if let Some(type_) = cast(&first.type_, &second.type_) {
         let name = cast_name(&first.name, &second.name);
-        Some(TypedIdentifier { name, type_ })
+        Some(TypedIdentifier { name, type_: type_ })
     } else {
         None
     }

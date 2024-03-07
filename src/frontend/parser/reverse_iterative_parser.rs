@@ -711,7 +711,7 @@ fn construct_children_types(
                         name_opt = None;
                         TypedIdentifier {
                             name: previous_name,
-                            type_,
+                            type_: type_,
                         }
                     } else {
                         TypedIdentifier::nameless(type_)

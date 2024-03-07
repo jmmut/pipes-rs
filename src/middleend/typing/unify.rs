@@ -1,6 +1,8 @@
+use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
 use crate::middleend::intrinsics::{builtin_types, BuiltinType};
 use crate::middleend::typing::cast::cast;
+use std::collections::HashSet;
 
 /// Compare types semantically and merge them.
 /// In summary, the Any type can be casted implicitly to any type, and this function
@@ -29,17 +31,56 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
         },
         #[rustfmt::skip]
         (
-            Type::Function { parameters: param_1, returned: returned_1},
-            Type::Function { parameters: param_2, returned: returned_2},
+            Type::Function { parameters: param_1, returned: returned_1 },
+            Type::Function { parameters: param_2, returned: returned_2 },
         ) => {
             let parameters = unify_typed_identifiers(param_1, param_2)?;
             let returned = Box::new(unify_typed_identifier(returned_1, returned_2)?);
-            Some(Type::Function { parameters, returned})
+            Some(Type::Function { parameters, returned })
         }
         (_, _) => None,
     }
 }
+
 fn try_or(first: &Type, second: &Type) -> Option<Type> {
+    if first.name() == BuiltinType::Or.name() && second.name() == BuiltinType::Or.name() {
+        if let (Type::Nested { children: or_1, .. }, Type::Nested { children: or_2, .. }) =
+            (first, second)
+        {
+            let mut sorted_1 = or_1.clone();
+            sort_typed_identifiers(&mut sorted_1);
+            let mut sorted_2 = or_2.clone();
+            sort_typed_identifiers(&mut sorted_2);
+            println!("{}", typed_identifiers_to_str(&sorted_1, true));
+            println!("{}", typed_identifiers_to_str(&sorted_2, true));
+            if let Some(unified) = unify_typed_identifiers(&sorted_1, &sorted_2) {
+                return Some(Type::from(BuiltinType::Or.name(), unified));
+            }
+        } else {
+            panic!("Found a :or without inner types. Not sure if this should be allowed");
+        }
+    }
+    None
+}
+
+fn sort_type(type_: &mut Type) {
+    match type_ {
+        Type::Simple { .. } => {}
+        Type::Nested { children, .. } => {
+            sort_typed_identifiers(children);
+        }
+        Type::Function { .. } => {}
+    }
+}
+
+fn sort_typed_identifiers(typed_identifiers: &mut TypedIdentifiers) {
+    typed_identifiers.sort_by(|t_1, t_2| t_1.type_.name().cmp(&t_2.type_.name()));
+    for child in typed_identifiers {
+        sort_type(&mut child.type_);
+    }
+}
+
+pub fn join_or(first: &Type, second: &Type) -> Type {
     let (or_children, other) = if first.name() == BuiltinType::Or.name() {
         if let Type::Nested { children, .. } = first {
             (children, second)
@@ -53,14 +94,23 @@ fn try_or(first: &Type, second: &Type) -> Option<Type> {
             panic!("Found a :or without inner types. Not sure if this should be allowed");
         }
     } else {
-        return None;
+        return Type::from_nameless(BuiltinType::Or.name(), vec![first.clone(), second.clone()]);
     };
+    // let mut sorted = or_children.clone();
+    // sorted.push(TypedIdentifier::nameless(other.clone()));
+    // sort_typed_identifiers(&mut sorted);
+    // for i in 1..sorted.len() {
+    //
+    // }
+
+    let mut set = HashSet::new();
+    set.insert(TypedIdentifier::nameless(other.clone()));
     for child in or_children {
-        if let Some(unified) = unify(&child.type_, other) {
-            return Some(unified);
-        }
+        set.insert(child.clone());
     }
-    None
+    let mut sorted = set.into_iter().collect();
+    sort_typed_identifiers(&mut sorted);
+    Type::from(BuiltinType::Or.name(), sorted)
 }
 
 pub fn try_list(first: &Type, second: &Type) -> Option<Type> {
@@ -118,7 +168,7 @@ pub fn unify_typed_identifier(
 ) -> Option<TypedIdentifier> {
     if let Some(type_) = unify(&first.type_, &second.type_) {
         let name = unify_name(&first.name, &second.name);
-        Some(TypedIdentifier { name, type_ })
+        Some(TypedIdentifier { name, type_: type_ })
     } else {
         None
     }
@@ -284,6 +334,7 @@ mod tests {
         let parsed_empty_tuple = parse_type("tuple");
         assert_eq!(first, parsed_empty_tuple);
     }
+
     fn assert_unifies(first: &str, second: &str) {
         let second_type = parse_type(second);
         let unified = unify(&parse_type(first), &second_type);
@@ -292,10 +343,12 @@ mod tests {
             Some(second_type.to_string())
         )
     }
+
     fn assert_no_unify(first: &str, second: &str) {
         let unified = unify(&parse_type(first), &parse_type(second));
         assert_eq!(unified, None)
     }
+
     fn assert_unifies_to(first: &str, second: &str, expected: &str) {
         let unified = unify(&parse_type(first), &parse_type(second));
         let expected_type = parse_type(expected);
@@ -304,6 +357,7 @@ mod tests {
             Some(expected_type.to_string())
         )
     }
+
     #[test]
     fn test_list() {
         assert_unifies("list(:i64)", "array(:i64)");
@@ -323,6 +377,7 @@ mod tests {
 
         assert_no_unify("tuple(:i64 :function)", "list");
     }
+
     #[test]
     fn test_nested_list() {
         assert_unifies("tuple(:tuple(:i64) :array(:i64))", "list(:list(:i64))");
@@ -361,8 +416,31 @@ mod tests {
 
     #[test]
     fn test_or() {
-        let i64 = parse_type("i64");
-        let unified = unify(&i64, &parse_type("or(:i64 :nothing)"));
-        assert_eq!(unified, Some(i64));
+        let i64_or_nothing = "or(:i64 :nothing)";
+        assert_no_unify("i64", i64_or_nothing);
+        assert_unifies_to(i64_or_nothing, i64_or_nothing, i64_or_nothing);
+        assert_unifies_to(i64_or_nothing, "or(:nothing :i64)", i64_or_nothing);
+        assert_unifies_to("or(:nothing :i64)", i64_or_nothing, i64_or_nothing);
+    }
+
+    #[test]
+    fn test_sort() {
+        let mut t = parse_type("or(:i64 :nothing)");
+        sort_type(&mut t);
+        assert_eq!(t.to_string(), "or(:i64  :nothing)");
+
+        let mut t = parse_type("or(:nothing :i64)");
+        sort_type(&mut t);
+        assert_eq!(t.to_string(), "or(:i64  :nothing)");
+    }
+
+    #[test]
+    fn test_join_or() {
+        let joined = join_or(&parse_type("i64"), &parse_type("nothing"));
+        assert_eq!(joined.to_string(), "or(:i64  :nothing)");
+        let joined_nested = join_or(&joined, &parse_type("nothing"));
+        assert_eq!(joined_nested.to_string(), joined.to_string());
+        let joined_nested = join_or(&joined, &parse_type("i64"));
+        assert_eq!(joined_nested.to_string(), joined.to_string());
     }
 }
