@@ -37,7 +37,7 @@ impl From<Expression> for Chain {
 }
 
 fn op(operator: Operator, operands: impl Into<Vec<Expression>>) -> Operation {
-    Operation::several(
+    Operation::several_no_sem_type(
         OperatorSpan::spanless(operator),
         to_expr_span_vec(&operands.into()),
     )

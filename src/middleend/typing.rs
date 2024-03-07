@@ -270,6 +270,7 @@ impl<'a> Typer<'a> {
                         span: op_span,
                     },
                 operands,
+                ..
             } = operation
             {
                 let operand = operands.first();

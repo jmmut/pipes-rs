@@ -326,7 +326,12 @@ fn track_identifiers_recursive_chain(
         track_identifiers_recursive(initial.as_mut(), import_state)?;
     }
     let mut identifiers_defined_in_this_chain = Vec::new();
-    for Operation { operator, operands } in &mut chain.operations {
+    for Operation {
+        operator,
+        operands,
+        sem_type,
+    } in &mut chain.operations
+    {
         let operand = operands.get_mut(0);
         if let Some(operand) = operand {
             if let (

@@ -6,13 +6,13 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, Map,
-    Operation, TimesOr, TypedIdentifier,
+    Operation, TimesOr, Type, TypedIdentifier,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::program::Program;
 use crate::frontend::token::{Comparison, Operator};
-use crate::middleend::intrinsics::Intrinsic;
+use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 
 pub type ListPointer = i64;
 pub type FunctionPointer = i64;
@@ -236,7 +236,13 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         let mut identifiers = HashMap::<String, usize>::new();
         let mut accumulated = self.evaluate_recursive(&*initial.as_ref().unwrap())?;
-        for Operation { operator, operands } in operations {
+        let mut previous_sem_type = &builtin_types::UNKNOWN;
+        for Operation {
+            operator,
+            operands,
+            sem_type,
+        } in operations
+        {
             let operand = operands.first().unwrap();
             match &operator.operator {
                 Operator::Add => accumulated += self.evaluate_recursive(operand)?,
@@ -258,8 +264,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Comparison(comparison) => {
                     accumulated = self.evaluate_compare(accumulated, *comparison, operand)?
                 }
-                Operator::Field => accumulated = self.evaluate_field(accumulated, operand)?,
+                Operator::Field => {
+                    accumulated = self.evaluate_field(accumulated, previous_sem_type, operand)?
+                }
             }
+            previous_sem_type = sem_type;
         }
         for (identifier, times_redefined_in_this_chain) in identifiers {
             if times_redefined_in_this_chain > 1 {
@@ -699,6 +708,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
     fn evaluate_field(
         &mut self,
         accumulated: GenericValue,
+        accumulated_sem_type: &Type,
         operand: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {
         unimplemented!()

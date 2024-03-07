@@ -425,16 +425,20 @@ impl Chain {
 pub struct Operation {
     pub operator: OperatorSpan,
     pub operands: Expressions,
+
+    /// semantic type of the resulting expression after applying this operation
+    pub sem_type: Type,
 }
 impl Operation {
-    pub fn single(operator: OperatorSpan, operand: ExpressionSpan) -> Operation {
+    pub fn single_no_sem_type(operator: OperatorSpan, operand: ExpressionSpan) -> Operation {
+        Self::several_no_sem_type(operator, vec![operand])
+    }
+    pub fn several_no_sem_type(operator: OperatorSpan, operands: Expressions) -> Operation {
         Operation {
             operator,
-            operands: vec![operand],
+            operands,
+            sem_type: builtin_types::UNKNOWN,
         }
-    }
-    pub fn several(operator: OperatorSpan, operands: Expressions) -> Operation {
-        Operation { operator, operands }
     }
     pub fn content_span(&self) -> Span {
         if let Some(last) = self.operands.last() {

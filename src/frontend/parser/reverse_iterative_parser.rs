@@ -158,6 +158,7 @@ impl Parser {
                     ..
                 },
             operands,
+            ..
         })) = expression
         {
             let operand = take_single(operands);
@@ -249,14 +250,14 @@ fn construct_transformation(
         })) = elem_operand
         {
             let operand = get_type_maybe_pop_children(accumulated, typename);
-            Operation::single(operator, operand)
+            Operation::single_no_sem_type(operator, operand)
         } else if let Some(PartialExpression::Expression(ExpressionSpan {
             syntactic_type: Expression::Type(type_),
             ..
         })) = elem_operand
         {
             let operand = ExpressionSpan::new_spanless(Expression::Type(type_));
-            Operation::single(operator, operand)
+            Operation::single_no_sem_type(operator, operand)
         } else {
             error_expected("type or type name after type operator ':'", elem_operand)?
         }
@@ -271,20 +272,20 @@ fn construct_transformation(
         }
         if operands.len() > 0 {
             let last_expr_span = operands.last().unwrap().span;
-            Operation {
-                operator: OperatorSpan {
+            Operation::several_no_sem_type(
+                OperatorSpan {
                     operator: raw_operator,
                     span: span.merge(&last_expr_span),
                 },
                 operands,
-            }
+            )
         } else {
             let actual = accumulated.front();
             err(expected("some callable expression", actual))?
         }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
-            Operation::single(operator, operand)
+            Operation::single_no_sem_type(operator, operand)
         } else if raw_operator == Operator::Ignore {
             let operand = if let None = elem_operand {
                 Expression::empty_chain()
@@ -295,7 +296,7 @@ fn construct_transformation(
                 error_expected("expression or close brace or end of file", elem_operand)?
             };
             let operand = ExpressionSpan::new_spanless(operand);
-            Operation::single(operator, operand)
+            Operation::single_no_sem_type(operator, operand)
         } else {
             error_expected("operand after operator", elem_operand)?
         }
@@ -533,6 +534,7 @@ fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError>
                     ..
                 },
             operands,
+            ..
         })) = elem
         {
             let operand = take_single(operands);
@@ -658,7 +660,7 @@ fn construct_array(
             Expression::StaticList { elements },
             open_bracket_span.merge(&span),
         ))
-    } else if let Some(PartialExpression::Operation(Operation { operator, operands })) = elem {
+    } else if let Some(PartialExpression::Operation(Operation { operator, .. })) = elem {
         let expected_message = expected("array end or expression", Some(operator.operator));
         let message = format!(
             "List elements need braces ('{{' and '}}') if they are chained operations.\n{}",
@@ -697,6 +699,7 @@ fn construct_children_types(
                         ..
                     },
                 operands,
+                ..
             })) => {
                 let operand = take_single(operands);
                 if let Some(ExpressionSpan {
