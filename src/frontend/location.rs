@@ -27,6 +27,11 @@ impl Span {
         }
     }
 }
+impl Default for Span {
+    fn default() -> Self {
+        NO_SPAN
+    }
+}
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Location {
     line: i32,

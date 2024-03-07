@@ -7,7 +7,7 @@ use pipes_rs::common::AnyError;
 use pipes_rs::evaluate::{Runtime, NOTHING};
 use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::location::SourceCode;
-use pipes_rs::middleend::typing::check_types;
+use pipes_rs::middleend::typing::{check_types, put_types};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -52,7 +52,7 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         debug_ast,
     } = args;
     let code_string = SourceCode::new_from_string_or_file(evaluate_string, input_file)?;
-    let program = lex_and_parse(code_string)?;
+    let mut program = lex_and_parse(code_string)?;
 
     // two ifs so that --debug-ast and --prettify only prints once, prettified
     if debug_ast || prettify {

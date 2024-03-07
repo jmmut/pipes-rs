@@ -26,7 +26,7 @@ pub fn add_types(program: &Program) -> Result<ExpressionSpan, AnyError> {
     context("Type checking", Typer::add_types_to_program(program))
 }
 
-pub fn put_types(program: &mut Program)-> Result<(), AnyError> {
+pub fn put_types(program: &mut Program) -> Result<(), AnyError> {
     let typed_main = context("Type checking", Typer::add_types_to_program(program))?;
     program.main = typed_main;
     Ok(())
@@ -299,7 +299,7 @@ impl<'a> Typer<'a> {
             typed_operations.push(Operation::several(
                 operation.operator,
                 operation.operands.clone(),
-                accumulated_type.clone(),
+                self.expand(&accumulated_type, last_operand_span.unwrap_or_default())?,
             ));
             last_operand_span = operation.operands.last().map(|o| o.span);
         }
