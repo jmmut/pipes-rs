@@ -6,17 +6,18 @@ use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Loop, Map, Operation,
-    Replace, Type, TypeName, TypedIdentifier, TypedIdentifiers,
+    Replace, Something, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
-use crate::frontend::token::{Operator, OperatorSpan, FIELD};
+use crate::frontend::token::{Keyword, Operator, OperatorSpan, FIELD};
 use crate::middleend::intrinsics::BuiltinType::Tuple;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{
-    all_same_type, join_or, unify, unify_typed_identifier, unify_typed_identifiers,
+    all_same_type, is_something_or_nothing, join_or, unify, unify_typed_identifier,
+    unify_typed_identifiers,
 };
 
 pub mod cast;
@@ -112,19 +113,10 @@ impl<'a> Typer<'a> {
             for name in identifiers_vec {
                 self.current_source = Some(Self::identifier_to_source(name));
                 let identifier_expression = self.identifiers.get(name).unwrap().clone();
-                if name == "d03/tests/parse_number_location" {
-                    println!(
-                        "parse_number_location before: {}",
-                        identifier_expression.semantic_type
-                    );
-                }
                 let typed_identifier_expression =
                     context("Runtime setup", self.add_types(&identifier_expression));
                 match typed_identifier_expression {
                     Ok(expr_span) => {
-                        if name == "d03/tests/parse_number_location" {
-                            println!("parse_number_location after: {}", expr_span.semantic_type);
-                        }
                         self.bind_identifier_type(name.clone(), expr_span.sem_type().clone())
                     }
                     Err(e) => {
@@ -497,7 +489,6 @@ impl<'a> Typer<'a> {
         match &callable.syntactic_type {
             Expression::Identifier(name) => {
                 let callable_type = self.get_identifier_type(name)?;
-                println!("{}", callable_type);
                 self.check_type_callable(input_type, operands, &callable_type, span)
             }
             Expression::Chain(chain) => {
@@ -604,8 +595,32 @@ impl<'a> Typer<'a> {
                     Ok(join_or(yes.sem_type(), no.sem_type()))
                 }
             }
-            Expression::Composed(Composed::Something(something)) => {
-                Ok(builtin_types::ANY) // TODO: implement
+            Expression::Composed(Composed::Something(Something {
+                elem,
+                something,
+                nothing,
+            })) => {
+                let expected_input = join_or(&builtin_types::ANY, &builtin_types::NOTHING);
+                let unified =
+                    self.assert_type_unifies(input_type, &expected_input, operator_span)?;
+                let something_type = if let Some(some) = is_something_or_nothing(&unified) {
+                    let unified_elem =
+                        self.assert_typed_identifier_unifies(&some, elem, Operator::Call)?;
+                    self.check_types_scope_single(unified_elem, &something, span)
+                } else {
+                    err(format!(
+                        "Bug: the input of a |{} must be {}",
+                        Keyword::Something.name(),
+                        expected_input
+                    ))
+                }?;
+                let nothing_type = self.check_types_chain(&nothing, span)?.take_sem_type();
+
+                if let Some(same) = unify(&something_type, &nothing_type) {
+                    Ok(same)
+                } else {
+                    Ok(join_or(&something_type, &nothing_type))
+                }
             }
             Expression::Composed(Composed::Inspect(_)) => Ok(input_type.clone()),
         }
@@ -679,7 +694,22 @@ impl<'a> Typer<'a> {
     ) -> Result<Type, AnyError> {
         let chain_type = self.check_types_chain(chain, span)?;
         if *expected != builtin_types::NOTHING {
-            if *chain_type.sem_type() == builtin_types::NOTHING {
+            let chain_is_nothing = *chain_type.sem_type() == builtin_types::NOTHING;
+            if let Some(something) = is_something_or_nothing(expected) {
+                if chain_is_nothing {
+                    Ok(join_or(&something.type_, &builtin_types::NOTHING))
+                } else {
+                    let unified_output = self.assert_type_unifies(
+                        &something.type_,
+                        &chain_type.sem_type(),
+                        OperatorSpan {
+                            operator: Operator::Call,
+                            span,
+                        },
+                    )?;
+                    Ok(unified_output)
+                }
+            } else if chain_is_nothing {
                 Ok(join_or(expected, chain_type.sem_type()))
             } else {
                 let unified_output = self.assert_type_unifies(
@@ -1117,8 +1147,21 @@ mod tests {
     }
     #[test]
     fn test_loop_or() {
+        assert_type_eq(
+            "[0] |browse_or(condition) {condition |branch {} {0}} {} ",
+            "or(:i64 :nothing)",
+        );
+        assert_type_eq(
+            "[0] |browse_or(condition) {condition |branch {} {0}} {1} ",
+            "i64",
+        );
+        assert_type_eq(
+            "[0] |browse_or(condition) {condition |branch {1} {0}} {} ",
+            "or(:i64 :nothing)",
+        );
         assert_type_eq("[1] |browse_or(e) {e} {0}", "i64");
         assert_type_eq("[1] |browse_or(e) {} {0}", "i64");
+        assert_type_eq("[1] |browse_or(e) {} {}", "nothing");
         assert_types_wrong("[1] |browse_or(e) {e} {[]}");
     }
     #[test]

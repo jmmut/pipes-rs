@@ -1159,7 +1159,7 @@ mod tests {
 
     #[test]
     fn test_something() {
-        assert_eq!(interpret("3 |something(n) {n} {5}"), 3);
+        assert_eq!(interpret("1 |branch{3}{} |something(n) {n} {5}"), 3);
     }
     #[test]
     fn test_inspect() {

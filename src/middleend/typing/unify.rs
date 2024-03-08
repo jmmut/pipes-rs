@@ -1,5 +1,6 @@
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
+use crate::middleend::intrinsics::builtin_types::NOTHING;
 use crate::middleend::intrinsics::{builtin_types, BuiltinType};
 use crate::middleend::typing::cast::cast;
 use std::collections::HashSet;
@@ -51,8 +52,6 @@ fn try_or(first: &Type, second: &Type) -> Option<Type> {
             sort_typed_identifiers(&mut sorted_1);
             let mut sorted_2 = or_2.clone();
             sort_typed_identifiers(&mut sorted_2);
-            println!("{}", typed_identifiers_to_str(&sorted_1, true));
-            println!("{}", typed_identifiers_to_str(&sorted_2, true));
             if let Some(unified) = unify_typed_identifiers(&sorted_1, &sorted_2) {
                 return Some(Type::from(BuiltinType::Or.name(), unified));
             }
@@ -113,6 +112,27 @@ pub fn join_or(first: &Type, second: &Type) -> Type {
     Type::from(BuiltinType::Or.name(), sorted)
 }
 
+pub fn is_something_or_nothing(type_: &Type) -> Option<TypedIdentifier> {
+    if let Type::Nested {
+        type_name,
+        children,
+    } = type_
+    {
+        if type_name.name() == BuiltinType::Or.name() && children.len() == 2 {
+            if children[0].type_ == NOTHING && children[1].type_ != NOTHING {
+                Some(children[1].clone())
+            } else if children[0].type_ != NOTHING && children[1].type_ == NOTHING {
+                Some(children[0].clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
 pub fn try_list(first: &Type, second: &Type) -> Option<Type> {
     if first.name() == BuiltinType::List.name() {
         if second.name() == BuiltinType::Array.name() {
