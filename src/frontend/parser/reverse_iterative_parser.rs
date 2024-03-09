@@ -16,6 +16,7 @@ use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{
     Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token,
 };
+use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::builtin_types;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {
@@ -772,8 +773,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         main: main,
         exported: parser.exported,
         available: parser.available,
-        sources: other_sources,
-        main_source: parser.source,
+        sources: Sources::new(parser.source, other_sources),
     })
 }
 

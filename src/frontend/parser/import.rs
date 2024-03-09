@@ -290,12 +290,10 @@ fn import_identifier(
         import_state
             .imported
             .extend(std::mem::take(&mut program.exported));
-        import_state
-            .other_sources
-            .extend(program.sources.into_iter());
-        import_state.other_sources.insert(
-            relative_path_to_import.to_string_lossy().to_string(),
-            program.main_source,
+        import_state.other_sources.extend(
+            program
+                .sources
+                .take_all(relative_path_to_import.to_string_lossy().to_string()),
         );
         Ok(())
     }

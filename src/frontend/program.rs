@@ -2,26 +2,24 @@ use std::collections::{HashMap, HashSet};
 
 use crate::frontend::expression::{Expression, ExpressionSpan};
 use crate::frontend::sources::location::SourceCode;
+use crate::frontend::sources::Sources;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Program {
     pub main: ExpressionSpan,
     pub identifiers: HashMap<String, ExpressionSpan>,
-    pub main_source: SourceCode,
-    pub sources: HashMap<String, SourceCode>,
+    pub sources: Sources,
 }
 
 impl Program {
     pub fn new_from(
         main: ExpressionSpan,
         identifiers: HashMap<String, ExpressionSpan>,
-        main_source: SourceCode,
-        sources: HashMap<String, SourceCode>,
+        sources: Sources,
     ) -> Self {
         Self {
             main,
             identifiers,
-            main_source,
             sources,
         }
     }
@@ -30,8 +28,7 @@ impl Program {
         Self {
             main: expression,
             identifiers: HashMap::new(),
-            main_source: SourceCode::new_fileless("".to_string()),
-            sources: HashMap::new(),
+            sources: Sources::default(),
         }
     }
     pub fn new_raw(expression: Expression) -> Self {
@@ -40,15 +37,8 @@ impl Program {
     pub fn main(&self) -> &ExpressionSpan {
         &self.main
     }
-    pub fn take(
-        self,
-    ) -> (
-        ExpressionSpan,
-        HashMap<String, ExpressionSpan>,
-        SourceCode,
-        HashMap<String, SourceCode>,
-    ) {
-        (self.main, self.identifiers, self.main_source, self.sources)
+    pub fn take(self) -> (ExpressionSpan, HashMap<String, ExpressionSpan>, Sources) {
+        (self.main, self.identifiers, self.sources)
     }
 }
 
@@ -57,17 +47,15 @@ impl From<IncompleteProgram> for Program {
         Self {
             main: incomplete.main,
             identifiers: incomplete.exported,
-            main_source: incomplete.main_source,
             sources: incomplete.sources,
         }
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct IncompleteProgram {
     pub main: ExpressionSpan,
     pub exported: HashMap<String, ExpressionSpan>,
     pub available: HashSet<String>,
-    pub main_source: SourceCode,
-    pub sources: HashMap<String, SourceCode>,
+    pub sources: Sources,
 }

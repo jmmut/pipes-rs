@@ -12,6 +12,7 @@ use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::frontend::sources::location::{SourceCode, Span};
 use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan, FIELD};
+use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{
@@ -62,8 +63,7 @@ pub fn is_builtin_simple_type(name: &str) -> Option<Type> {
 type BindingsTypesStack = Vec<Type>;
 struct Typer<'a> {
     identifiers: &'a HashMap<String, ExpressionSpan>,
-    main_source: &'a SourceCode,
-    sources: &'a HashMap<String, SourceCode>,
+    sources: &'a Sources,
     identifier_types: HashMap<String, BindingsTypesStack>,
     current_source: Option<String>,
 }
@@ -79,13 +79,11 @@ impl<'a> Typer<'a> {
         let identifier_types = Self::build_intrinsics();
         let Program {
             identifiers,
-            main_source,
             sources,
             ..
         } = program;
         let mut typer = Self {
             identifiers,
-            main_source,
             sources,
             identifier_types,
             current_source: None,
@@ -885,15 +883,15 @@ impl<'a> Typer<'a> {
         if let Some(source_path) = &self.current_source {
             if let Some(source) = self.sources.get(source_path) {
                 return source;
-            } else if let Some(source) = &self.main_source.file {
+            } else if let Some(source) = &self.sources.get_main().file {
                 if source.to_string_lossy() == *source_path {
-                    return &self.main_source;
+                    return &self.sources.get_main();
                 }
             }
             println!("Bug: attempted to print source code '{}' but we didn't store it. Assuming it's the main source file. Available: {:?}", source_path, self.sources.keys());
-            &self.main_source
+            &self.sources.get_main()
         } else {
-            &self.main_source
+            &self.sources.get_main()
         }
     }
     fn assert_typed_identifier_unifies(
