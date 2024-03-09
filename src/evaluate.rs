@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::rc::Rc;
 use strum::IntoEnumIterator;
 
-use crate::common::{context, err, AnyError};
+use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::{
     Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, Map,
     Operation, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
@@ -715,6 +715,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         accumulated_sem_type: &Type,
         operand: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {
+        let err = |message| err(format!("{} at unknown file {}", message, operand.span));
         if let Type::Nested { children, .. } = accumulated_sem_type {
             if let ExpressionSpan {
                 syntactic_type: Expression::Identifier(name),
@@ -726,16 +727,30 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     if let Some(elem) = list.get(index) {
                         Ok(*elem)
                     } else {
-                        err(format!("Bug: accumulated value {} is a pointer to a tuple with only fields {}. Not enough to access its field {}.{} with field index {}", accumulated, list.len(), accumulated_sem_type, name, index))
+                        err(format!("Bug: accumulated value {} is a pointer to a tuple with only fields {}. \
+                            Not enough to access its field {}.{} with field index {}",
+                                    accumulated, list.len(), accumulated_sem_type, name, index))
                     }
                 } else {
-                    err(format!("Bug: accumulated value {} is not a pointer to a tuple. Required to access its field {}.{}", accumulated, accumulated_sem_type, name))
+                    err(format!(
+                        "Bug: accumulated value {} is not a pointer to a tuple. \
+                        Required to access its field {}.{}",
+                        accumulated, accumulated_sem_type, name
+                    ))
                 }
             } else {
-                err(format!("Bug: the field operator '{}' can only be followed by a field identifier, but was '{}'", FIELD as char, operand))
+                err(format!(
+                    "Bug: the field operator '{}' can only be followed by a field identifier, \
+                    but was '{}'",
+                    FIELD as char, operand
+                ))
             }
         } else {
-            err(format!("Bug: the field operator '{}' can only be applied to nested types, but appears after a '{}'", FIELD as char, accumulated_sem_type))
+            err(format!(
+                "Bug: the field operator '{}' can only be applied to nested types, \
+                but appears after a '{}'",
+                FIELD as char, accumulated_sem_type
+            ))
         }
     }
 
@@ -1175,6 +1190,10 @@ mod tests {
     fn test_field_access() {
         assert_eq!(
             interpret("public tuple(x :i64 y :i64) =Coords; [1 2] |cast(:Coords) .y"),
+            2
+        );
+        assert_eq!(
+            interpret("public tuple(x :i64 y :i64) =Coords; function {[1 2] |cast(:Coords)} =f; {} |function {0 |branch {{} |f .x} {{} |f .y}}"),
             2
         );
     }

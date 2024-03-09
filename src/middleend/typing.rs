@@ -731,7 +731,9 @@ impl<'a> Typer<'a> {
     ) -> Result<Type, AnyError> {
         let operands = &callable_and_operands[1..];
         let mut actual_params = Vec::new();
-        actual_params.push(TypedIdentifier::nameless(input_type.clone()));
+        if *input_type != builtin_types::NOTHING {
+            actual_params.push(TypedIdentifier::nameless(input_type.clone()));
+        }
         for operand in operands {
             let operand_type = self.add_types(&operand)?;
             actual_params.push(TypedIdentifier::nameless(operand_type.take_sem_type()));
@@ -1022,7 +1024,8 @@ mod tests {
         assert_eq!(
             parse_type("function"),
             Type::function(vec![], TypedIdentifier::nameless_any())
-        )
+        );
+        assert_type_eq("{} |function {0}", "i64");
     }
     #[test]
     fn test_or_function() {

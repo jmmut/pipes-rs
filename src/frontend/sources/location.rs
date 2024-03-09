@@ -34,6 +34,28 @@ impl Default for Span {
     }
 }
 
+impl Display for Span {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.start.line == self.end.line {
+            if self.start.column == self.end.column {
+                write!(f, "{}:{}", self.start.line, self.start.column)
+            } else {
+                write!(
+                    f,
+                    "{}:{}-{}",
+                    self.start.line, self.start.column, self.end.column
+                )
+            }
+        } else {
+            write!(
+                f,
+                "{}:{}-{}:{}",
+                self.start.line, self.start.column, self.end.line, self.end.column
+            )
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Location {
     line: i32,
@@ -282,8 +304,8 @@ impl SourceCode {
                 "".to_string()
             };
             format!(
-                " at {maybe_file}{}:{column}:\n{line}\n{}^{mid_caret}{end_caret}\n",
-                start.line,
+                " at {maybe_file}{}:\n{line}\n{}^{mid_caret}{end_caret}\n",
+                Span { start, end },
                 " ".repeat(start.byte - start_start),
             )
         } else {
@@ -294,7 +316,8 @@ impl SourceCode {
                 "".to_string()
             };
             format!(
-                " at {maybe_file}{start}-{end}:\n{line}\n{}^{mid_caret}\n{end_line}\n{}^\n",
+                " at {maybe_file}{}:\n{line}\n{}^{mid_caret}\n{end_line}\n{}^\n",
+                Span { start, end },
                 " ".repeat(start.byte - start_start),
                 "-".repeat(end.byte - end_start),
             )
