@@ -10,9 +10,9 @@ use crate::frontend::expression::{
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
-use crate::frontend::location::SourceCode;
 use crate::frontend::program::Program;
-use crate::frontend::token::{Comparison, Operator, FIELD};
+use crate::frontend::sources::location::SourceCode;
+use crate::frontend::sources::token::{Comparison, Operator, FIELD};
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 
 pub type ListPointer = i64;
@@ -814,8 +814,8 @@ fn get_field_index(
 mod tests {
     use crate::common::{assert_mentions, unwrap_display};
     use crate::frontend::lex_and_parse;
-    use crate::frontend::location::SourceCode;
-    use crate::middleend::typing::{check_types, put_types};
+    use crate::frontend::sources::location::SourceCode;
+    use crate::middleend::typing::put_types;
     use std::path::PathBuf;
 
     use super::*;

@@ -2,7 +2,7 @@ use crate::frontend::expression::{
     Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map,
     Operation, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::token::Keyword;
+use crate::frontend::sources::token::Keyword;
 use crate::middleend::intrinsics::builtin_types;
 use std::fmt::{Display, Formatter};
 

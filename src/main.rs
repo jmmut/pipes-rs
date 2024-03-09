@@ -6,7 +6,7 @@ use clap::Parser;
 use pipes_rs::common::AnyError;
 use pipes_rs::evaluate::{Runtime, NOTHING};
 use pipes_rs::frontend::lex_and_parse;
-use pipes_rs::frontend::location::SourceCode;
+use pipes_rs::frontend::sources::location::SourceCode;
 use pipes_rs::middleend::typing::{check_types, put_types};
 
 #[derive(Parser, Debug)]

@@ -1,5 +1,5 @@
 use crate::common::{context, err, AnyError};
-use crate::frontend::token::{LocatedToken, Token};
+use crate::frontend::sources::token::{LocatedToken, Token};
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
@@ -27,11 +27,13 @@ impl Span {
         }
     }
 }
+
 impl Default for Span {
     fn default() -> Self {
         NO_SPAN
     }
 }
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Location {
     line: i32,
@@ -74,6 +76,7 @@ impl Location {
         }
     }
 }
+
 impl Display for Location {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.line, self.column)
@@ -349,7 +352,7 @@ impl SourceCode {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::frontend::sources::location::{Location, SourceCode};
 
     #[test]
     fn test_index_of_next() {

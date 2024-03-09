@@ -3,8 +3,8 @@ use wasm_bindgen::prelude::*;
 use crate::common::AnyError;
 use crate::evaluate::{GenericValue, Runtime};
 use crate::frontend::lex_and_parse;
-use crate::frontend::location::SourceCode;
 use crate::middleend::typing::{add_types, check_types, put_types};
+use frontend::sources::location::SourceCode;
 
 pub mod common;
 pub mod evaluate;

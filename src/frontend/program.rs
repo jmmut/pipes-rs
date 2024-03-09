@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::frontend::expression::{Expression, ExpressionSpan};
-use crate::frontend::location::SourceCode;
+use crate::frontend::sources::location::SourceCode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {

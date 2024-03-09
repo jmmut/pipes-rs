@@ -2,20 +2,19 @@ use std::collections::HashSet;
 
 use crate::common::unwrap_display;
 use crate::frontend::expression::Type;
-use crate::frontend::lexer::lex;
-use crate::frontend::location::SourceCode;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
 use crate::frontend::parser::{parse_tokens, reverse_iterative_parser};
 use crate::frontend::program::Program;
 use crate::AnyError;
+use sources::lexer::lex;
+use sources::location::SourceCode;
 
 pub mod expression;
 pub mod lexer;
-pub mod location;
 mod parser;
 pub mod program;
-pub mod token;
 
+pub mod sources;
 #[cfg(test)]
 mod tests;
 

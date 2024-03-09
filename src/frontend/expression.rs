@@ -1,8 +1,8 @@
 pub mod display;
 
 use crate::common::{err, AnyError};
-use crate::frontend::location::{Span, NO_SPAN};
-use crate::frontend::token::{Keyword, OperatorSpan};
+use crate::frontend::sources::location::{Span, NO_SPAN};
+use crate::frontend::sources::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 #[derive(Debug, Clone)]

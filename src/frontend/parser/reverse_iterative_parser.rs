@@ -8,12 +8,14 @@ use crate::frontend::expression::{
     take_single, Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Operation, Operations,
     Type, TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::lexer::TokenizedSource;
-use crate::frontend::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
-use crate::frontend::token::{Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token};
+use crate::frontend::sources::lexer::TokenizedSource;
+use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
+use crate::frontend::sources::token::{
+    Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token,
+};
 use crate::middleend::intrinsics::builtin_types;
 
 pub fn parse_tokens(tokens: TokenizedSource) -> Result<Program, AnyError> {

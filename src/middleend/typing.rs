@@ -6,18 +6,16 @@ use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     Chain, Composed, Expression, ExpressionSpan, Expressions, Function, Loop, Map, Operation,
-    Replace, Something, Type, TypeName, TypedIdentifier, TypedIdentifiers,
+    Replace, Something, Type, TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::parse_type;
 use crate::frontend::program::Program;
-use crate::frontend::token::{Keyword, Operator, OperatorSpan, FIELD};
-use crate::middleend::intrinsics::BuiltinType::Tuple;
+use crate::frontend::sources::location::{SourceCode, Span};
+use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan, FIELD};
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
 use crate::middleend::typing::unify::{
-    all_same_type, is_something_or_nothing, join_or, unify, unify_typed_identifier,
-    unify_typed_identifiers,
+    is_something_or_nothing, join_or, unify, unify_typed_identifier, unify_typed_identifiers,
 };
 
 pub mod cast;

@@ -1,4 +1,4 @@
-use crate::frontend::location::{Span, NO_SPAN};
+use crate::frontend::sources::location::{Span, NO_SPAN};
 use std::fmt::{Display, Formatter};
 use strum_macros::EnumIter;
 
@@ -7,6 +7,7 @@ pub struct LocatedToken {
     pub token: Token,
     pub span: Span,
 }
+
 pub type LocatedTokens = Vec<LocatedToken>;
 
 impl LocatedToken {
@@ -33,6 +34,7 @@ pub enum Token {
     CloseParenthesis,
     // Comma,
 }
+
 pub type Tokens = Vec<Token>;
 
 #[derive(Copy, Clone, Debug)]
@@ -49,6 +51,7 @@ impl OperatorSpan {
         }
     }
 }
+
 impl PartialEq for OperatorSpan {
     fn eq(&self, other: &Self) -> bool {
         self.operator == other.operator

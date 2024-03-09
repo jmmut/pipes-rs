@@ -7,11 +7,11 @@ use crate::frontend::expression::{
     Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Function, Inspect, Loop,
     Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
 };
-use crate::frontend::lexer::lex;
-use crate::frontend::location::SourceCode;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
 use crate::frontend::parser::root::qualify;
-use crate::frontend::token::{Operator, OperatorSpan};
+use crate::frontend::sources::lexer::lex;
+use crate::frontend::sources::location::SourceCode;
+use crate::frontend::sources::token::{Operator, OperatorSpan};
 use crate::middleend::intrinsics;
 
 /// Adds imported identifiers to the parser.identifiers parameter

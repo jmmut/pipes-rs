@@ -1,4 +1,4 @@
-use crate::frontend::location::{Location, SourceCode, Span};
+use crate::frontend::sources::location::{Location, SourceCode, Span};
 
 pub type AnyError = Box<dyn std::error::Error>;
 
