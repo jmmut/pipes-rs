@@ -10,6 +10,7 @@ use crate::frontend::expression::{
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
+use crate::frontend::location::SourceCode;
 use crate::frontend::program::Program;
 use crate::frontend::token::{Comparison, Operator, FIELD};
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
@@ -28,6 +29,8 @@ pub struct Runtime<R: Read, W: Write> {
     static_identifiers: HashMap<String, BindingsStack>,
     read_input: R,
     print_output: W,
+    main_source: SourceCode,
+    sources: HashMap<String, SourceCode>,
 }
 
 enum FunctionOrIntrinsic {
@@ -103,13 +106,18 @@ impl<R: Read, W: Write> Runtime<R, W> {
         read_input: R,
         print_output: W,
     ) -> Result<GenericValue, AnyError> {
-        let mut runtime = Self::new(read_input, print_output);
-        let (main, identifiers, ..) = program.take();
+        let (main, identifiers, main_source, sources) = program.take();
+        let mut runtime = Self::new(read_input, print_output, main_source, sources);
         runtime.setup_constants(identifiers)?;
         context("Runtime", runtime.evaluate_recursive(&main))
     }
 
-    fn new(read_input: R, print_output: W) -> Runtime<R, W> {
+    fn new(
+        read_input: R,
+        print_output: W,
+        main_source: SourceCode,
+        sources: HashMap<String, SourceCode>,
+    ) -> Runtime<R, W> {
         let (static_identifiers, functions) = Self::build_intrinsics();
         Runtime {
             lists: HashMap::new(),
@@ -118,6 +126,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
             static_identifiers,
             read_input,
             print_output,
+            main_source,
+            sources,
         }
     }
 
@@ -823,9 +833,10 @@ mod tests {
     }
     fn interpret_io(code_text: &str, read_input: &[u8]) -> (GenericValue, Vec<u8>) {
         let print_output = Vec::<u8>::new();
-        let expression = unwrap_display(lex_and_parse(code_text));
-        let mut runtime = Runtime::new(read_input, print_output);
-        let result = runtime.evaluate_recursive(&expression.main());
+        let program = unwrap_display(lex_and_parse(code_text));
+        let (main, _identifiers, main_source, sources) = program.take();
+        let mut runtime = Runtime::new(read_input, print_output, main_source, sources);
+        let result = runtime.evaluate_recursive(&main);
         (result.unwrap(), runtime.print_output)
     }
 
