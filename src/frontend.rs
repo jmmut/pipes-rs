@@ -1,13 +1,14 @@
 use std::collections::HashSet;
 
+use sources::lexer::lex;
+use sources::location::SourceCode;
+
 use crate::common::unwrap_display;
 use crate::frontend::expression::Type;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
 use crate::frontend::parser::{parse_tokens, reverse_iterative_parser};
 use crate::frontend::program::Program;
 use crate::AnyError;
-use sources::lexer::lex;
-use sources::location::SourceCode;
 
 pub mod expression;
 pub mod lexer;

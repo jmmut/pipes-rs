@@ -1,5 +1,6 @@
-use crate::common::AnyError;
 use std::path::PathBuf;
+
+use crate::common::AnyError;
 
 const PIPES_ROOT_FILENAME: &'static str = "pipes_root.toml";
 

@@ -1,13 +1,14 @@
-use crate::common::unwrap_display;
-use crate::frontend::sources::token::Operator::{Add, Assignment, Call};
 use std::path::PathBuf;
 
-use super::*;
+use crate::common::unwrap_display;
 use crate::frontend::expression::{
     Branch, Browse, Chain, Composed, Expression, ExpressionSpan, Expressions, Operation,
     TypedIdentifier,
 };
+use crate::frontend::sources::token::Operator::{Add, Assignment, Call};
 use crate::frontend::sources::token::{Operator, OperatorSpan};
+
+use super::*;
 
 fn val(value: i64) -> Expression {
     Expression::Value(value)

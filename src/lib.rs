@@ -1,10 +1,11 @@
 use wasm_bindgen::prelude::*;
 
+use frontend::sources::location::SourceCode;
+
 use crate::common::AnyError;
 use crate::evaluate::{GenericValue, Runtime};
 use crate::frontend::lex_and_parse;
-use crate::middleend::typing::{add_types, check_types, put_types};
-use frontend::sources::location::SourceCode;
+use crate::middleend::typing::put_types;
 
 pub mod common;
 pub mod evaluate;

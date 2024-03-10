@@ -1,12 +1,12 @@
 use std::time::{Duration, Instant};
 
 use crate::common::AnyError;
-use crate::frontend::lexer::{lex, TokenizedSource};
-use crate::frontend::program::Program;
 use crate::frontend::{
     ast,
     parser::{recursive_parser, reverse_iterative_parser, slow_iterative_parser},
 };
+use crate::frontend::lexer::{lex, TokenizedSource};
+use crate::frontend::program::Program;
 
 // #[ignore]
 #[test]

@@ -5,11 +5,10 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    Branch, Browse, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Expressions,
-    Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type,
-    TypedIdentifier, TypedIdentifiers,
+    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Expressions, Function,
+    Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
+    TypedIdentifiers,
 };
-use crate::frontend::parse_type;
 use crate::frontend::program::Program;
 use crate::frontend::sources::location::{SourceCode, Span};
 use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan, FIELD};

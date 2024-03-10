@@ -1,13 +1,15 @@
-use clap::Parser;
-use pipes_rs::common::AnyError;
-use pipes_rs::evaluate::{Runtime, NOTHING};
-use pipes_rs::frontend::lex_and_parse;
-use pipes_rs::frontend::sources::location::SourceCode;
-use pipes_rs::middleend::typing::{check_types, put_types};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::Duration;
+
+use clap::Parser;
+
+use pipes_rs::common::AnyError;
+use pipes_rs::evaluate::{Runtime, NOTHING};
+use pipes_rs::frontend::lex_and_parse;
+use pipes_rs::frontend::sources::location::SourceCode;
+use pipes_rs::middleend::typing::put_types;
 
 /// Continuously (~10 times per second) try to interpret (or typecheck) a pipes program.
 #[derive(Parser, Debug)]

@@ -114,9 +114,10 @@ fn cast_list(firsts: &TypedIdentifiers, seconds: &TypedIdentifiers) -> Option<Ty
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::frontend::expression::{Type, TypedIdentifier};
     use crate::middleend::typing::builtin_types;
+
+    use super::*;
 
     #[test]
     fn test_basic_unifiable() {

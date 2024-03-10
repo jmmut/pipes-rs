@@ -1,7 +1,8 @@
-use crate::common::{context, err, AnyError};
-use crate::frontend::sources::token::{LocatedToken, Token};
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
+
+use crate::common::{context, err, AnyError};
+use crate::frontend::sources::token::{LocatedToken, Token};
 
 pub const NO_LOCATION: Location = Location {
     line: 0,

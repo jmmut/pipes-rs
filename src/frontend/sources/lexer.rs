@@ -1,3 +1,5 @@
+use strum::IntoEnumIterator;
+
 use crate::common::{context, err_loc, err_since, err_span, AnyError};
 use crate::frontend::sources::location::SourceCode;
 use crate::frontend::sources::token::{
@@ -5,7 +7,6 @@ use crate::frontend::sources::token::{
     CONCATENATE, DIVIDE, EQUALS, FIELD, GET, GREATER_THAN, GREATER_THAN_EQUALS, IGNORE, LESS_THAN,
     LESS_THAN_EQUALS, MODULO, MULTIPLY, OVERWRITE, SUBSTRACT, TYPE,
 };
-use strum::IntoEnumIterator;
 
 #[derive(Debug, Clone)]
 pub struct TokenizedSource {
@@ -378,11 +379,10 @@ fn is_space(letter: u8) -> bool {
 mod tests {
     use crate::common::unwrap_display;
     use crate::frontend::sources::location::{Location, Span};
+    use crate::frontend::sources::token::Operator::{Add, Divide, Modulo, Multiply, Substract};
     use crate::frontend::sources::token::Token::{
         CloseBracket, Identifier, Number, OpenBracket, Operator,
     };
-
-    use crate::frontend::sources::token::Operator::{Add, Divide, Modulo, Multiply, Substract};
     use crate::frontend::sources::token::Tokens;
 
     use super::*;

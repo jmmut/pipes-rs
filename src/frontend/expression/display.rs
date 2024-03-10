@@ -1,10 +1,11 @@
+use std::fmt::{Debug, Display, Formatter};
+
 use crate::frontend::expression::{
     Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map,
     Operation, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::sources::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::builtin_types;
-use std::fmt::{Debug, Display, Formatter};
 
 impl Display for ExpressionSpan {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

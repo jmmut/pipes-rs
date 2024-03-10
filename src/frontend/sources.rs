@@ -1,6 +1,7 @@
-use crate::frontend::sources::location::SourceCode;
 use std::collections::hash_map::Keys;
 use std::collections::HashMap;
+
+use crate::frontend::sources::location::SourceCode;
 
 pub mod lexer;
 pub mod location;

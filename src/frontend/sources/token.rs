@@ -1,6 +1,8 @@
-use crate::frontend::sources::location::{Span, NO_SPAN};
 use std::fmt::{Display, Formatter};
+
 use strum_macros::EnumIter;
+
+use crate::frontend::sources::location::{Span, NO_SPAN};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct LocatedToken {

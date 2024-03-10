@@ -1,9 +1,8 @@
-use crate::frontend::expression::display::typed_identifiers_to_str;
+use std::collections::HashSet;
+
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
 use crate::middleend::intrinsics::builtin_types::NOTHING;
-use crate::middleend::intrinsics::{builtin_types, BuiltinType};
-use crate::middleend::typing::cast::cast;
-use std::collections::HashSet;
+use crate::middleend::intrinsics::BuiltinType;
 
 /// Compare types semantically and merge them.
 /// In summary, the Any type can be casted implicitly to any type, and this function
@@ -245,11 +244,11 @@ pub fn all_unify_to(types: &TypedIdentifiers, mut accumulated: Type) -> Option<T
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::common::unwrap_display;
     use crate::frontend::expression::{Type, TypedIdentifier};
     use crate::frontend::parse_type;
     use crate::middleend::typing::builtin_types;
+
+    use super::*;
 
     #[test]
     fn test_basic_unifiable() {

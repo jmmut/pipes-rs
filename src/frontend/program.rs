@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::frontend::expression::{Expression, ExpressionSpan};
-use crate::frontend::sources::location::SourceCode;
 use crate::frontend::sources::Sources;
 
 #[derive(Debug, Clone)]

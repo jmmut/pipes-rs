@@ -7,7 +7,7 @@ use pipes_rs::common::AnyError;
 use pipes_rs::evaluate::{Runtime, NOTHING};
 use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::sources::location::SourceCode;
-use pipes_rs::middleend::typing::{check_types, put_types};
+use pipes_rs::middleend::typing::put_types;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -91,8 +91,9 @@ fn reset_sigpipe() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pipes_rs::common::unwrap_display;
+
+    use super::*;
 
     #[test]
     fn test_read_file() {

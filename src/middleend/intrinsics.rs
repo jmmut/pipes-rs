@@ -1,7 +1,8 @@
-use crate::frontend::expression::Type;
-use crate::frontend::parse_type;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
+
+use crate::frontend::expression::Type;
+use crate::frontend::parse_type;
 
 #[derive(Copy, Clone, EnumIter)]
 pub enum Intrinsic {
@@ -85,6 +86,7 @@ impl BuiltinType {
 pub mod builtin_types {
     use crate::frontend::expression::{Type, TypeName};
     use crate::middleend::intrinsics::BuiltinType;
+
     pub const UNKNOWN: Type = Type::Simple {
         type_name: TypeName::Builtin(BuiltinType::Unknown.name()),
     };

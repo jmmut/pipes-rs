@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::common::{context, err, AnyError};
+use crate::common::{AnyError, context, err};
 use crate::frontend::ast::{construct_function_from_chain, error_expected, PartialExpression};
 use crate::frontend::expression::{Chain, Expression, Transformation, Type, TypedIdentifier};
 use crate::frontend::lexer::{lex, TokenizedSource};
