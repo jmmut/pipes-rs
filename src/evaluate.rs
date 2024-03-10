@@ -728,7 +728,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     if let Some(elem) = list.get(index) {
                         Ok(*elem)
                     } else {
-                        err(format!("Bug: accumulated value {} is a pointer to a tuple with only fields {}. \
+                        err(format!("Bug: accumulated value {} is a pointer to a tuple with only {} fields. \
                             Not enough to access its field {}.{} with field index {}",
                                     accumulated, list.len(), accumulated_sem_type, name, index))
                     }
@@ -748,9 +748,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
         } else {
             err(format!(
-                "Bug: the field operator '{}' can only be applied to nested types, \
+                "Bug: field access '{}{}' can only be applied to nested types, \
                 but appears after a '{}'",
-                FIELD as char, accumulated_sem_type
+                FIELD as char, operand, accumulated_sem_type
             ))
         }
     }
