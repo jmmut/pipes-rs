@@ -44,6 +44,9 @@ pub struct OperatorSpan {
 }
 
 impl OperatorSpan {
+    pub fn new(operator: Operator, span: Span) -> Self {
+        Self { operator, span }
+    }
     pub fn spanless(operator: Operator) -> Self {
         Self {
             operator,

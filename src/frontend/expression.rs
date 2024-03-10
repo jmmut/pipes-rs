@@ -200,6 +200,14 @@ impl Expression {
     pub fn inspect(elem: TypedIdentifier, body: Chain) -> Self {
         Self::Composed(Composed::Inspect(Inspect { elem, body }))
     }
+
+    pub fn to_chain(self) -> Result<Chain, AnyError> {
+        if let Expression::Chain(chain) = self {
+            Ok(chain)
+        } else {
+            err(format!("Bug: tried to use as a chain but was {}", self))
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone, Eq, Hash)]
@@ -451,6 +459,7 @@ pub struct Operation {
 
     /// semantic type of the resulting expression after applying this operation
     pub sem_type: Type,
+    // pub span: Span, // TODO
 }
 impl Operation {
     pub fn single_no_sem_type(operator: OperatorSpan, operand: ExpressionSpan) -> Operation {

@@ -1,19 +1,20 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::rc::Rc;
+
 use strum::IntoEnumIterator;
 
-use crate::common::{context, err, err_span, AnyError};
+use crate::common::{AnyError, context, err};
 use crate::frontend::expression::{
-    Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, Map,
+    Browse, BrowseOr, Chain, Expression, Expressions, ExpressionSpan, Function, Inspect, Loop, Map,
     Operation, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::program::Program;
 use crate::frontend::sources::location::SourceCode;
-use crate::frontend::sources::token::{Comparison, Operator, FIELD};
 use crate::frontend::sources::Sources;
+use crate::frontend::sources::token::{Comparison, FIELD, Operator};
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 
 pub type ListPointer = i64;
@@ -821,11 +822,12 @@ fn get_field_index(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::common::{assert_mentions, unwrap_display};
     use crate::frontend::lex_and_parse;
     use crate::frontend::sources::location::SourceCode;
     use crate::middleend::typing::put_types;
-    use std::path::PathBuf;
 
     use super::*;
 
@@ -1033,7 +1035,8 @@ mod tests {
             }
             |print_char     // print 54: '6'
             ";
-        assert_eq!(interpret(code), 54);
+        let (result, print_output) = interpret_io(code, &[]);
+        assert_eq!(result, 54);
     }
 
     #[test]
