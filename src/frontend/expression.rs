@@ -5,7 +5,7 @@ use crate::frontend::sources::location::{Span, NO_SPAN};
 use crate::frontend::sources::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ExpressionSpan {
     pub syntactic_type: Expression,
     pub semantic_type: Type,
@@ -452,7 +452,7 @@ impl Chain {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Operation {
     pub operator: OperatorSpan,
     pub operands: Expressions,

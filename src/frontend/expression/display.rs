@@ -2,20 +2,28 @@ use crate::frontend::expression::{
     Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map,
     Operation, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::sources::token::Keyword;
+use crate::frontend::sources::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::builtin_types;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 impl Display for ExpressionSpan {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.syntactic_type)
     }
 }
+impl Debug for ExpressionSpan {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExpressionSpan")
+            .field("syntactic_type", &self.syntactic_type)
+            .field("semantic_type", &self.semantic_type.to_string())
+            .finish()
+    }
+}
 
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expression::Nothing => write!(f, "{{}}"),
+            Expression::Nothing => Ok(()), // we don't need to write!(f, "{{}}") because we will always use an empty chain to store nothing, I think
             Expression::Value(value) => write!(f, "{}", value),
             Expression::Identifier(name) => write!(f, "{}", name),
             Expression::Type(type_) => write!(f, "{}", type_),
@@ -43,8 +51,7 @@ impl Display for Expression {
                     body,
                 )
             }
-            Expression::Composed(composed) => composed.fmt(f),
-            _ => unimplemented!("missing diplay for {:?}", self),
+            Expression::Composed(composed) => write!(f, "{}", composed),
         }
     }
 }
@@ -74,10 +81,10 @@ impl Display for Composed {
                 write_types_chain_chain(f, name, iteration_elem, body, otherwise)
             },
             Composed::Branch(Branch { yes, no }) => {
-                write!(f, "{} {{{}}} {{{}}}", Keyword::Branch.name(), yes, no)
+                write!(f, "{} {} {}", Keyword::Branch.name(), yes, no)
             }
             Composed::Cast(Cast { target_type }) => {
-                write!(f, "{}{}", Keyword::Cast.name(), target_type)
+                write!(f, "{}({})", Keyword::Cast.name(), target_type)
             }
             _ => unimplemented!("missing diplay for {:?}", self),
         }
@@ -100,12 +107,14 @@ fn write_types_chain_chain(
 
 impl Display for Chain {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{")?;
         if let Some(initial) = &self.initial {
             write!(f, "{}", initial)?;
         }
         for operation in &self.operations {
             write!(f, " {}", operation)?;
         }
+        write!(f, "}}")?;
         Ok(())
     }
 }
@@ -122,6 +131,23 @@ impl Display for Operation {
             write!(f, "{}", operand)?;
         }
         Ok(())
+    }
+}
+
+impl Debug for Operation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Operation")
+            .field("operator", &self.operator)
+            .field("operands", &self.operands)
+            .field("semantic_type", &self.sem_type.to_string())
+            .finish()
+    }
+}
+
+impl Debug for OperatorSpan {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.operator)
+        // f.debug_struct("OperatorSpan").field("operator", &self.operator).finish()
     }
 }
 
@@ -235,13 +261,13 @@ mod tests {
         let code = "4 |print_char +5";
         let parsed = unwrap_display(lex_and_parse(code));
         let displayed = format!("{}", parsed.main());
-        assert_eq!(code, displayed);
+        assert_eq!(displayed, format!("{{{}}}", code));
     }
     #[test]
     fn test_display_several_operands() {
         let code = "4 |print_char 5 6";
         let parsed = unwrap_display(lex_and_parse(code));
         let displayed = format!("{}", parsed.main());
-        assert_eq!(code, displayed);
+        assert_eq!(displayed, format!("{{{}}}", code));
     }
 }

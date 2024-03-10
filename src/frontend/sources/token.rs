@@ -37,7 +37,7 @@ pub enum Token {
 
 pub type Tokens = Vec<Token>;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct OperatorSpan {
     pub operator: Operator,
     pub span: Span,
