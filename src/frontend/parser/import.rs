@@ -183,7 +183,7 @@ fn track_identifiers_recursive_type(
     _type_: &Type,
     _import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
-    //todo!()
+    // FIXME: not implementing this means we have to manually qualify types in pipes code
     Ok(())
 }
 
@@ -326,9 +326,7 @@ fn track_identifiers_recursive_chain(
     }
     let mut identifiers_defined_in_this_chain = Vec::new();
     for Operation {
-        operator,
-        operands,
-        sem_type,
+        operator, operands, ..
     } in &mut chain.operations
     {
         let operand = operands.get_mut(0);
@@ -349,7 +347,7 @@ fn track_identifiers_recursive_chain(
                     operator: Operator::Field,
                     ..
                 },
-                Expression::Identifier(name),
+                Expression::Identifier(_name),
             ) = (operator, operand.syn_type().clone())
             { // field access should not be imported
             } else {

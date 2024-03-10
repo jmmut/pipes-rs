@@ -30,7 +30,8 @@ pub struct Runtime<R: Read, W: Write> {
     static_identifiers: HashMap<String, BindingsStack>,
     read_input: R,
     print_output: W,
-    sources: Sources,
+    _sources: Sources, // TODO: figure out how to show sources. We might be executing some function
+                       //   pointer, but we don't track where a function ptr was generated
 }
 
 enum FunctionOrIntrinsic {
@@ -121,7 +122,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             static_identifiers,
             read_input,
             print_output,
-            sources,
+            _sources: sources,
         }
     }
 
@@ -1062,7 +1063,7 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let (result, print_output) = interpret_io("{}|loop {\" \"|print}", "");
+        let (_result, print_output) = interpret_io("{}|loop {\" \"|print}", "");
         assert_eq!(print_output, " \n")
     }
     #[test]

@@ -149,7 +149,7 @@ impl<'a> Typer<'a> {
         filename
     }
 
-    fn bind_typed_identifier(&mut self, TypedIdentifier { name, type_: type_ }: TypedIdentifier) {
+    fn bind_typed_identifier(&mut self, TypedIdentifier { name, type_ }: TypedIdentifier) {
         self.bind_identifier_type(name, type_);
     }
     fn bind_identifier_type(&mut self, identifier: String, type_: Type) {
@@ -319,7 +319,7 @@ impl<'a> Typer<'a> {
             body,
             returned,
         } = function;
-        let mut typed_chain = self.check_types_scope(parameters.clone(), body, span)?;
+        let typed_chain = self.check_types_scope(parameters.clone(), body, span)?;
         let return_unified = unify(&typed_chain.sem_type(), &returned.type_);
         let (typed_params, typed_return) = if let Some(unified) = return_unified {
             (

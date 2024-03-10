@@ -348,7 +348,6 @@ mod tests {
 
     #[test]
     fn test_empty_tuple() {
-        let child = TypedIdentifier::nameless(builtin_types::I64);
         let first = Type::from("tuple", vec![]);
         let parsed_empty_tuple = parse_type("tuple");
         assert_eq!(first, parsed_empty_tuple);

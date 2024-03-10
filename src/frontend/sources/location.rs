@@ -22,9 +22,15 @@ pub struct Span {
 
 impl Span {
     pub fn merge(&self, other: &Span) -> Span {
-        Span {
-            start: self.start.min(&other.start),
-            end: self.end.max(&other.end),
+        if *self == NO_SPAN {
+            other.clone()
+        } else if *other == NO_SPAN {
+            other.clone()
+        } else {
+            Span {
+                start: self.start.min(&other.start),
+                end: self.end.max(&other.end),
+            }
         }
     }
 }
@@ -294,11 +300,7 @@ impl SourceCode {
         let line = &self.text[start_start..start_end];
         let (end_start, end_end) = self.get_current_line_indexes(end.byte);
         if start_start == end_start && start_end == end_end {
-            let (end_caret, column) = if start.column < end.column {
-                ("^", format!("{}-{}", start.column, end.column))
-            } else {
-                ("", start.column.to_string())
-            };
+            let end_caret = if start.column < end.column { "^" } else { "" };
             let mid_caret = if start.byte + 1 < end.byte {
                 "-".repeat(end.byte - start.byte - 1)
             } else {
