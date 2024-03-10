@@ -460,7 +460,7 @@ impl<'a> Typer<'a> {
             }
             Operator::Assignment | Operator::Overwrite => Ok(Operation::single(
                 operator,
-                operand_expr_span.clone(),
+                ExpressionSpan::new(operand.clone(), input.clone(), *operand_span),
                 input.clone(),
             )),
             Operator::Concatenate => {
@@ -741,8 +741,11 @@ impl<'a> Typer<'a> {
                 )
             }
         };
-        let operands =
-            ExpressionSpan::new_typeless(Expression::Composed(typed_composed), composed_span);
+        let operands = ExpressionSpan::new(
+            Expression::Composed(typed_composed),
+            builtin_types::COMPOSED,
+            composed_span,
+        );
         Ok(Operation::single(operator_span, operands, operation_type))
     }
 

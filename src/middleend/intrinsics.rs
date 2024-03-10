@@ -63,6 +63,7 @@ pub enum BuiltinType {
     Struct,
     Function,
     Type,
+    Composed,
 }
 
 impl BuiltinType {
@@ -79,6 +80,7 @@ impl BuiltinType {
             BuiltinType::Struct => "struct",
             BuiltinType::Function => "function",
             BuiltinType::Type => "type",
+            BuiltinType::Composed => "composed",
         }
     }
 }
@@ -101,6 +103,9 @@ pub mod builtin_types {
     };
     pub const TYPE: Type = Type::Simple {
         type_name: TypeName::Builtin(BuiltinType::Type.name()),
+    };
+    pub const COMPOSED: Type = Type::Simple {
+        type_name: TypeName::Builtin(BuiltinType::Composed.name()),
     };
 }
 
