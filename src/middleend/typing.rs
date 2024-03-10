@@ -320,31 +320,26 @@ impl<'a> Typer<'a> {
             body,
             returned,
         } = function;
-        let chain_type = self.check_types_scope(parameters.clone(), body, span)?;
-        let return_unified = unify(&chain_type.sem_type(), &returned.type_);
-        let func_type = if let Some(unified) = return_unified {
-            let function = Type::function(
+        let mut typed_chain = self.check_types_scope(parameters.clone(), body, span)?;
+        let return_unified = unify(&typed_chain.sem_type(), &returned.type_);
+        let (typed_params, typed_return) = if let Some(unified) = return_unified {
+            (
                 parameters.clone(),
                 TypedIdentifier {
                     name: returned.name.clone(),
                     type_: unified,
                 },
-            );
-            Ok(function)
-        } else {
-            err_span(
-                type_mismatch(
-                    &Expression::Chain(body.clone()),
-                    &chain_type.sem_type(),
-                    &returned.type_,
-                ),
-                self.get_current_source(),
-                body.content_span(),
             )
-        }?;
+        } else {
+            err(self.type_mismatch(&typed_chain, &returned.type_))?
+        };
         Ok(ExpressionSpan::new(
-            Expression::Function(function.clone()),
-            func_type,
+            Expression::function(
+                typed_params.clone(),
+                typed_return.clone(),
+                typed_chain.syntactic_type.to_chain()?,
+            ),
+            Type::function(typed_params, typed_return),
             span,
         ))
     }
@@ -415,7 +410,7 @@ impl<'a> Typer<'a> {
             span: operand_span,
             ..
         } = operand_expr_span;
-        let operation_type: Type = match operator.operator {
+        match operator.operator {
             Operator::Add
             | Operator::Substract
             | Operator::Multiply
@@ -423,28 +418,37 @@ impl<'a> Typer<'a> {
             | Operator::Modulo => {
                 let unified_input =
                     self.assert_type_unifies(input, &builtin_types::I64, operator)?;
-                let unified_operand =
+                let typed_operand =
                     self.assert_expr_unifies(operand_expr_span, &unified_input, operator.span)?;
-                Ok(unified_operand)
+                let type_ = typed_operand.semantic_type.clone();
+                Ok(Operation::single(operator, typed_operand, type_))
             }
             Operator::Ignore => {
-                let a = self.add_types(operand_expr_span).map(|e| e.take_sem_type());
-                a
+                let typed_operand = self.add_types(operand_expr_span)?;
+                let type_ = typed_operand.semantic_type.clone();
+                Ok(Operation::single(operator, typed_operand, type_))
             }
-            Operator::Call => Ok(self.get_call_type(input, operands, operator.span)?.sem_type),
+            Operator::Call => self.get_call_type(input, operands, operator.span),
             Operator::Get => {
                 let array = list_any();
-                let unified_input = self.assert_type_unifies(&input, &array, operator)?;
-                self.assert_expr_unifies(operand_expr_span, &builtin_types::I64, *operand_span)?;
-                if let Type::Nested { children, .. } = unified_input {
-                    Ok(children[0].type_.clone())
-                } else {
-                    err("Bug: array should be a Type::nested at this point")
-                }
+                let _unified_input = self.assert_type_unifies(&input, &array, operator)?;
+                let typed_operand = self.assert_expr_unifies(
+                    operand_expr_span,
+                    &builtin_types::I64,
+                    *operand_span,
+                )?;
+                let type_ = typed_operand.semantic_type.clone();
+                Ok(Operation::single(operator, typed_operand, type_))
             }
             Operator::Type => {
                 if let Expression::Type(expected_type) = operand {
-                    self.assert_type_unifies(input, expected_type, operator)
+                    let unified_type = self.assert_type_unifies(input, expected_type, operator)?;
+                    let operand = ExpressionSpan::new(
+                        Expression::Type(unified_type.clone()),
+                        builtin_types::TYPE,
+                        *operand_span,
+                    );
+                    Ok(Operation::single(operator, operand, unified_type))
                 } else {
                     err(format!(
                         "Operator ':' can only be followed by a type, not {:?}",
@@ -452,27 +456,33 @@ impl<'a> Typer<'a> {
                     ))
                 }
             }
-            Operator::Assignment | Operator::Overwrite => Ok(input.clone()),
+            Operator::Assignment | Operator::Overwrite => Ok(Operation::single(
+                operator,
+                operand_expr_span.clone(),
+                input.clone(),
+            )),
             Operator::Concatenate => {
                 let array = list_any();
-                let unified_input = self.assert_type_unifies(input, &array, operator)?;
-                let unified_operand =
-                    self.assert_expr_unifies(operand_expr_span, &unified_input, operator.span)?;
-                Ok(unified_operand)
+                let mut unified_input = self.assert_type_unifies(input, &array, operator)?;
+                let mut typed_operands = Vec::new();
+                for operand in operands {
+                    let typed_operand =
+                        self.assert_expr_unifies(operand, &unified_input, operator.span)?;
+                    unified_input = typed_operand.semantic_type.clone();
+                    typed_operands.push(typed_operand);
+                }
+                Ok(Operation::several(operator, typed_operands, unified_input))
             }
             Operator::Comparison(_) => {
-                let i64 = builtin_types::I64;
-                let unified_input = self.assert_type_unifies(input, &i64, operator)?;
-                self.assert_expr_unifies(operand_expr_span, &unified_input, operator.span)?;
-                Ok(i64) // TODO: really should be bool
+                let unified_input =
+                    self.assert_type_unifies(input, &builtin_types::I64, operator)?;
+                let typed_operand =
+                    self.assert_expr_unifies(operand_expr_span, &unified_input, operator.span)?;
+                let type_ = typed_operand.semantic_type.clone(); // TODO: really should be bool
+                Ok(Operation::single(operator, typed_operand, type_))
             }
-            Operator::Field => self.get_type_field(input, operator, operand),
-        }?;
-        Ok(Operation::several(
-            operator,
-            operands.clone(), // FIXME
-            operation_type,
-        ))
+            Operator::Field => self.get_type_field(input, operator, operand_expr_span),
+        }
     }
 
     fn get_call_type(
@@ -663,7 +673,7 @@ impl<'a> Typer<'a> {
                     vec![TypedIdentifier::nameless(typed_body.semantic_type)],
                 );
                 (
-                    Composed::Replace(Replace {
+                    Composed::Map(Map {
                         iteration_elem: unified_elem,
                         body: typed_body.syntactic_type.to_chain()?,
                     }),
@@ -729,11 +739,9 @@ impl<'a> Typer<'a> {
                 )
             }
         };
-        let operands = vec![ExpressionSpan::new_typeless(
-            Expression::Composed(typed_composed),
-            composed_span,
-        )];
-        Ok(Operation::several(operator_span, operands, operation_type))
+        let operands =
+            ExpressionSpan::new_typeless(Expression::Composed(typed_composed), composed_span);
+        Ok(Operation::single(operator_span, operands, operation_type))
     }
 
     fn unify_or_group_as_or(first: &Type, second: &Type) -> Type {
@@ -748,9 +756,9 @@ impl<'a> Typer<'a> {
         &mut self,
         input: &Type,
         operator: OperatorSpan,
-        operand: &Expression,
-    ) -> Result<Type, AnyError> {
-        if let Expression::Identifier(used_field) = operand {
+        operand: &ExpressionSpan,
+    ) -> Result<Operation, AnyError> {
+        if let Expression::Identifier(used_field) = &operand.syntactic_type {
             let expanded = if is_builtin_type(input.name()).is_some() {
                 input.clone()
             } else {
@@ -764,7 +772,16 @@ impl<'a> Typer<'a> {
                 if type_name.name() == BuiltinType::Tuple.name() {
                     for existing_field in children {
                         if existing_field.name == *used_field {
-                            return Ok(existing_field.type_);
+                            let typed_operand = ExpressionSpan::new(
+                                Expression::Identifier(used_field.clone()),
+                                existing_field.type_.clone(),
+                                operand.span,
+                            );
+                            return Ok(Operation::single(
+                                operator,
+                                typed_operand,
+                                existing_field.type_,
+                            ));
                         }
                     }
                 }
@@ -888,11 +905,7 @@ impl<'a> Typer<'a> {
                     self.assert_typed_identifiers_unify(&actual_params, parameters, span.span)?;
                     unreachable!()
                 } else {
-                    err(type_mismatch(
-                        typed_callable.syn_type(),
-                        typed_callable.sem_type(),
-                        &expected_function,
-                    ))
+                    err(self.type_mismatch(&typed_callable, &expected_function))
                 }
             }
         }
@@ -989,18 +1002,14 @@ impl<'a> Typer<'a> {
         actual_expression: &ExpressionSpan,
         expected: &Type,
         span: Span,
-    ) -> Result<Type, AnyError> {
-        let actual_type = self.add_types(actual_expression)?.take_sem_type();
-        let unified = unify(&actual_type, expected);
+    ) -> Result<ExpressionSpan, AnyError> {
+        let mut typed_actual_expression = self.add_types(actual_expression)?;
+        let unified = unify(&typed_actual_expression.sem_type(), expected);
         if let Some(unified) = unified {
-            Ok(unified)
+            typed_actual_expression.semantic_type = unified;
+            Ok(typed_actual_expression)
         } else {
-            let source = self.get_current_source();
-            err_span(
-                type_mismatch(&actual_expression.syntactic_type, &actual_type, expected),
-                source,
-                span,
-            )
+            err(self.type_mismatch_span(&typed_actual_expression, expected, span))
         }
     }
     fn assert_type_unifies(
@@ -1063,6 +1072,25 @@ impl<'a> Typer<'a> {
             ))
         }
     }
+    fn type_mismatch(&self, actual_expression: &ExpressionSpan, expected: &Type) -> String {
+        self.type_mismatch_span(actual_expression, expected, actual_expression.span)
+    }
+    fn type_mismatch_span(
+        &self,
+        actual_expression: &ExpressionSpan,
+        expected: &Type,
+        span: Span,
+    ) -> String {
+        format!(
+            "Type mismatch for expression '{}':\
+            \n    actual:   {}\
+            \n    expected: {}{}\n",
+            actual_expression.syntactic_type,
+            actual_expression.semantic_type,
+            expected,
+            self.get_current_source().format_span(span)
+        )
+    }
 }
 
 fn list_any() -> Type {
@@ -1073,14 +1101,6 @@ fn list_any() -> Type {
     expected_input
 }
 
-fn type_mismatch(actual_expression: &Expression, actual: &Type, expected: &Type) -> String {
-    format!(
-        "Type mismatch for expression '{}':\
-        \n    actual:   {}\
-        \n    expected: {}\n",
-        actual_expression, actual, expected
-    )
-}
 fn type_mismatch_op(operator: Operator, actual: &Type, expected: &Type) -> String {
     format!(
         "Type mismatch before operator '{}':\
