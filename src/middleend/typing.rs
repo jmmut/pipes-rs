@@ -1185,6 +1185,7 @@ mod tests {
     #[test]
     fn test_basic_array() {
         assert_types_ok("[1 2] :tuple(:i64 :i64)");
+        assert_type_eq("[1 2]", "tuple(:i64 :i64)");
         assert_eq!(parse_type("array"), parse_type("array(:any)"));
     }
     #[test]
@@ -1337,6 +1338,16 @@ mod tests {
     fn test_comparison() {
         assert_type_eq("5 =?2", "i64");
         assert_types_wrong("5 =?[]");
+    }
+    #[test]
+    fn test_inner_type_of_operand() {
+        let code = "1<2";
+        let expected_type = "i64";
+        let program = &parse(code);
+        let typed_program = unwrap_display(add_types(program));
+        let chain = typed_program.syntactic_type.to_chain().unwrap();
+        let inner_type = &chain.operations[0].operands[0].semantic_type;
+        assert_eq!(inner_type.to_string(), expected_type.to_string());
     }
     #[test]
     fn test_map() {
