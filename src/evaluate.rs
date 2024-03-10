@@ -4,17 +4,17 @@ use std::rc::Rc;
 
 use strum::IntoEnumIterator;
 
-use crate::common::{AnyError, context, err};
+use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Browse, BrowseOr, Chain, Expression, Expressions, ExpressionSpan, Function, Inspect, Loop, Map,
+    Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, Map,
     Operation, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::program::Program;
 use crate::frontend::sources::location::SourceCode;
+use crate::frontend::sources::token::{Comparison, Operator, FIELD};
 use crate::frontend::sources::Sources;
-use crate::frontend::sources::token::{Comparison, FIELD, Operator};
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 
 pub type ListPointer = i64;
@@ -842,13 +842,17 @@ mod tests {
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result
     }
-    fn interpret_io(code_text: &str, read_input: &[u8]) -> (GenericValue, Vec<u8>) {
+    fn interpret_io(code_text: &str, read_input: &str) -> (GenericValue, String) {
+        let read_input = read_input.bytes().collect::<Vec<u8>>();
         let print_output = Vec::<u8>::new();
         let program = unwrap_display(lex_and_parse(code_text));
         let (main, _identifiers, sources) = program.take();
-        let mut runtime = Runtime::new(read_input, print_output, sources);
+        let mut runtime = Runtime::new(read_input.as_slice(), print_output, sources);
         let result = runtime.evaluate_recursive(&main);
-        (result.unwrap(), runtime.print_output)
+        (
+            result.unwrap(),
+            String::from_utf8(runtime.print_output).unwrap(),
+        )
     }
 
     #[test]
@@ -1002,10 +1006,10 @@ mod tests {
     fn test_read_lines() {
         let (result, print_output) = interpret_io(
             "{} |read_lines |function(lines) {lines #1 |print |size |to_str |print;lines |size}",
-            &"asdf\nqwer\nzxcv\n".bytes().collect::<Vec<_>>(),
+            &"asdf\nqwer\nzxcv\n",
         );
         assert_eq!(result, 3);
-        assert_eq!(String::from_utf8(print_output).unwrap(), "qwer\n4\n");
+        assert_eq!(print_output, "qwer\n4\n");
     }
     #[test]
     fn test_to_str() {
@@ -1020,9 +1024,9 @@ mod tests {
     #[test]
     fn test_pass_intrinsics() {
         let code = " print_char |function(f) { 5 +48 |f }";
-        let (result, print_output) = interpret_io(code, &[]);
+        let (result, print_output) = interpret_io(code, "");
         assert_eq!(result, 53);
-        assert_eq!(print_output, vec![b'5']);
+        assert_eq!(print_output, "5");
     }
     #[test]
     fn test_deshadow_intrinsics() {
@@ -1035,8 +1039,9 @@ mod tests {
             }
             |print_char     // print 54: '6'
             ";
-        let (result, print_output) = interpret_io(code, &[]);
+        let (result, print_output) = interpret_io(code, "");
         assert_eq!(result, 54);
+        assert_eq!(print_output, "6");
     }
 
     #[test]
@@ -1058,32 +1063,32 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let (result, print_output) = interpret_io("{}|loop {\" \"|print}", &[]);
-        assert_eq!(&String::from_utf8(print_output).unwrap(), " \n")
+        let (result, print_output) = interpret_io("{}|loop {\" \"|print}", "");
+        assert_eq!(print_output, " \n")
     }
     #[test]
     fn test_loop_3_times() {
         let (result, print_output) = interpret_io(
             "0 =i;{}|loop {i +1 =>i |inspect(x) {x |to_str |print} =? 3 |branch {i}{}}",
-            &[],
+            "",
         );
         assert_eq!(result, 3);
-        assert_eq!(&String::from_utf8(print_output).unwrap(), "1\n2\n3\n")
+        assert_eq!(print_output, "1\n2\n3\n")
     }
     #[test]
     fn test_browse() {
         let (result, print_output) =
-            interpret_io("[10 11] |browse(n :i64) {n |to_str |print;}", &[]);
+            interpret_io("[10 11] |browse(n :i64) {n |to_str |print;}", "");
         assert_eq!(result, NOTHING);
-        assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n11\n")
+        assert_eq!(print_output, "10\n11\n")
     }
 
     #[test]
     fn test_browse_broken() {
         let (result, print_output) =
-            interpret_io("[10 11] |browse(n :i64) {n |to_str |print; 5}", &[]);
+            interpret_io("[10 11] |browse(n :i64) {n |to_str |print; 5}", "");
         assert_eq!(result, 5);
-        assert_eq!(&String::from_utf8(print_output).unwrap(), "10\n")
+        assert_eq!(print_output, "10\n")
     }
 
     #[test]
