@@ -430,14 +430,17 @@ impl<'a> Typer<'a> {
             Operator::Call => self.get_call_type(input, operands, operator.span),
             Operator::Get => {
                 let array = list_any();
-                let _unified_input = self.assert_type_unifies(&input, &array, operator)?;
+                let unified_input = self.is_castable_to(input, &array, operator)?;
                 let typed_operand = self.assert_expr_unifies(
                     operand_expr_span,
                     &builtin_types::I64,
                     *operand_span,
                 )?;
-                let type_ = typed_operand.semantic_type.clone();
-                Ok(Operation::single(operator, typed_operand, type_))
+                Ok(Operation::single(
+                    operator,
+                    typed_operand,
+                    unified_input.single_element()?.type_,
+                ))
             }
             Operator::Type => {
                 if let Expression::Type(expected_type) = operand {
@@ -550,7 +553,7 @@ impl<'a> Typer<'a> {
                 // note that we ignore the unified op_type! we are casting to something that might
                 // need being expanded to be unified, but we don't want the final type to be expanded
                 let _operation_type =
-                    self.is_castable_to(input_type, &cast.target_type.type_, span)?;
+                    self.is_castable_to(input_type, &cast.target_type.type_, operator_span)?;
                 (Composed::Cast(cast.clone()), cast.target_type.type_.clone())
             }
             Composed::Loop(Loop { body }) => {
@@ -917,7 +920,7 @@ impl<'a> Typer<'a> {
         &mut self,
         input_type: &Type,
         target_type: &Type,
-        span: Span,
+        OperatorSpan { operator, span }: OperatorSpan,
     ) -> Result<Type, AnyError> {
         let expanded_input = self.expand(&input_type, span);
         let expanded_target = self.expand(target_type, span);
@@ -926,7 +929,7 @@ impl<'a> Typer<'a> {
             Ok(unified)
         } else {
             err_span(
-                type_mismatch_op(Operator::Call, &input_type, target_type),
+                type_mismatch_op(operator, &input_type, target_type),
                 self.get_current_source(),
                 span,
             )
@@ -1294,7 +1297,16 @@ mod tests {
     fn test_chain() {
         assert_types_ok("[1] ++[2] #0 :i64 =n +1 =>n");
     }
-
+    #[test]
+    fn test_get() {
+        assert_types_wrong("[[1 2] [3]] #1");
+        assert_type_eq("[[1 2] [3]] |cast(:list(:list)) #1", "list");
+    }
+    #[test]
+    fn test_concat() {
+        // the important thing here is that concat works with tuples of different cardinality
+        assert_type_eq("[1 2] ++[3]", "list(:i64)");
+    }
     #[test]
     fn test_loop() {
         assert_type_eq("[1] |browse(e) {e}", "i64");
