@@ -1204,5 +1204,9 @@ mod tests {
             interpret("public tuple(x :i64 y :i64) =Coords; function {[1 2] |cast(:Coords)} =f; {} |function {0 |branch {{} |f .x} {{} |f .y}}"),
             2
         );
+        assert_eq!(
+            interpret("public tuple(x :i64 y :i64) =Coords; public function {[1 2] |cast(:Coords)} =f; {} |public function {0 |branch {{} |f .x} {{} |f .y}} =g"),
+            2
+        );
     }
 }

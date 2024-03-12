@@ -22,13 +22,13 @@ use crate::middleend::typing::unify::{
 pub mod cast;
 pub mod unify;
 
-pub fn add_types(program: &Program) -> Result<ExpressionSpan, AnyError> {
+pub fn add_types(program: &Program) -> Result<Program, AnyError> {
     context("Type checking", Typer::add_types_to_program(program))
 }
 
 pub fn put_types(program: &mut Program) -> Result<(), AnyError> {
-    let typed_main = context("Type checking", Typer::add_types_to_program(program))?;
-    program.main = typed_main;
+    let typed_program = context("Type checking", Typer::add_types_to_program(program))?;
+    *program = typed_program;
     Ok(())
 }
 
@@ -37,7 +37,7 @@ pub fn check_types(program: &Program) -> Result<(), AnyError> {
 }
 
 pub fn get_type(program: &Program) -> Result<Type, AnyError> {
-    Ok(add_types(program)?.take_sem_type())
+    Ok(add_types(program)?.main.take_sem_type())
 }
 
 pub fn is_builtin_nested_type(name: &str) -> Option<&'static str> {
@@ -62,7 +62,7 @@ pub fn is_builtin_simple_type(name: &str) -> Option<Type> {
 
 type BindingsTypesStack = Vec<Type>;
 struct Typer<'a> {
-    identifiers: &'a HashMap<String, ExpressionSpan>,
+    typed_identifiers: HashMap<String, ExpressionSpan>,
     sources: &'a Sources,
     identifier_types: HashMap<String, BindingsTypesStack>,
     current_source: Option<String>,
@@ -70,9 +70,14 @@ struct Typer<'a> {
 
 /// Setup and utils to manage state
 impl<'a> Typer<'a> {
-    pub fn add_types_to_program(program: &Program) -> Result<ExpressionSpan, AnyError> {
+    pub fn add_types_to_program(program: &Program) -> Result<Program, AnyError> {
         let (mut typer, main) = Typer::new(program)?;
-        typer.add_types(main)
+        let typed_main = typer.add_types(main)?;
+        Ok(Program::new_from(
+            typed_main,
+            typer.typed_identifiers,
+            program.sources.clone(),
+        ))
     }
 
     pub fn new(program: &'a Program) -> Result<(Self, &'a ExpressionSpan), AnyError> {
@@ -83,12 +88,12 @@ impl<'a> Typer<'a> {
             ..
         } = program;
         let mut typer = Self {
-            identifiers,
+            typed_identifiers: HashMap::new(),
             sources,
             identifier_types,
             current_source: None,
         };
-        typer.setup_constants()?;
+        typer.setup_constants(identifiers)?;
         Ok((typer, program.main()))
     }
 
@@ -100,24 +105,27 @@ impl<'a> Typer<'a> {
         identifiers
     }
 
-    fn setup_constants(&mut self) -> Result<(), AnyError> {
-        let mut identifiers_vec = self.identifiers.keys().collect::<Vec<_>>();
+    fn setup_constants(
+        &mut self,
+        identifiers: &HashMap<String, ExpressionSpan>,
+    ) -> Result<(), AnyError> {
+        let mut identifiers_vec = identifiers.iter().collect::<Vec<_>>();
         loop {
-            let mut failed = Vec::<&String>::new();
+            let mut failed = Vec::new();
             let identifiers_count_previous = identifiers_vec.len();
             let mut errors = Vec::new();
-            for name in identifiers_vec {
+            for (name, identifier_expression) in identifiers_vec {
                 self.current_source = Some(Self::identifier_to_source(name));
-                let identifier_expression = self.identifiers.get(name).unwrap().clone();
                 let typed_identifier_expression =
                     context("Runtime setup", self.add_types(&identifier_expression));
                 match typed_identifier_expression {
                     Ok(expr_span) => {
-                        self.bind_identifier_type(name.clone(), expr_span.sem_type().clone())
+                        self.bind_identifier_type(name.clone(), expr_span.sem_type().clone());
+                        self.typed_identifiers.insert(name.clone(), expr_span);
                     }
                     Err(e) => {
                         errors.push(e);
-                        failed.push(name);
+                        failed.push((name, identifier_expression));
                     }
                 }
             }
@@ -131,12 +139,10 @@ impl<'a> Typer<'a> {
                 } else {
                     "Some constants have incorrect types. (Are there cyclic dependencies?)"
                 };
-                let error_messages = errors
-                    .iter()
-                    .map(|e| e.to_string())
-                    .reduce(|accum, e| accum + "\n" + &e)
-                    .unwrap();
-                return err(format!("{}: {}", error_intro, error_messages));
+                let mut error_messages = errors.iter().map(|e| e.to_string()).collect::<Vec<_>>();
+                error_messages.sort(); // ensure same ordering across iterations of pipes-check
+                let joined_error_messages = error_messages.join("\n");
+                return err(format!("{}: {}", error_intro, joined_error_messages));
             }
             identifiers_vec = failed;
         }
@@ -940,7 +946,7 @@ impl<'a> Typer<'a> {
                 } else if let Some(ExpressionSpan {
                     syntactic_type: Expression::Type(expanded),
                     ..
-                }) = self.identifiers.get(type_name.name())
+                }) = self.typed_identifiers.get(type_name.name())
                 {
                     Ok(expanded.clone())
                 } else {
@@ -1370,7 +1376,7 @@ mod tests {
         let expected_type = "i64";
         let program = &parse(code);
         let typed_program = unwrap_display(add_types(program));
-        let chain = typed_program.syntactic_type.to_chain().unwrap();
+        let chain = typed_program.main.syntactic_type.to_chain().unwrap();
         let inner_type = &chain.operations[0].operands[0].semantic_type;
         assert_eq!(inner_type.to_string(), expected_type.to_string());
     }
