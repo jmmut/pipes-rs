@@ -210,23 +210,14 @@ impl<'a> Typer<'a> {
             span,
             ..
         } = expression_span;
+        let clone_with_sem_type =
+            |new_type: Type| ExpressionSpan::new(syntactic_type.clone(), new_type, *span);
+
         match &syntactic_type {
-            Expression::Nothing => Ok(ExpressionSpan::new(
-                syntactic_type.clone(),
-                builtin_types::NOTHING,
-                *span,
-            )),
-            Expression::Value(_) => Ok(ExpressionSpan::new(
-                syntactic_type.clone(),
-                builtin_types::I64,
-                *span,
-            )),
+            Expression::Nothing => Ok(clone_with_sem_type(builtin_types::NOTHING)),
+            Expression::Value(_) => Ok(clone_with_sem_type(builtin_types::I64)),
             Expression::Identifier(name) => self.check_types_identifier(name, *span),
-            Expression::Type(_) => Ok(ExpressionSpan::new(
-                syntactic_type.clone(),
-                builtin_types::TYPE,
-                *span,
-            )),
+            Expression::Type(_) => Ok(clone_with_sem_type(builtin_types::TYPE)),
             Expression::Chain(chain) => self.check_types_chain(chain, *span),
             Expression::StaticList { elements } => self.check_types_list(elements, *span),
             Expression::Function(function) => self.check_type_function(function, *span),
