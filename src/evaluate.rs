@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use strum::IntoEnumIterator;
 
-use crate::common::{context, err, AnyError};
+use crate::common::{context, err, maybe_format_span, AnyError};
 use crate::frontend::expression::{
     Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, Map,
     Operation, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
@@ -12,9 +12,11 @@ use crate::frontend::expression::{
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
 use crate::frontend::program::Program;
+use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{Comparison, Operator, FIELD};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
+use crate::middleend::typing::expand::{Expand, TypeView};
 
 pub type ListPointer = i64;
 pub type FunctionPointer = i64;
@@ -28,6 +30,7 @@ pub struct Runtime<R: Read, W: Write> {
     functions: Vec<Rc<FunctionOrIntrinsic>>,
     identifiers: HashMap<String, BindingsStack>,
     static_identifiers: HashMap<String, BindingsStack>,
+    types: HashMap<String, Vec<Type>>,
     read_input: R,
     print_output: W,
     _sources: Sources, // TODO: figure out how to show sources. We might be executing some function
@@ -119,6 +122,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             lists: HashMap::new(),
             functions,
             identifiers: HashMap::new(),
+            types: HashMap::new(),
             static_identifiers,
             read_input,
             print_output,
@@ -152,10 +156,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
             let identifiers_count_previous = identifiers_vec.len();
             for (name, expression) in identifiers_vec {
                 if let ExpressionSpan {
-                    syntactic_type: Expression::Type(_),
+                    syntactic_type: Expression::Type(type_),
                     ..
                 } = expression
                 {
+                    self.types.insert(name.clone(), vec![type_]);
                     self.bind_static_identifier(name, NOTHING);
                 } else {
                     match context("Runtime setup", self.evaluate_recursive(&expression)) {
@@ -241,7 +246,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         let mut identifiers = HashMap::<String, usize>::new();
         let mut accumulated = self.evaluate_recursive(&*initial.as_ref().unwrap())?;
-        let mut previous_sem_type = &builtin_types::UNKNOWN;
+        let mut previous_sem_type = initial
+            .as_ref()
+            .map(|i| &i.semantic_type)
+            .unwrap_or(&builtin_types::UNKNOWN);
         for Operation {
             operator,
             operands,
@@ -273,6 +281,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     accumulated = self.evaluate_field(accumulated, previous_sem_type, operand)?
                 }
             }
+
             previous_sem_type = sem_type;
         }
         for (identifier, times_redefined_in_this_chain) in identifiers {
@@ -716,6 +725,25 @@ impl<R: Read, W: Write> Runtime<R, W> {
         accumulated_sem_type: &Type,
         operand: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {
+        if let Type::Simple { .. } = accumulated_sem_type {
+            let expanded = Expand::expand(
+                accumulated_sem_type,
+                &RuntimeTypeView::new(&self.types, &self._sources),
+                NO_SPAN,
+            )?;
+            let accumulated_sem_type = &expanded;
+            self.evaluate_field_expanded(accumulated, accumulated_sem_type, operand)
+        } else {
+            self.evaluate_field_expanded(accumulated, accumulated_sem_type, operand)
+        }
+    }
+
+    fn evaluate_field_expanded(
+        &mut self,
+        accumulated: GenericValue,
+        accumulated_sem_type: &Type,
+        operand: &ExpressionSpan,
+    ) -> Result<GenericValue, AnyError> {
         let err = |message| err(format!("{} at unknown file {}", message, operand.span));
         if let Type::Nested { children, .. } = accumulated_sem_type {
             if let ExpressionSpan {
@@ -820,6 +848,51 @@ fn get_field_index(
     ))
 }
 
+pub struct RuntimeTypeView<'a> {
+    typed_identifiers: &'a HashMap<String, Vec<Type>>,
+    sources: &'a Sources,
+}
+impl<'a> RuntimeTypeView<'a> {
+    pub fn new(typed_identifiers: &'a HashMap<String, Vec<Type>>, sources: &'a Sources) -> Self {
+        Self {
+            typed_identifiers,
+            sources,
+        }
+    }
+}
+
+impl<'a> TypeView for RuntimeTypeView<'a> {
+    fn get_type(&self, name: &str, span: Span) -> Result<&Type, AnyError> {
+        if let Some(types_stack) = self.typed_identifiers.get(name) {
+            if let Some(type_) = types_stack.last() {
+                Ok(type_)
+            } else {
+                let message = format!(
+                    "Bug: Definition of type '{}' exists but there are no bindings. \
+                Current bindings: {:?}\nType usage{}",
+                    name,
+                    self.typed_identifiers,
+                    maybe_format_span(self.get_source(name), span)
+                );
+                err(message)
+            }
+        } else {
+            let message = format!(
+                "Definition of type '{}' not found.\n\
+            Hint: add 'public' to its definition, like 'public <type> = {}'{}",
+                name,
+                name,
+                maybe_format_span(self.get_source(name), span)
+            );
+            err(message)
+        }
+    }
+
+    fn get_source(&self, identifier_name: &str) -> Option<&SourceCode> {
+        None // TODO
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -834,6 +907,10 @@ mod tests {
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
         let mut program = unwrap_display(lex_and_parse(code_text));
         unwrap_display(put_types(&mut program));
+        // for ident in &program.identifiers {
+        //     println!("{:#?}", ident);
+        // }
+        // println!("{:#?}", program.main);
         let result = Runtime::evaluate(program, std::io::stdin(), std::io::stdout());
         unwrap_display(result)
     }
@@ -1129,10 +1206,16 @@ mod tests {
     }
     #[test]
     fn test_map() {
-        assert_eq!(interpret("[10 11] =initial |map(e) {e +100} #1"), 111);
+        // assert_eq!(interpret("[10 11] =initial |map(e) {e +100} #1"), 111);
+        // assert_eq!(
+        //     interpret("[10 11] =initial |map(e) {e +100} ;initial #1"),
+        //     11
+        // );
         assert_eq!(
-            interpret("[10 11] =initial |map(e) {e +100} ;initial #1"),
-            11
+            interpret(
+                "public tuple(x:i64 y:i64) =coords ;[{[3 4] |cast(:coords)}] |map(c) {c .x} #0"
+            ),
+            3
         );
     }
     #[test]

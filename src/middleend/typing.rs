@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use strum::IntoEnumIterator;
 
-use crate::common::{context, err, err_span, AnyError};
+use crate::common::{context, err, err_span, maybe_format_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Expressions, Function,
@@ -15,11 +15,13 @@ use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan, FIELD};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType, Intrinsic};
 use crate::middleend::typing::cast::cast;
+use crate::middleend::typing::expand::{Expand, TypeView};
 use crate::middleend::typing::unify::{
     is_something_or_nothing, join_or, unify, unify_typed_identifier, unify_typed_identifiers,
 };
 
 pub mod cast;
+pub mod expand;
 pub mod unify;
 
 pub fn add_types(program: &Program) -> Result<Program, AnyError> {
@@ -291,8 +293,8 @@ impl<'a> Typer<'a> {
                     self.bind_identifier_type(name.clone(), accumulated_type.clone());
                 }
             }
-            typed_operation.sem_type =
-                self.expand(&accumulated_type, last_operand_span.unwrap_or_default())?;
+            // typed_operation.sem_type =
+            //     self.expand(&accumulated_type, last_operand_span.unwrap_or_default())?; // TODO: isn't this unnecessary?
             typed_operations.push(typed_operation);
             last_operand_span = operation.operands.last().map(|o| o.span);
         }
@@ -937,66 +939,11 @@ impl<'a> Typer<'a> {
     }
 
     fn expand(&self, type_: &Type, span: Span) -> Result<Type, AnyError> {
-        match type_ {
-            Type::Simple { type_name } => {
-                if is_builtin_type(type_name.name()).is_some() {
-                    Ok(Type::Simple {
-                        type_name: type_name.clone(),
-                    })
-                } else if let Some(ExpressionSpan {
-                    syntactic_type: Expression::Type(expanded),
-                    ..
-                }) = self.typed_identifiers.get(type_name.name())
-                {
-                    Ok(expanded.clone())
-                } else {
-                    let message = format!("Definition of type '{}' not found.\nHint: add 'public' to its definition, like 'public <type> = {}'", type_name, type_name);
-                    err_span(message, self.get_current_source(), span)
-                }
-            }
-            Type::Nested {
-                type_name,
-                children,
-            } => {
-                let expanded = self.expand_children(children, span)?;
-                Ok(Type::Nested {
-                    type_name: type_name.clone(),
-                    children: expanded,
-                })
-            }
-            Type::Function {
-                parameters,
-                returned,
-            } => {
-                let expanded = self.expand_children(parameters, span)?;
-                Ok(Type::Function {
-                    parameters: expanded,
-                    returned: Box::new(self.expand_typed_identifier(returned, span)?),
-                })
-            }
-        }
-    }
-
-    fn expand_children(
-        &self,
-        children: &TypedIdentifiers,
-        span: Span,
-    ) -> Result<TypedIdentifiers, AnyError> {
-        let mut expanded = Vec::new();
-        for child in children {
-            expanded.push(self.expand_typed_identifier(child, span)?);
-        }
-        Ok(expanded)
-    }
-    fn expand_typed_identifier(
-        &self,
-        type_: &TypedIdentifier,
-        span: Span,
-    ) -> Result<TypedIdentifier, AnyError> {
-        Ok(TypedIdentifier {
-            name: type_.name.clone(),
-            type_: self.expand(&type_.type_, span)?,
-        })
+        Expand::expand(
+            type_,
+            &TypingTypeView::new(&self.typed_identifiers, &self.sources),
+            span,
+        )
     }
 
     fn assert_expr_unifies(
@@ -1030,19 +977,7 @@ impl<'a> Typer<'a> {
     }
 
     fn get_current_source(&self) -> &SourceCode {
-        if let Some(source_path) = &self.current_source {
-            if let Some(source) = self.sources.get(source_path) {
-                return source;
-            } else if let Some(source) = &self.sources.get_main().file {
-                if source.to_string_lossy() == *source_path {
-                    return &self.sources.get_main();
-                }
-            }
-            println!("Bug: attempted to print source code '{}' but we didn't store it. Assuming it's the main source file. Available: {:?}", source_path, self.sources.keys());
-            &self.sources.get_main()
-        } else {
-            &self.sources.get_main()
-        }
+        get_source(self.sources, &self.current_source)
     }
     fn assert_typed_identifier_unifies(
         &mut self,
@@ -1095,6 +1030,22 @@ impl<'a> Typer<'a> {
     }
 }
 
+fn get_source<'a>(sources: &'a Sources, current_source: &Option<String>) -> &'a SourceCode {
+    if let Some(source_path) = current_source.as_ref() {
+        if let Some(source) = sources.get(source_path) {
+            return source;
+        } else if let Some(source) = &sources.get_main().file {
+            if source.to_string_lossy() == *source_path {
+                return &sources.get_main();
+            }
+        }
+        println!("Bug: attempted to print source code '{}' but we didn't store it. Assuming it's the main source file. Available: {:?}", source_path, sources.keys());
+        &sources.get_main()
+    } else {
+        &sources.get_main()
+    }
+}
+
 fn list_any() -> Type {
     let expected_input = Type::from(
         BuiltinType::List.name(),
@@ -1125,6 +1076,48 @@ fn type_mismatch_call(
         typed_identifiers_to_str(expected, true),
         location
     )
+}
+
+struct TypingTypeView<'a> {
+    typed_identifiers: &'a HashMap<String, ExpressionSpan>,
+    sources: &'a Sources,
+}
+
+impl<'a> TypingTypeView<'a> {
+    pub fn new(
+        typed_identifiers: &'a HashMap<String, ExpressionSpan>,
+        sources: &'a Sources,
+    ) -> Self {
+        Self {
+            typed_identifiers,
+            sources,
+        }
+    }
+}
+
+impl<'a> TypeView for TypingTypeView<'a> {
+    fn get_type(&self, name: &str, span: Span) -> Result<&Type, AnyError> {
+        if let Some(ExpressionSpan {
+            syntactic_type: Expression::Type(type_),
+            ..
+        }) = self.typed_identifiers.get(name)
+        {
+            Ok(type_)
+        } else {
+            let message = format!(
+                "Definition of type '{}' not found.\n\
+            Hint: add 'public' to its definition, like 'public <type> = {}'{}",
+                name,
+                name,
+                maybe_format_span(self.get_source(name), span)
+            );
+            err(message)
+        }
+    }
+
+    fn get_source(&self, identifier_name: &str) -> Option<&SourceCode> {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -1384,6 +1377,14 @@ mod tests {
     fn test_map() {
         assert_type_eq("[1] |map(e) {e +10}", "array(:i64)");
         assert_type_eq("[1] |map(e) {[1]}", "array(:tuple(:i64))");
+        assert_type_eq(
+            "public tuple(x:i64 y:i64) =coords ;[{[3 4] |cast(:coords)}] |map(c) {c .y}",
+            "array(:i64)",
+        );
+        assert_type_eq(
+            "public tuple(x:i64 y:i64) =coords ;[{[3 4] |cast(:coords)}] |map(c) {c}",
+            "array(:coords)",
+        );
     }
     #[test]
     fn test_replace() {

@@ -62,6 +62,14 @@ pub fn err_since<T, S: AsRef<str>>(
     .into())
 }
 
+pub fn maybe_format_span(source: Option<&SourceCode>, span: Span) -> String {
+    if let Some(source) = source {
+        source.format_span(span)
+    } else {
+        format!(" at unknown file, line {}", span.to_string())
+    }
+}
+
 #[cfg(test)]
 pub fn assert_mentions(err: AnyError, mentions: &[&str]) {
     let err_message = err.to_string().to_ascii_lowercase();
