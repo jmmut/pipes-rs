@@ -111,14 +111,18 @@ impl<R: Read, W: Write> Runtime<R, W> {
         print_output: W,
     ) -> Result<GenericValue, AnyError> {
         let (main, identifiers, sources) = program.take();
-        let mut runtime = Self::new(read_input, print_output, sources);
-        runtime.setup_constants(identifiers)?;
+        let mut runtime = Self::new(read_input, print_output, identifiers, sources)?;
         context("Runtime", runtime.evaluate_recursive(&main))
     }
 
-    fn new(read_input: R, print_output: W, sources: Sources) -> Runtime<R, W> {
+    fn new(
+        read_input: R,
+        print_output: W,
+        identifiers: HashMap<String, ExpressionSpan>,
+        sources: Sources,
+    ) -> Result<Runtime<R, W>, AnyError> {
         let (static_identifiers, functions) = Self::build_intrinsics();
-        Runtime {
+        let mut runtime = Runtime {
             lists: HashMap::new(),
             functions,
             identifiers: HashMap::new(),
@@ -127,7 +131,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
             read_input,
             print_output,
             _sources: sources,
-        }
+        };
+        runtime.setup_constants(identifiers)?;
+        Ok(runtime)
     }
 
     fn build_intrinsics() -> (
@@ -922,9 +928,15 @@ mod tests {
     fn interpret_io(code_text: &str, read_input: &str) -> (GenericValue, String) {
         let read_input = read_input.bytes().collect::<Vec<u8>>();
         let print_output = Vec::<u8>::new();
-        let program = unwrap_display(lex_and_parse(code_text));
-        let (main, _identifiers, sources) = program.take();
-        let mut runtime = Runtime::new(read_input.as_slice(), print_output, sources);
+        let mut program = unwrap_display(lex_and_parse(code_text));
+        unwrap_display(put_types(&mut program));
+        let (main, identifiers, sources) = program.take();
+        let mut runtime = unwrap_display(Runtime::new(
+            read_input.as_slice(),
+            print_output,
+            identifiers,
+            sources,
+        ));
         let result = runtime.evaluate_recursive(&main);
         (
             result.unwrap(),
@@ -1082,7 +1094,7 @@ mod tests {
     #[test]
     fn test_read_lines() {
         let (result, print_output) = interpret_io(
-            "{} |read_lines |function(lines) {lines #1 |print |size |to_str |print;lines |size}",
+            "0 |read_lines |function(lines) {lines #1 |print |size |to_str |print;lines |size}",
             &"asdf\nqwer\nzxcv\n",
         );
         assert_eq!(result, 3);
@@ -1146,7 +1158,7 @@ mod tests {
     #[test]
     fn test_loop_3_times() {
         let (result, print_output) = interpret_io(
-            "0 =i;{}|loop {i +1 =>i |inspect(x) {x |to_str |print} =? 3 |branch {i}{}}",
+            "0 =i;{}|loop {i +1 =>i |inspect(x) {x |to_str |print} =? 3 |branch {i}{}} :i64",
             "",
         );
         assert_eq!(result, 3);

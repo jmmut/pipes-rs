@@ -119,7 +119,7 @@ impl<'a> Typer<'a> {
             for (name, identifier_expression) in identifiers_vec {
                 self.current_source = Some(Self::identifier_to_source(name));
                 let typed_identifier_expression =
-                    context("Runtime setup", self.add_types(&identifier_expression));
+                    context("Typing setup", self.add_types(&identifier_expression));
                 match typed_identifier_expression {
                     Ok(expr_span) => {
                         self.bind_identifier_type(name.clone(), expr_span.sem_type().clone());
@@ -543,7 +543,7 @@ impl<'a> Typer<'a> {
     ) -> Result<Operation, AnyError> {
         let span = operator_span.span;
         let to_chain_and_type = |typed_body: ExpressionSpan| -> Result<(Chain, Type), AnyError> {
-            let op_type = typed_body.semantic_type.clone();
+            let op_type = typed_body.semantic_type;
             let body = typed_body.syntactic_type.to_chain()?;
             Ok((body, op_type))
         };
@@ -558,8 +558,11 @@ impl<'a> Typer<'a> {
             Composed::Loop(Loop { body }) => {
                 let typed_body = self.check_types_chain(body, span)?;
                 let (body, op_type) = to_chain_and_type(typed_body)?;
-                // TODO: op_type at this point should be Or(x:any :nothing), but the final operation
-                //      type should be just x:any
+                let op_type = if let Some(something) = is_something_or_nothing(&op_type) {
+                    something.type_
+                } else {
+                    op_type
+                };
                 (Composed::Loop(Loop { body }), op_type)
             }
             Composed::Browse(browse) => {
@@ -1031,7 +1034,7 @@ impl<'a> Typer<'a> {
         format!(
             "Type mismatch for expression '{}':\
             \n    actual:   {}\
-            \n    expected: {}{}\n",
+            \n    expected: {}\n{}\n",
             actual_expression.syntactic_type,
             actual_expression.semantic_type,
             expected,
@@ -1311,13 +1314,13 @@ mod tests {
         assert_type_eq("[1 2] ++[3]", "list(:i64)");
     }
     #[test]
-    fn test_loop() {
+    fn test_browse() {
         assert_type_eq("[1] |browse(e) {e}", "i64");
         assert_type_eq("[1] |browse(e) {}", "nothing");
         assert_types_wrong("1 |browse(e) {e}");
     }
     #[test]
-    fn test_loop_or() {
+    fn test_browse_or() {
         assert_type_eq(
             "[0] |browse_or(condition) {condition |branch {} {0}} {} ",
             "or(:i64 :nothing)",

@@ -298,7 +298,12 @@ fn construct_transformation(
                 accumulated.push_front(PartialExpression::CloseBrace(span));
                 Expression::empty_chain()
             } else {
-                error_expected("expression or close brace or end of file", elem_operand)?
+                err(expected_span(
+                    "expression or closing brace or end of file",
+                    elem_operand,
+                    &parser.source,
+                    operator.span,
+                ))?
             };
             let operand = ExpressionSpan::new_spanless(operand);
             Operation::single_no_sem_type(operator, operand)
@@ -815,4 +820,12 @@ pub fn expected<T: Display, S: AsRef<str>>(expected: S, actual: Option<T>) -> St
     } else {
         format!("expected {} but was None", expected.as_ref())
     }
+}
+pub fn expected_span<T: Display, S: AsRef<str>>(
+    expected_str: S,
+    actual: Option<T>,
+    source: &SourceCode,
+    span: Span,
+) -> String {
+    expected(expected_str, actual) + &source.format_span(span)
 }
