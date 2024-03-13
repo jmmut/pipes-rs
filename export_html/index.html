@@ -43,7 +43,10 @@
 |int_array_to_str |print
 
 ;42</textarea>
-    <div><button id="main_button" disabled>Run</button></div>
+    <div>
+        <button id="main_button" disabled>Run</button>
+        <input id="toggle_continuous" type="checkbox"><label for="toggle_continuous">Run on every key stroke</label></input>
+    </div>
     <div><textarea id="output_pipes" cols="80" rows="5" disabled></textarea></div>
     <div><output id="result_pipes"></output></div>
     <script type="module">
@@ -57,6 +60,13 @@
                 document.getElementById(dom_id).addEventListener(event_type, callback);
             }
             addListener("main_button", "click", updated_input);
+            addListener("toggle_continuous", "change", function() {
+                if (document.getElementById("toggle_continuous").checked) {
+                    addListener("input_pipes", "input", updated_input);
+                } else {
+                    document.getElementById("input_pipes").removeEventListener("input", updated_input);
+                }
+            });
             document.getElementById("loading_status_div").innerText = "Attempting to initialize the WebAssembly package";
             await init();
             document.getElementById("loading_status_div").innerText = "WebAssembly loaded";

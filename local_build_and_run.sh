@@ -11,4 +11,7 @@
 
 ./recompile_web.sh
 
+# you can also do `basic-http-server export_html/` for faster iteration time if you are
+# just changing the html/js, but you will need to copy the built_html/pkg to export_html for the
+# webassembly artifact to work
 basic-http-server built_html/
