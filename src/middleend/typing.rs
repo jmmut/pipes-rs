@@ -774,7 +774,7 @@ impl<'a> Typer<'a> {
             } = expanded
             {
                 if type_name.name() == BuiltinType::Tuple.name() {
-                    for existing_field in children {
+                    for existing_field in &children {
                         if existing_field.name == *used_field {
                             let typed_operand = ExpressionSpan::new(
                                 Expression::Identifier(used_field.clone()),
@@ -784,14 +784,24 @@ impl<'a> Typer<'a> {
                             return Ok(Operation::single(
                                 operator,
                                 typed_operand,
-                                existing_field.type_,
+                                existing_field.type_.clone(),
                             ));
                         }
                     }
                 }
+                let fields = typed_identifiers_to_str(&children, true);
+                let message = format!(
+                    "Field '{}' doesn't exist in type '{}'. Existing fields: {}",
+                    operand, input, fields
+                );
+                err_span(message, self.get_current_source(), operator.span)
+            } else {
+                let message = format!(
+                    "Field '{}' doesn't exist in non-nested type '{}'",
+                    operand, input
+                );
+                err_span(message, self.get_current_source(), operator.span)
             }
-            let message = format!("Field '{}' doesn't exist in type {}", operand, input);
-            err_span(message, self.get_current_source(), operator.span)
         } else {
             let message = format!(
                 "Bug: After the field access operator '{}' only identifiers can appear, not {}",
