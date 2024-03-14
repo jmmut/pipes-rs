@@ -453,7 +453,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         iteration_elem: &TypedIdentifier,
         body: &Chain,
     ) -> Result<i64, AnyError> {
-        let list = self.get_list(argument)?.clone();
+        let list = self.get_list(argument)?.clone(); // TODO remove clone?
         let default_result = NOTHING;
         for value in list {
             self.bind_identifier(iteration_elem.name.clone(), value);
@@ -525,7 +525,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             body,
         }: &Replace,
     ) -> Result<i64, AnyError> {
-        let mut list = self.get_list(argument)?.clone();
+        let mut list = self.get_list(argument)?.clone(); // TODO remove clone?
         for value in &mut list {
             self.bind_identifier(iteration_elem.name.clone(), *value);
             *value = self.evaluate_chain(&body)?;
@@ -543,7 +543,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             body,
         }: &Map,
     ) -> Result<i64, AnyError> {
-        let mut list = self.get_list(argument)?.clone();
+        let mut list = self.get_list(argument)?.clone(); // TODO remove clone?
         let mut new_list = Vec::new();
         for value in &mut list {
             self.bind_identifier(iteration_elem.name.clone(), *value);
