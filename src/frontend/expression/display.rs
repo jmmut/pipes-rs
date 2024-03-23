@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::frontend::expression::{
-    Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map,
-    Operation, Replace, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
+    Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Filter, Function, Loop,
+    Map, Operation, Replace, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::sources::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::builtin_types;
@@ -66,7 +66,8 @@ impl Display for Composed {
             }
             #[rustfmt::skip]
             Composed::Map(Map { iteration_elem, body})
-            | Composed::Replace(Replace { iteration_elem, body}) => {
+            | Composed::Replace(Replace { iteration_elem, body})
+            | Composed::Filter(Filter { iteration_elem, body}) => {
                 write_types_chain(f, name, iteration_elem, body)
             },
             #[rustfmt::skip]

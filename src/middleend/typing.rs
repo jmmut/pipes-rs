@@ -691,15 +691,14 @@ impl<'a> Typer<'a> {
                 let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem, span)?;
                 let typed_body =
                     self.check_types_scope_single(unified_elem.clone(), &body, span)?;
-                let body_output =
-                    if let Some(body_output) = is_something_or_nothing(&typed_body.semantic_type) {
-                        body_output.type_
-                    } else {
-                        typed_body.semantic_type.clone()
-                    };
+                let _unified_body = self.assert_type_unifies(
+                    typed_body.sem_type(),
+                    &builtin_types::I64,
+                    operator_span,
+                )?;
                 let output_list_type = Type::from(
                     BuiltinType::Array.name(),
-                    vec![TypedIdentifier::nameless(body_output)],
+                    vec![TypedIdentifier::nameless(unified_elem.type_.clone())],
                 );
                 (
                     Composed::Filter(Filter {
@@ -1422,6 +1421,13 @@ mod tests {
         assert_type_eq(
             "public tuple(x:i64 y:i64) =coords ;[{[3 4] |cast(:coords)}] |map(c) {c}",
             "array(:coords)",
+        );
+    }
+    #[test]
+    fn test_filter() {
+        assert_type_eq(
+            "[[1] [1 2 3] [1 2]] |cast(:list(:list)) |filter(e :list(:i64)) {e |size <=2}",
+            "array(:list(:i64))",
         );
     }
     #[test]
