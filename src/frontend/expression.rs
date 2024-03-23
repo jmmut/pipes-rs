@@ -97,6 +97,7 @@ pub enum Composed {
     TimesOr(TimesOr),
     Replace(Replace),
     Map(Map),
+    Filter(Filter),
     Branch(Branch),
     Something(Something),
     Inspect(Inspect),
@@ -112,6 +113,7 @@ impl Composed {
             Composed::TimesOr(_) => Keyword::TimesOr.name(),
             Composed::Replace(_) => Keyword::Replace.name(),
             Composed::Map(_) => Keyword::Map.name(),
+            Composed::Filter(_) => Keyword::Filter.name(),
             Composed::Branch(_) => Keyword::Branch.name(),
             Composed::Something(_) => Keyword::Something.name(),
             Composed::Inspect(_) => Keyword::Inspect.name(),
@@ -184,6 +186,12 @@ impl Expression {
     #[allow(unused)]
     pub fn map(elem: TypedIdentifier, body: Chain) -> Self {
         Self::Composed(Composed::Map(Map {
+            iteration_elem: elem,
+            body,
+        }))
+    }
+    pub fn filter(elem: TypedIdentifier, body: Chain) -> Self {
+        Self::Composed(Composed::Filter(Filter {
             iteration_elem: elem,
             body,
         }))
@@ -594,6 +602,12 @@ pub struct Replace {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Map {
+    pub iteration_elem: TypedIdentifier,
+    pub body: Chain,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Filter {
     pub iteration_elem: TypedIdentifier,
     pub body: Chain,
 }

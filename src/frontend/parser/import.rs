@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Function, Inspect, Loop,
-    Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
+    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Filter, Function,
+    Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
 };
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
 use crate::frontend::parser::root::qualify;
@@ -144,22 +144,16 @@ fn track_identifiers_recursive(
             )?;
             track_identifiers_recursive_chain(import_state, otherwise)
         }
-        Expression::Composed(Composed::Replace(Replace {
-            iteration_elem,
-            body,
-        })) => track_identifiers_recursive_scope(
-            import_state,
-            vec![&*iteration_elem].into_iter(),
-            body,
-        ),
-        Expression::Composed(Composed::Map(Map {
-            iteration_elem,
-            body,
-        })) => track_identifiers_recursive_scope(
-            import_state,
-            vec![&*iteration_elem].into_iter(),
-            body,
-        ),
+        #[rustfmt::skip]
+        Expression::Composed(Composed::Replace(Replace { iteration_elem, body}))
+        | Expression::Composed(Composed::Map(Map { iteration_elem, body}))
+        | Expression::Composed(Composed::Filter(Filter { iteration_elem, body})) => {
+            track_identifiers_recursive_scope(
+                import_state,
+                vec![&*iteration_elem].into_iter(),
+                body,
+            )
+        },
         Expression::Composed(Composed::Branch(Branch { yes, no })) => {
             track_identifiers_recursive_chain(import_state, yes)?;
             track_identifiers_recursive_chain(import_state, no)

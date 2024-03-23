@@ -6,8 +6,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, maybe_format_span, AnyError};
 use crate::frontend::expression::{
-    Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Function, Inspect, Loop, Map,
-    Operation, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
+    Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Filter, Function, Inspect,
+    Loop, Map, Operation, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::expression::{Composed, Something};
 use crate::frontend::expression::{Replace, Times};
@@ -374,6 +374,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 self.call_replace_expression(argument, replace)
             }
             Expression::Composed(Composed::Map(map)) => self.call_map_expression(argument, map),
+            Expression::Composed(Composed::Filter(filter)) => {
+                self.call_filter_expression(argument, filter)
+            }
             Expression::Composed(Composed::Branch(branch)) => {
                 self.evaluate_chain(if argument != 0 {
                     &branch.yes
@@ -548,6 +551,25 @@ impl<R: Read, W: Write> Runtime<R, W> {
         for value in &mut list {
             self.bind_identifier(iteration_elem.name.clone(), *value);
             new_list.push(self.evaluate_chain(&body)?);
+            self.unbind_identifier(&iteration_elem.name, 1)?;
+        }
+        Ok(self.allocate_list(new_list))
+    }
+    fn call_filter_expression(
+        &mut self,
+        argument: i64,
+        Filter {
+            iteration_elem,
+            body,
+        }: &Filter,
+    ) -> Result<i64, AnyError> {
+        let mut list = self.get_list(argument)?.clone(); // TODO remove clone?
+        let mut new_list = Vec::new();
+        for value in &mut list {
+            self.bind_identifier(iteration_elem.name.clone(), *value);
+            if self.evaluate_chain(&body)? != 0 {
+                new_list.push(*value);
+            }
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
         Ok(self.allocate_list(new_list))

@@ -346,6 +346,7 @@ fn construct_keyword(
         Keyword::TimesOr => construct_times_or(parser),
         Keyword::Replace => construct_replace(parser),
         Keyword::Map => construct_map(parser),
+        Keyword::Filter => construct_filter(parser),
         Keyword::Branch => construct_branch(parser),
         Keyword::Something => construct_something(parser),
         Keyword::Inspect => construct_inspect(parser),
@@ -434,6 +435,9 @@ fn construct_replace(parser: &mut Parser) -> Result<(Expression, Span), AnyError
 
 fn construct_map(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     construct_type_chain(parser, Expression::map, "map")
+}
+fn construct_filter(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain(parser, Expression::filter, "filter")
 }
 
 fn construct_type_chain_chain(

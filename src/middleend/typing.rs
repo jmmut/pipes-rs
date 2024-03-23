@@ -5,9 +5,9 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, err_span, maybe_format_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Expressions, Function,
-    Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
-    TypedIdentifiers,
+    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Expressions, Filter,
+    Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type,
+    TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::program::Program;
 use crate::frontend::sources::location::{SourceCode, Span};
@@ -678,6 +678,31 @@ impl<'a> Typer<'a> {
                 );
                 (
                     Composed::Map(Map {
+                        iteration_elem: unified_elem,
+                        body: typed_body.syntactic_type.to_chain()?,
+                    }),
+                    output_list_type,
+                )
+            }
+            Composed::Filter(Filter {
+                iteration_elem,
+                body,
+            }) => {
+                let unified_elem = self.assert_iterates_elems(input_type, &iteration_elem, span)?;
+                let typed_body =
+                    self.check_types_scope_single(unified_elem.clone(), &body, span)?;
+                let body_output =
+                    if let Some(body_output) = is_something_or_nothing(&typed_body.semantic_type) {
+                        body_output.type_
+                    } else {
+                        typed_body.semantic_type.clone()
+                    };
+                let output_list_type = Type::from(
+                    BuiltinType::Array.name(),
+                    vec![TypedIdentifier::nameless(body_output)],
+                );
+                (
+                    Composed::Filter(Filter {
                         iteration_elem: unified_elem,
                         body: typed_body.syntactic_type.to_chain()?,
                     }),
