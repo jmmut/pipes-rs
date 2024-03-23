@@ -1218,16 +1218,23 @@ mod tests {
     }
     #[test]
     fn test_map() {
-        // assert_eq!(interpret("[10 11] =initial |map(e) {e +100} #1"), 111);
-        // assert_eq!(
-        //     interpret("[10 11] =initial |map(e) {e +100} ;initial #1"),
-        //     11
-        // );
+        assert_eq!(interpret("[10 11] =initial |map(e) {e +100} #1"), 111);
+        assert_eq!(
+            interpret("[10 11] =initial |map(e) {e +100} ;initial #1"),
+            11
+        );
         assert_eq!(
             interpret(
                 "public tuple(x:i64 y:i64) =coords ;[{[3 4] |cast(:coords)}] |map(c) {c .x} #0"
             ),
             3
+        );
+    }
+    #[test]
+    fn test_filter() {
+        assert_eq!(
+            interpret("[ 1 2 3 4 5 6] |filter(e) { e |/2 |*2 =?e} #2"),
+            6
         );
     }
     #[test]
