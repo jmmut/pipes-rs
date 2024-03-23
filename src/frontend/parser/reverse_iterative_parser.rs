@@ -337,19 +337,18 @@ fn construct_keyword(
     keyword: Keyword,
     span: Span,
 ) -> Result<(Expression, Span), AnyError> {
-    let accumulated = &mut parser.accumulated;
     let (expr, content_span) = match keyword {
-        Keyword::Function => construct_function(accumulated),
-        Keyword::Loop => construct_loop(accumulated),
-        Keyword::Browse => construct_browse(accumulated),
-        Keyword::BrowseOr => construct_browse_or(accumulated),
-        Keyword::Times => construct_times(accumulated),
-        Keyword::TimesOr => construct_times_or(accumulated),
-        Keyword::Replace => construct_replace(accumulated),
-        Keyword::Map => construct_map(accumulated),
-        Keyword::Branch => construct_branch(accumulated),
-        Keyword::Something => construct_something(accumulated),
-        Keyword::Inspect => construct_inspect(accumulated),
+        Keyword::Function => construct_function(&mut parser.accumulated),
+        Keyword::Loop => construct_loop(parser),
+        Keyword::Browse => construct_browse(parser),
+        Keyword::BrowseOr => construct_browse_or(parser),
+        Keyword::Times => construct_times(parser),
+        Keyword::TimesOr => construct_times_or(parser),
+        Keyword::Replace => construct_replace(parser),
+        Keyword::Map => construct_map(parser),
+        Keyword::Branch => construct_branch(parser),
+        Keyword::Something => construct_something(parser),
+        Keyword::Inspect => construct_inspect(parser),
         Keyword::Public => construct_public(parser),
         Keyword::Cast => construct_cast(parser),
     }?;
@@ -406,69 +405,56 @@ fn chain(
     }
 }
 
-fn construct_loop(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    match chain(accumulated.pop_front()) {
+fn construct_loop(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    match chain(parser.accumulated.pop_front()) {
         Ok((body, span)) => Ok((Expression::loop_(body), span)),
         Err(elem) => error_expected(format!("chain for the {} body", "loop"), elem),
     }
 }
 
-fn construct_browse(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain(accumulated, Expression::browse, "loop")
+fn construct_browse(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain(parser, Expression::browse, "loop")
 }
 
-fn construct_browse_or(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain_chain(accumulated, Expression::browse_or, "loop_or")
+fn construct_browse_or(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain_chain(parser, Expression::browse_or, "loop_or")
 }
 
-fn construct_times(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain(accumulated, Expression::times, "times")
+fn construct_times(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain(parser, Expression::times, "times")
 }
 
-fn construct_times_or(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain_chain(accumulated, Expression::times_or, "times_or")
+fn construct_times_or(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain_chain(parser, Expression::times_or, "times_or")
 }
 
-fn construct_replace(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain(accumulated, Expression::replace, "replace")
+fn construct_replace(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain(parser, Expression::replace, "replace")
 }
 
-fn construct_map(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain(accumulated, Expression::map, "map")
+fn construct_map(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain(parser, Expression::map, "map")
 }
 
 fn construct_type_chain_chain(
-    accumulated: &mut VecDeque<PartialExpression>,
+    parser: &mut Parser,
     factory: fn(TypedIdentifier, Chain, Chain) -> Expression,
     construct_name: &str,
 ) -> Result<(Expression, Span), AnyError> {
-    let elem = accumulated.pop_front();
-    let (parameter, type_span, elem) = extract_single_child_type(accumulated, elem);
+    let elem = parser.accumulated.pop_front();
+    let (parameter, type_span, elem) = extract_single_child_type(&mut parser.accumulated, elem);
     match chain(elem) {
         Ok((body, _span)) => {
-            let elem = accumulated.pop_front();
+            let elem = parser.accumulated.pop_front();
             match chain(elem) {
                 Ok((otherwise, span)) => {
                     Ok((factory(parameter, body, otherwise), type_span.merge(&span)))
                 }
-                Err(elem) => error_expected(
+                Err(elem) => err(expected_span_pe(
                     format!("chain for the '{}' 'otherwise' body", construct_name),
                     elem,
-                ),
+                    &parser.source,
+                )),
             }
         }
         Err(elem) => error_expected(format!("chain for the '{}' body", construct_name), elem),
@@ -476,12 +462,12 @@ fn construct_type_chain_chain(
 }
 
 fn construct_type_chain(
-    accumulated: &mut VecDeque<PartialExpression>,
+    parser: &mut Parser,
     factory: fn(TypedIdentifier, Chain) -> Expression,
     construct_name: &str,
 ) -> Result<(Expression, Span), AnyError> {
-    let elem = accumulated.pop_front();
-    let (parameter, type_span, elem) = extract_single_child_type(accumulated, elem);
+    let elem = parser.accumulated.pop_front();
+    let (parameter, type_span, elem) = extract_single_child_type(&mut parser.accumulated, elem);
 
     match chain(elem) {
         Ok((body, span)) => Ok((factory(parameter, body), type_span.merge(&span))),
@@ -517,11 +503,9 @@ fn extract_single_child_type_or(
     (parameter, span, elem)
 }
 
-fn construct_branch(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    match chain(accumulated.pop_front()) {
-        Ok((yes, span_yes)) => match chain(accumulated.pop_front()) {
+fn construct_branch(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    match chain(parser.accumulated.pop_front()) {
+        Ok((yes, span_yes)) => match chain(parser.accumulated.pop_front()) {
             Ok((no, span_no)) => Ok((
                 Expression::Composed(Composed::Branch(Branch { yes, no })),
                 span_yes.merge(&span_no),
@@ -532,15 +516,11 @@ fn construct_branch(
     }
 }
 
-fn construct_something(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain_chain(accumulated, Expression::something, "something")
+fn construct_something(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain_chain(parser, Expression::something, "something")
 }
-fn construct_inspect(
-    accumulated: &mut VecDeque<PartialExpression>,
-) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain(accumulated, Expression::inspect, "inspect")
+fn construct_inspect(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain(parser, Expression::inspect, "inspect")
 }
 
 fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
@@ -828,4 +808,26 @@ pub fn expected_span<T: Display, S: AsRef<str>>(
     span: Span,
 ) -> String {
     expected(expected_str, actual) + &source.format_span(span)
+}
+pub fn expected_span_pe<S: AsRef<str>>(
+    expected_str: S,
+    actual: Option<PartialExpression>,
+    source: &SourceCode,
+) -> String {
+    if let Some(pe) = &actual {
+        let span = match &pe {
+            PartialExpression::CloseBracket(span)
+            | PartialExpression::CloseBrace(span)
+            | PartialExpression::CloseParenthesis(span)
+            | PartialExpression::Expression(ExpressionSpan { span, .. })
+            | PartialExpression::Operation(Operation {
+                operator: OperatorSpan { span, .. },
+                ..
+            })
+            | PartialExpression::ChildrenTypes(_, span) => *span,
+        };
+        expected(expected_str, actual) + &source.format_span(span)
+    } else {
+        expected(expected_str, actual)
+    }
 }

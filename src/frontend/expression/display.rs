@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 use crate::frontend::expression::{
     Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Function, Loop, Map,
-    Operation, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
+    Operation, Replace, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::sources::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::builtin_types;
@@ -64,18 +64,11 @@ impl Display for Composed {
             Composed::Loop(Loop { body }) => {
                 write!(f, "{} {}", Keyword::Loop.name(), body)
             }
-            Composed::Map(Map {
-                iteration_elem,
-                body,
-            }) => {
-                write!(
-                    f,
-                    "{}({}) {{{}}}",
-                    Keyword::Map.name(),
-                    iteration_elem,
-                    body,
-                )
-            }
+            #[rustfmt::skip]
+            Composed::Map(Map { iteration_elem, body})
+            | Composed::Replace(Replace { iteration_elem, body}) => {
+                write_types_chain(f, name, iteration_elem, body)
+            },
             #[rustfmt::skip]
             Composed::BrowseOr(BrowseOr { iteration_elem, body, otherwise, })
             | Composed::TimesOr(TimesOr { iteration_elem, body, otherwise, }) => {
@@ -87,7 +80,7 @@ impl Display for Composed {
             Composed::Cast(Cast { target_type }) => {
                 write!(f, "{}({})", Keyword::Cast.name(), target_type)
             }
-            _ => unimplemented!("missing diplay for {:?}", self),
+            _ => unimplemented!("missing display for {:?}", self),
         }
     }
 }
@@ -104,6 +97,14 @@ fn write_types_chain_chain(
         "{}({}) {{{}}} {{{}}}",
         composed_name, iteration_elem, body, otherwise
     )
+}
+fn write_types_chain(
+    f: &mut Formatter,
+    composed_name: &str,
+    iteration_elem: &TypedIdentifier,
+    body: &Chain,
+) -> std::fmt::Result {
+    write!(f, "{}({}) {{{}}}", composed_name, iteration_elem, body)
 }
 
 impl Display for Chain {
