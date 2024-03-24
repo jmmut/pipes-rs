@@ -4,8 +4,9 @@ use crate::common::{context, err_loc, err_since, err_span, AnyError};
 use crate::frontend::sources::location::SourceCode;
 use crate::frontend::sources::token::{
     Comparison, Keyword, LocatedToken, LocatedTokens, Operator, Token, ADD, ASSIGNMENT, CALL,
-    CONCATENATE, DIVIDE, EQUALS, FIELD, GET, GREATER_THAN, GREATER_THAN_EQUALS, IGNORE, LESS_THAN,
-    LESS_THAN_EQUALS, MODULO, MULTIPLY, OVERWRITE, SUBSTRACT, TYPE,
+    CONCATENATE, DIFFERENT, DIVIDE, EQUALS, EQUALS_ALT, FIELD, GET, GREATER_THAN,
+    GREATER_THAN_EQUALS, IGNORE, LESS_THAN, LESS_THAN_EQUALS, MODULO, MULTIPLY, OVERWRITE,
+    SUBSTRACT, TYPE,
 };
 
 #[derive(Debug, Clone)]
@@ -139,18 +140,15 @@ fn try_consume_multichar_tokens(code: &mut SourceCode) -> Option<LocatedTokens> 
         code.next();
         Some(Vec::new())
     } else {
+        #[rustfmt::skip]
         let operators = &[
             (CONCATENATE, Operator::Concatenate),
             (EQUALS, Operator::Comparison(Comparison::Equals)),
+            (EQUALS_ALT, Operator::Comparison(Comparison::Equals)),
+            (DIFFERENT, Operator::Comparison(Comparison::Different)),
             (OVERWRITE, Operator::Overwrite),
-            (
-                LESS_THAN_EQUALS,
-                Operator::Comparison(Comparison::LessThanEquals),
-            ),
-            (
-                GREATER_THAN_EQUALS,
-                Operator::Comparison(Comparison::GreaterThanEquals),
-            ),
+            (LESS_THAN_EQUALS, Operator::Comparison(Comparison::LessThanEquals)),
+            (GREATER_THAN_EQUALS, Operator::Comparison(Comparison::GreaterThanEquals)),
             (MULTIPLY, Operator::Multiply),
             (DIVIDE, Operator::Divide),
         ];

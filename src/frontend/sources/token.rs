@@ -78,6 +78,8 @@ pub const CONCATENATE: &str = "++";
 pub const FIELD: u8 = b'.';
 
 pub const EQUALS: &str = "=?";
+pub const EQUALS_ALT: &str = "==";
+pub const DIFFERENT: &str = "!=";
 pub const LESS_THAN: u8 = b'<';
 pub const GREATER_THAN: u8 = b'>';
 pub const LESS_THAN_EQUALS: &str = "<=";
@@ -104,6 +106,7 @@ pub enum Operator {
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Comparison {
     Equals,
+    Different,
     LessThan,
     GreaterThan,
     LessThanEquals,
@@ -125,7 +128,8 @@ impl Display for Operator {
             Operator::Assignment => write!(f, "{}", ASSIGNMENT as char),
             Operator::Overwrite => write!(f, "{}", OVERWRITE),
             Operator::Concatenate => write!(f, "{}", CONCATENATE),
-            Operator::Comparison(Comparison::Equals) => write!(f, "{}", EQUALS),
+            Operator::Comparison(Comparison::Equals) => write!(f, "{}", EQUALS_ALT),
+            Operator::Comparison(Comparison::Different) => write!(f, "{}", DIFFERENT),
             Operator::Comparison(Comparison::LessThan) => write!(f, "{}", LESS_THAN as char),
             Operator::Comparison(Comparison::GreaterThan) => write!(f, "{}", GREATER_THAN as char),
             Operator::Comparison(Comparison::LessThanEquals) => write!(f, "{}", LESS_THAN_EQUALS),

@@ -739,6 +739,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let value = self.evaluate_recursive(operand)?;
         let compared = match operator {
             Comparison::Equals => accumulated == value,
+            Comparison::Different => accumulated != value,
             Comparison::LessThan => accumulated < value,
             Comparison::GreaterThan => accumulated > value,
             Comparison::LessThanEquals => accumulated <= value,
@@ -1280,6 +1281,14 @@ mod tests {
         assert_eq!(interpret("5 =?9"), 0);
         assert_eq!(interpret("5 =?4"), 0);
         assert_eq!(interpret("5 =?5"), 1);
+
+        assert_eq!(interpret("5 ==9"), 0);
+        assert_eq!(interpret("5 ==4"), 0);
+        assert_eq!(interpret("5 ==5"), 1);
+
+        assert_eq!(interpret("5 !=9"), 1);
+        assert_eq!(interpret("5 !=4"), 1);
+        assert_eq!(interpret("5 !=5"), 0);
     }
 
     #[test]
