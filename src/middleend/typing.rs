@@ -1161,8 +1161,8 @@ impl<'a> TypeView for TypingTypeView<'a> {
 mod tests {
     use std::collections::HashSet;
 
+    use crate::backend::evaluate::Runtime;
     use crate::common::unwrap_display;
-    use crate::evaluate::Runtime;
     use crate::frontend::{lex_and_parse, lex_and_parse_with_identifiers, parse_type};
 
     use super::*;

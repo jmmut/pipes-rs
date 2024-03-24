@@ -1,27 +1,25 @@
-use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::rc::Rc;
-
-use strum::IntoEnumIterator;
-
 use crate::common::{context, err, maybe_format_span, AnyError};
 use crate::frontend::expression::{
-    Browse, BrowseOr, Chain, Expression, ExpressionSpan, Expressions, Filter, Function, Inspect,
-    Loop, Map, Operation, TimesOr, Type, TypedIdentifier, TypedIdentifiers,
+    Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Expressions, Filter, Function,
+    Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
+    TypedIdentifiers,
 };
-use crate::frontend::expression::{Composed, Something};
-use crate::frontend::expression::{Replace, Times};
 use crate::frontend::program::Program;
 use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{Comparison, Operator, FIELD};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 use crate::middleend::typing::expand::{Expand, TypeView};
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::rc::Rc;
+use strum::IntoEnumIterator;
 
 pub type ListPointer = i64;
 pub type FunctionPointer = i64;
 pub type GenericValue = i64;
 pub type BindingsStack = Vec<GenericValue>;
+
 pub const NOTHING: i64 = i64::MIN;
 
 pub struct Runtime<R: Read, W: Write> {
@@ -90,14 +88,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ///
     /// To use the regular stdin and stdout of the interpreter process, use:
     /// ```no_run
-    /// use pipes_rs::{evaluate::Runtime, frontend::{program::Program, lex_and_parse}};
+    /// use pipes_rs::{backend::evaluate::Runtime, frontend::{program::Program, lex_and_parse}};
     /// let program = lex_and_parse(r#""Hello World!" |print"#).unwrap();
     /// Runtime::evaluate(program, std::io::stdin(), std::io::stdout()).unwrap();
     /// ```
     /// To use a in-memory buffers (useful for providing input or capturing output in tests),
     /// you can do this, because `&[u8]` implements Read and `&mut Vec<u8>` implements Write:
     /// ```no_run
-    /// use pipes_rs::{evaluate::Runtime, frontend::{program::Program, lex_and_parse}};
+    /// use pipes_rs::{backend::evaluate::Runtime, frontend::{program::Program, lex_and_parse}};
     /// let expression = lex_and_parse("'5' |print_char ;0 |read_char").unwrap();
     /// let into = "7".as_bytes();
     /// let mut out = Vec::<u8>::new();
@@ -881,6 +879,7 @@ pub struct RuntimeTypeView<'a> {
     typed_identifiers: &'a HashMap<String, Vec<Type>>,
     sources: &'a Sources,
 }
+
 impl<'a> RuntimeTypeView<'a> {
     pub fn new(typed_identifiers: &'a HashMap<String, Vec<Type>>, sources: &'a Sources) -> Self {
         Self {
@@ -931,7 +930,7 @@ mod tests {
     use crate::frontend::sources::location::SourceCode;
     use crate::middleend::typing::put_types;
 
-    use super::*;
+    use crate::backend::evaluate::*;
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
         let mut program = unwrap_display(lex_and_parse(code_text));

@@ -2,13 +2,13 @@ use wasm_bindgen::prelude::*;
 
 use frontend::sources::location::SourceCode;
 
+use crate::backend::evaluate::{GenericValue, Runtime};
 use crate::common::AnyError;
-use crate::evaluate::{GenericValue, Runtime};
 use crate::frontend::lex_and_parse;
 use crate::middleend::typing::put_types;
 
+pub mod backend;
 pub mod common;
-pub mod evaluate;
 pub mod frontend;
 pub mod middleend;
 
