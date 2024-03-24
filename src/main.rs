@@ -32,16 +32,12 @@ struct Args {
     prettify: bool,
 }
 
-fn main() -> Result<(), AnyError> {
-    let result = interpret(Args::parse(), std::io::stdin(), std::io::stdout());
-    match result {
-        Ok(()) => {}
-        Err(e) => {
-            println!("Error: {}", e);
-        }
+fn main() {
+    if let Err(e) = interpret(Args::parse(), std::io::stdin(), std::io::stdout()) {
+        println!("Error: {}", e);
     }
-    Ok(())
 }
+
 fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result<(), AnyError> {
     reset_sigpipe();
     let Args {
