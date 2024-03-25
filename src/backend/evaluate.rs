@@ -11,9 +11,13 @@ use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 use crate::middleend::typing::expand::{Expand, TypeView};
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::os::fd::FromRawFd;
 use std::rc::Rc;
 use strum::IntoEnumIterator;
+use std::os::raw;
+use crate::backend::{FunctionOrIntrinsic, Runtime};
 
 pub type ListPointer = i64;
 pub type FunctionPointer = i64;
@@ -22,26 +26,8 @@ pub type BindingsStack = Vec<GenericValue>;
 
 pub const NOTHING: i64 = i64::MIN;
 
-pub struct Runtime<R: Read, W: Write> {
-    /// using a map<index,list> instead of a vec<list> to be able to deallocate individual lists
-    lists: HashMap<ListPointer, Vec<GenericValue>>,
-    functions: Vec<Rc<FunctionOrIntrinsic>>,
-    identifiers: HashMap<String, BindingsStack>,
-    static_identifiers: HashMap<String, BindingsStack>,
-    types: HashMap<String, Vec<Type>>,
-    read_input: R,
-    print_output: W,
-    _sources: Sources, // TODO: figure out how to show sources. We might be executing some function
-                       //   pointer, but we don't track where a function ptr was generated
-}
-
-enum FunctionOrIntrinsic {
-    Function(Function, Closure),
-    Intrinsic(Intrinsic),
-}
-
 #[derive(Clone)]
-struct Closure {
+pub struct Closure {
     captured_identifiers: HashMap<String, GenericValue>,
 }
 
@@ -129,6 +115,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             read_input,
             print_output,
             _sources: sources,
+            extra_inputs: HashMap::new(),
         };
         runtime.setup_constants(identifiers)?;
         Ok(runtime)
@@ -414,7 +401,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     self.call_function_expression(arguments, function, closure)
                 }
                 FunctionOrIntrinsic::Intrinsic(intrinsic) => {
-                    self.call_intrinsic(arguments[0], *intrinsic)
+                    self.call_intrinsic(arguments, *intrinsic)
                 }
             }
         } else {
@@ -605,9 +592,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
     fn call_intrinsic(
         &mut self,
-        argument: GenericValue,
+        arguments: &[i64],
         intrinsic: Intrinsic,
     ) -> Result<GenericValue, AnyError> {
+        let argument = arguments[0];
         match intrinsic {
             Intrinsic::PrintChar => {
                 write!(self.print_output, "{}", argument as u8 as char)?;
@@ -663,7 +651,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 let list = self.get_list(argument)?;
                 Ok(list.len() as GenericValue)
             }
-            Intrinsic::Breakpoint => Ok(argument),
+            Intrinsic::Breakpoint => {
+                self.debugger_prompt(arguments);
+                Ok(argument)
+            }
         }
     }
 

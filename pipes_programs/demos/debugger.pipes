@@ -1,0 +1,32 @@
+
+// if you put `|breakpoint 0` at any place of your program (say program.pipes), when you run it
+// (e.g. with `pipes-rs program.pipes`), the program will pause and show a prompt where you
+// can execute arbitrary Pipes code, and when you press enter the program will continue.
+
+// This feature is intended to debug your program, mostly to print local variables, but also
+// for calling functions or other experimentation.
+
+// If your program already reads from stdin, and you prefer redirecting the program input from a
+// file, this demo program shows you how.
+// You can use `|breakpoint 3` and call this program like
+// `cargo run debugger.pipes 3<&0 < lines.txt`. The 3<&0 will redirect the standard input
+// from keyboard to the file descriptor 3 and the argument to `|breakpoint` will tell the debugger
+// which fd it must read from.
+
+function(x) {
+    x
+    // note the 3 here must match the 3<&0 in your command
+    |breakpoint 3
+    +1
+}
+=increment;
+
+0
+|read_lines
+|map(line) {
+    line
+    |map(char) {
+        char |increment
+    }
+}
+|browse(line) { line |print; }

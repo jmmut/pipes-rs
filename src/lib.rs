@@ -2,7 +2,8 @@ use wasm_bindgen::prelude::*;
 
 use frontend::sources::location::SourceCode;
 
-use crate::backend::evaluate::{GenericValue, Runtime};
+use crate::backend::evaluate::GenericValue;
+use crate::backend::Runtime;
 use crate::common::AnyError;
 use crate::frontend::lex_and_parse;
 use crate::middleend::typing::put_types;

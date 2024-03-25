@@ -45,7 +45,7 @@ impl Intrinsic {
             }
             Intrinsic::NewArray => parse_type("function(size :i64) (:array(:any))"),
             Intrinsic::Size => parse_type("function(:list(:any)) (:i64)"),
-            Intrinsic::Breakpoint => parse_type("function(t) (t)"),
+            Intrinsic::Breakpoint => parse_type("function(t  file_descriptor :i64) (t)"),
         }
     }
 }
