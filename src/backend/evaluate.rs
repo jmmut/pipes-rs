@@ -1,3 +1,4 @@
+use crate::backend::{FunctionOrIntrinsic, Runtime};
 use crate::common::{context, err, maybe_format_span, AnyError};
 use crate::frontend::expression::{
     Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Expressions, Filter, Function,
@@ -14,10 +15,9 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::fd::FromRawFd;
+use std::os::raw;
 use std::rc::Rc;
 use strum::IntoEnumIterator;
-use std::os::raw;
-use crate::backend::{FunctionOrIntrinsic, Runtime};
 
 pub type ListPointer = i64;
 pub type FunctionPointer = i64;
@@ -74,14 +74,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ///
     /// To use the regular stdin and stdout of the interpreter process, use:
     /// ```no_run
-    /// use pipes_rs::{backend::evaluate::Runtime, frontend::{program::Program, lex_and_parse}};
+    /// use pipes_rs::{backend::Runtime, frontend::{program::Program, lex_and_parse}};
     /// let program = lex_and_parse(r#""Hello World!" |print"#).unwrap();
     /// Runtime::evaluate(program, std::io::stdin(), std::io::stdout()).unwrap();
     /// ```
     /// To use a in-memory buffers (useful for providing input or capturing output in tests),
     /// you can do this, because `&[u8]` implements Read and `&mut Vec<u8>` implements Write:
     /// ```no_run
-    /// use pipes_rs::{backend::evaluate::Runtime, frontend::{program::Program, lex_and_parse}};
+    /// use pipes_rs::{backend::Runtime, frontend::{program::Program, lex_and_parse}};
     /// let expression = lex_and_parse("'5' |print_char ;0 |read_char").unwrap();
     /// let into = "7".as_bytes();
     /// let mut out = Vec::<u8>::new();
@@ -185,7 +185,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
     }
 
-    fn evaluate_recursive(
+    pub fn evaluate_recursive(
         &mut self,
         expression: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {

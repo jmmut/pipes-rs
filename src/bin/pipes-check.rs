@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use clap::Parser;
 
-use pipes_rs::backend::evaluate::{Runtime, NOTHING};
+use pipes_rs::backend::evaluate::NOTHING;
+use pipes_rs::backend::Runtime;
 use pipes_rs::common::AnyError;
 use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::sources::location::SourceCode;

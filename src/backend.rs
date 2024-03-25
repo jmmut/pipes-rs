@@ -1,12 +1,12 @@
+use crate::backend::evaluate::{BindingsStack, Closure, GenericValue, ListPointer};
+use crate::frontend::expression::{Function, Type};
+use crate::frontend::sources::Sources;
+use crate::middleend::intrinsics::Intrinsic;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::os::raw;
 use std::rc::Rc;
-use crate::backend::evaluate::{BindingsStack, Closure, GenericValue, ListPointer};
-use crate::frontend::expression::{Function, Type};
-use crate::frontend::sources::Sources;
-use crate::middleend::intrinsics::Intrinsic;
 
 mod debugger;
 pub mod evaluate;
@@ -21,8 +21,7 @@ pub struct Runtime<R: Read, W: Write> {
     read_input: R,
     print_output: W,
     _sources: Sources, // TODO: figure out how to show sources. We might be executing some function
-                       //   pointer, but we don't track where a function ptr was generated
-    
+    //   pointer, but we don't track where a function ptr was generated
     /// file descriptor to reader. see [Runtime::debugger_prompt]
     extra_inputs: HashMap<raw::c_int, BufReader<File>>,
 }
