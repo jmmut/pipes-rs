@@ -261,7 +261,7 @@ impl<'a> Typer<'a> {
 
         let mut assigned_in_this_chain = HashMap::new();
         for operation in &chain.operations {
-            let mut typed_operation = self.get_operation_type(
+            let typed_operation = self.get_operation_type(
                 &accumulated_type,
                 operation.operator,
                 &operation.operands,
@@ -1117,17 +1117,17 @@ fn type_mismatch_call(
 
 struct TypingTypeView<'a> {
     typed_identifiers: &'a HashMap<String, ExpressionSpan>,
-    sources: &'a Sources,
+    _sources: &'a Sources,
 }
 
 impl<'a> TypingTypeView<'a> {
     pub fn new(
         typed_identifiers: &'a HashMap<String, ExpressionSpan>,
-        sources: &'a Sources,
+        _sources: &'a Sources,
     ) -> Self {
         Self {
             typed_identifiers,
-            sources,
+            _sources,
         }
     }
 }
@@ -1152,7 +1152,7 @@ impl<'a> TypeView for TypingTypeView<'a> {
         }
     }
 
-    fn get_source(&self, identifier_name: &str) -> Option<&SourceCode> {
+    fn get_source(&self, _identifier_name: &str) -> Option<&SourceCode> {
         None
     }
 }

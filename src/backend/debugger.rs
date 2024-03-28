@@ -1,7 +1,6 @@
 use crate::backend::Runtime;
 use crate::common::AnyError;
-use crate::frontend::sources::lexer::lex;
-use crate::frontend::{lex_and_parse, lex_and_parse_with_identifiers};
+use crate::frontend::lex_and_parse_with_identifiers;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::fd::FromRawFd;
@@ -37,7 +36,6 @@ impl<R: Read, W: Write> Runtime<R, W> {
             match result {
                 Ok(_n) => {
                     command.pop(); // remove \n
-                    // println!("breakpoint: {} bytes read, command: {}", _n, command);
                     if ["quit", "exit", "continue"].iter().any(|c| *c == command) {
                         eprintln!("leaving debugger");
                         break;

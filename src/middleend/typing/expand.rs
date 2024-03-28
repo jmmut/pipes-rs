@@ -1,11 +1,7 @@
-use crate::common::{err, err_span, AnyError};
-use crate::frontend::expression::{
-    Expression, ExpressionSpan, Type, TypedIdentifier, TypedIdentifiers,
-};
+use crate::common::AnyError;
+use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
 use crate::frontend::sources::location::{SourceCode, Span};
-use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::is_builtin_type;
-use std::collections::HashMap;
 
 pub trait TypeView {
     fn get_type(&self, name: &str, span: Span) -> Result<&Type, AnyError>;

@@ -12,10 +12,7 @@ use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 use crate::middleend::typing::expand::{Expand, TypeView};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::os::fd::FromRawFd;
-use std::os::raw;
+use std::io::{Read, Write};
 use std::rc::Rc;
 use strum::IntoEnumIterator;
 
@@ -652,7 +649,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Ok(list.len() as GenericValue)
             }
             Intrinsic::Breakpoint => {
-                self.debugger_prompt(arguments);
+                self.debugger_prompt(arguments)?;
                 Ok(argument)
             }
         }
@@ -868,14 +865,14 @@ fn get_field_index(
 
 pub struct RuntimeTypeView<'a> {
     typed_identifiers: &'a HashMap<String, Vec<Type>>,
-    sources: &'a Sources,
+    _sources: &'a Sources,
 }
 
 impl<'a> RuntimeTypeView<'a> {
-    pub fn new(typed_identifiers: &'a HashMap<String, Vec<Type>>, sources: &'a Sources) -> Self {
+    pub fn new(typed_identifiers: &'a HashMap<String, Vec<Type>>, _sources: &'a Sources) -> Self {
         Self {
             typed_identifiers,
-            sources,
+            _sources,
         }
     }
 }
@@ -907,7 +904,7 @@ impl<'a> TypeView for RuntimeTypeView<'a> {
         }
     }
 
-    fn get_source(&self, identifier_name: &str) -> Option<&SourceCode> {
+    fn get_source(&self, _identifier_name: &str) -> Option<&SourceCode> {
         None // TODO
     }
 }
@@ -916,12 +913,11 @@ impl<'a> TypeView for RuntimeTypeView<'a> {
 mod tests {
     use std::path::PathBuf;
 
+    use crate::backend::evaluate::*;
     use crate::common::{assert_mentions, unwrap_display};
     use crate::frontend::lex_and_parse;
     use crate::frontend::sources::location::SourceCode;
     use crate::middleend::typing::put_types;
-
-    use crate::backend::evaluate::*;
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
         let mut program = unwrap_display(lex_and_parse(code_text));
