@@ -111,7 +111,13 @@ fn write_types_chain(
 impl Display for Chain {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{")?;
+        let mut first = true;
         for operation in &self.operations {
+            if first {
+                first = false
+            } else {
+                write!(f, " ")?;
+            }
             write!(f, "{}", operation)?;
         }
         write!(f, "}}")?;
@@ -261,13 +267,13 @@ mod tests {
         let code = "4 |print_char +5";
         let parsed = unwrap_display(lex_and_parse(code));
         let displayed = format!("{}", parsed.main());
-        assert_eq!(displayed, format!("{{{}}}", code));
+        assert_eq!(displayed, format!("{{;{}}}", code));
     }
     #[test]
     fn test_display_several_operands() {
         let code = "4 |print_char 5 6";
         let parsed = unwrap_display(lex_and_parse(code));
         let displayed = format!("{}", parsed.main());
-        assert_eq!(displayed, format!("{{{}}}", code));
+        assert_eq!(displayed, format!("{{;{}}}", code));
     }
 }

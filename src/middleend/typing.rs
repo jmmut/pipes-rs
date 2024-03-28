@@ -249,7 +249,7 @@ impl<'a> Typer<'a> {
     fn check_types_chain(&mut self, chain: &Chain, span: Span) -> Result<ExpressionSpan, AnyError> {
         let mut last_operand_span = None;
         let typed_initial = None;
-        let mut accumulated_type = builtin_types::ANY;
+        let mut accumulated_type = builtin_types::NOTHING;
         let mut typed_operations = Vec::new();
 
         let mut assigned_in_this_chain = HashMap::new();
