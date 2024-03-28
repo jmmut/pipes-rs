@@ -111,11 +111,8 @@ fn write_types_chain(
 impl Display for Chain {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{")?;
-        if let Some(initial) = &self.initial {
-            write!(f, "{}", initial)?;
-        }
         for operation in &self.operations {
-            write!(f, " {}", operation)?;
+            write!(f, "{}", operation)?;
         }
         write!(f, "}}")?;
         Ok(())

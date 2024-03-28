@@ -225,19 +225,29 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .ok_or_else(|| format!("Pointer {} is not a valid array", list_pointer).into())
     }
 
+    fn evaluate_chain_passing_value(
+        &mut self,
+        initial: GenericValue,
+        initial_sem_type: &Type,
+        chain: &Chain,
+    ) -> Result<i64, AnyError> {
+        self.evaluate_chain(chain)
+    }
+
     fn evaluate_chain(
         &mut self,
         Chain {
-            initial,
+            // initial,
             operations,
         }: &Chain,
     ) -> Result<i64, AnyError> {
         let mut identifiers = HashMap::<String, usize>::new();
-        let mut accumulated = self.evaluate_recursive(&*initial.as_ref().unwrap())?;
-        let mut previous_sem_type = initial
-            .as_ref()
-            .map(|i| &i.semantic_type)
-            .unwrap_or(&builtin_types::UNKNOWN);
+        let mut accumulated = NOTHING;
+        let mut previous_sem_type = &builtin_types::NOTHING;
+        // let mut previous_sem_type = initial
+        //     .as_ref()
+        //     .map(|i| &i.semantic_type)
+        //     .unwrap_or(&builtin_types::UNKNOWN);
         for Operation {
             operator,
             operands,

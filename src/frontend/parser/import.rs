@@ -315,9 +315,6 @@ fn track_identifiers_recursive_chain(
     import_state: &mut ImportState,
     chain: &mut Chain,
 ) -> Result<(), AnyError> {
-    if let Some(initial) = &mut chain.initial {
-        track_identifiers_recursive(initial.as_mut(), import_state)?;
-    }
     let mut identifiers_defined_in_this_chain = Vec::new();
     for Operation {
         operator, operands, ..

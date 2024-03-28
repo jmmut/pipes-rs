@@ -248,15 +248,8 @@ impl<'a> Typer<'a> {
 
     fn check_types_chain(&mut self, chain: &Chain, span: Span) -> Result<ExpressionSpan, AnyError> {
         let mut last_operand_span = None;
-        let mut typed_initial = None;
-        if let Some(initial) = &chain.initial {
-            last_operand_span = Some(initial.span);
-            typed_initial = Some(Box::new(self.add_types(&*initial)?));
-        }
-        let mut accumulated_type = typed_initial
-            .as_ref()
-            .map(|i| i.sem_type().clone())
-            .unwrap_or(builtin_types::ANY);
+        let typed_initial = None;
+        let mut accumulated_type = builtin_types::ANY;
         let mut typed_operations = Vec::new();
 
         let mut assigned_in_this_chain = HashMap::new();

@@ -1,6 +1,6 @@
 use crate::common::{err, AnyError};
 use crate::frontend::sources::location::{Span, NO_SPAN};
-use crate::frontend::sources::token::{Keyword, OperatorSpan};
+use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan};
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
 
 pub mod display;
@@ -421,41 +421,50 @@ impl PartialEq for Type {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Chain {
-    pub initial: Option<Box<ExpressionSpan>>,
     pub operations: Operations,
 }
 
 impl Chain {
-    pub fn new(initial: ExpressionSpan, operations: Operations) -> Self {
+    pub fn new(initial: ExpressionSpan, mut operations: Operations) -> Self {
+        let mut all_ops = Operations::new();
+        let sem_type = initial.sem_type().clone();
+        all_ops.push(Operation::single(
+            OperatorSpan::new(
+                Operator::Ignore,
+                Span {
+                    start: initial.span.start,
+                    end: initial.span.start,
+                },
+            ),
+            initial,
+            sem_type,
+        ));
+        all_ops.append(&mut operations);
         Self {
-            initial: Some(Box::new(initial)),
-            operations,
+            operations: all_ops,
         }
     }
     pub fn new_opt_initial(initial: Option<Box<ExpressionSpan>>, operations: Operations) -> Self {
-        Self {
-            initial,
-            operations,
+        if let Some(initial) = initial {
+            Self::new(*initial, operations)
+        } else {
+            Self { operations }
         }
     }
     pub fn empty() -> Self {
         Self {
-            initial: Some(Box::new(ExpressionSpan::new_typeless(
-                Expression::Nothing,
-                NO_SPAN,
-            ))),
             operations: Vec::new(),
         }
     }
     pub fn content_span(&self) -> Span {
-        if let Some(last) = self.operations.last() {
-            if let Some(initial) = &self.initial {
-                initial.span.merge(&last.content_span())
+        if let Some(first) = self.operations.first() {
+            if let Some(last) = self.operations.last() {
+                first.content_span().merge(&last.content_span())
             } else {
-                last.content_span()
+                first.content_span()
             }
         } else {
-            self.initial.as_ref().map(|i| i.span).unwrap_or(NO_SPAN)
+            NO_SPAN
         }
     }
 }
