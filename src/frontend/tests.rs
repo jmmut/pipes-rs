@@ -20,7 +20,7 @@ fn chain(initial: Expression, operations: &[Operation]) -> Expression {
     Expression::Chain(raw_chain(initial, operations))
 }
 fn raw_chain(initial: Expression, operations: &[Operation]) -> Chain {
-    Chain::new(
+    Chain::new_initial(
         ExpressionSpan::new_spanless(initial),
         operations.into_iter().cloned().collect(),
     )

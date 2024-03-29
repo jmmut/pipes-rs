@@ -245,11 +245,18 @@ impl<'a> Typer<'a> {
             span,
         ))
     }
-
     fn check_types_chain(&mut self, chain: &Chain, span: Span) -> Result<ExpressionSpan, AnyError> {
+        self.check_types_chain_with_input(&builtin_types::NOTHING, chain, span)
+    }
+
+    fn check_types_chain_with_input(
+        &mut self,
+        input_type: &Type,
+        chain: &Chain,
+        span: Span,
+    ) -> Result<ExpressionSpan, AnyError> {
         let mut last_operand_span = None;
-        let typed_initial = None;
-        let mut accumulated_type = builtin_types::NOTHING;
+        let mut accumulated_type = input_type.clone();
         let mut typed_operations = Vec::new();
 
         let mut assigned_in_this_chain = HashMap::new();
@@ -295,7 +302,7 @@ impl<'a> Typer<'a> {
             self.unbind_identifier(&to_unbind, times)?;
         }
         Ok(ExpressionSpan::new(
-            Expression::Chain(Chain::new_opt_initial(typed_initial, typed_operations)),
+            Expression::Chain(Chain::new(typed_operations)),
             accumulated_type,
             span,
         ))
@@ -1220,6 +1227,11 @@ mod tests {
     #[test]
     fn test_basic_call_type() {
         assert_type_eq("function(x){4} =f ; 5 |f", "i64");
+    }
+
+    #[test]
+    fn test_noop_function() {
+        assert_type_eq("5 |function(x){}", "i64");
     }
 
     #[test]

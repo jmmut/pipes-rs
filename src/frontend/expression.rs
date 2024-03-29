@@ -128,7 +128,7 @@ impl Expression {
     }
 
     pub fn chain(initial: ExpressionSpan, operations: Operations) -> Self {
-        Self::Chain(Chain::new(initial, operations))
+        Self::Chain(Chain::new_initial(initial, operations))
     }
     pub fn list(elements: Expressions) -> Self {
         Self::StaticList { elements }
@@ -425,7 +425,10 @@ pub struct Chain {
 }
 
 impl Chain {
-    pub fn new(initial: ExpressionSpan, mut operations: Operations) -> Self {
+    pub fn new(operations: Operations) -> Self {
+        Self { operations }
+    }
+    pub fn new_initial(initial: ExpressionSpan, mut operations: Operations) -> Self {
         let mut all_ops = Operations::new();
         let sem_type = initial.sem_type().clone();
         all_ops.push(Operation::single(
@@ -446,7 +449,7 @@ impl Chain {
     }
     pub fn new_opt_initial(initial: Option<Box<ExpressionSpan>>, operations: Operations) -> Self {
         if let Some(initial) = initial {
-            Self::new(*initial, operations)
+            Self::new_initial(*initial, operations)
         } else {
             Self { operations }
         }
