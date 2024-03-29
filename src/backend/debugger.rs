@@ -1,13 +1,20 @@
 use crate::backend::Runtime;
 use crate::common::AnyError;
-use crate::frontend::lex_and_parse_with_identifiers;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::os::fd::FromRawFd;
-use std::os::raw;
+use std::io::{Read, Write};
 
 impl<R: Read, W: Write> Runtime<R, W> {
+    #[cfg(not(unix))]
+    pub fn debugger_prompt(&mut self, _arguments: &[i64]) -> Result<(), AnyError> {
+        // debugger unsupported in wasm
+        Ok(())
+    }
+    #[cfg(unix)]
     pub fn debugger_prompt(&mut self, arguments: &[i64]) -> Result<(), AnyError> {
+        use std::os::raw;
+        use std::os::fd::FromRawFd;
+        use crate::frontend::lex_and_parse_with_identifiers;
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
         let special_file_descriptor = arguments[1];
         loop {
             let mut command = String::new();
