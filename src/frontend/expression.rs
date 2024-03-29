@@ -127,8 +127,11 @@ impl Expression {
         Self::Chain(Chain::empty())
     }
 
-    pub fn chain(initial: ExpressionSpan, operations: Operations) -> Self {
+    pub fn chain_initial(initial: ExpressionSpan, operations: Operations) -> Self {
         Self::Chain(Chain::new_initial(initial, operations))
+    }
+    pub fn chain(operations: Operations) -> Self {
+        Self::Chain(Chain::new(operations))
     }
     pub fn list(elements: Expressions) -> Self {
         Self::StaticList { elements }

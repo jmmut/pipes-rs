@@ -16,23 +16,29 @@ fn val(value: i64) -> Expression {
 fn ident(name: &str) -> Expression {
     Expression::Identifier(name.to_string())
 }
-fn chain(initial: Expression, operations: &[Operation]) -> Expression {
-    Expression::Chain(raw_chain(initial, operations))
+fn chain_init(initial: Expression, operations: &[Operation]) -> Expression {
+    Expression::Chain(raw_chain_init(initial, operations))
 }
-fn raw_chain(initial: Expression, operations: &[Operation]) -> Chain {
+fn chain(operations: &[Operation]) -> Expression {
+    Expression::Chain(raw_chain(operations))
+}
+fn raw_chain_init(initial: Expression, operations: &[Operation]) -> Chain {
     Chain::new_initial(
         ExpressionSpan::new_spanless(initial),
         operations.into_iter().cloned().collect(),
     )
 }
+fn raw_chain(operations: &[Operation]) -> Chain {
+    Chain::new(operations.into_iter().cloned().collect())
+}
 impl From<i64> for Chain {
     fn from(value: i64) -> Self {
-        raw_chain(val(value), &[])
+        raw_chain_init(val(value), &[])
     }
 }
 impl From<Expression> for Chain {
     fn from(initial: Expression) -> Self {
-        raw_chain(initial, &[])
+        raw_chain_init(initial, &[])
     }
 }
 
@@ -167,14 +173,18 @@ fn test_final_semicolon_in_simple_chain() {
 
 #[test]
 fn test_chained_value() {
-    assert_expr_eq("{5}", chain(val(5), &[]));
+    assert_expr_eq("{5}", chain_init(val(5), &[]));
 }
 
+#[test]
+fn test_operation_chain() {
+    assert_expr_eq("{+5}", chain(&[op(Add, val(5))]));
+}
 #[test]
 fn test_chain() {
     assert_expr_eq(
         "{5 +7 +8}",
-        chain(val(5), &[op(Add, val(7)), op(Add, val(8))]),
+        chain_init(val(5), &[op(Add, val(7)), op(Add, val(8))]),
     );
 }
 
@@ -183,7 +193,7 @@ fn test_complex() {
     assert_expr_eq(
         "[ {5 +7 |print_char}  8 ]",
         list(&[
-            chain(val(5), &[op(Add, val(7)), op(Call, ident("print_char"))]),
+            chain_init(val(5), &[op(Add, val(7)), op(Call, ident("print_char"))]),
             val(8),
         ]),
     );
@@ -193,14 +203,13 @@ fn test_complex() {
 fn test_several_operands() {
     assert_expr_eq(
         "3 |print_char 4 5",
-        chain(val(3), &[op(Call, &[ident("print_char"), val(4), val(5)])]),
+        chain_init(val(3), &[op(Call, &[ident("print_char"), val(4), val(5)])]),
     );
 }
 
 #[test]
 fn test_unfinished() {
     lex_and_parse("5+").expect_err("should fail");
-    lex_and_parse("{+5}").expect_err("should fail");
     lex_and_parse(";").expect_err("should fail");
 }
 
@@ -208,7 +217,7 @@ fn test_unfinished() {
 fn test_assignment() {
     assert_expr_eq(
         "function {} = noop",
-        chain(func(&[], Chain::empty()), &[op(Assignment, ident("noop"))]),
+        chain_init(func(&[], Chain::empty()), &[op(Assignment, ident("noop"))]),
     );
 }
 
@@ -216,7 +225,7 @@ fn test_assignment() {
 fn test_branch() {
     assert_expr_eq(
         "5 |branch {7} {8}",
-        chain(val(5), &[op(Call, branch(7, 8))]),
+        chain_init(val(5), &[op(Call, branch(7, 8))]),
     );
 }
 
@@ -225,13 +234,16 @@ mod types {
 
     #[test]
     fn test_basic_type() {
-        assert_expr_eq("5 :i64", chain(val(5), &[op(Operator::Type, type_("i64"))]));
+        assert_expr_eq(
+            "5 :i64",
+            chain_init(val(5), &[op(Operator::Type, type_("i64"))]),
+        );
     }
     #[test]
     fn test_nameless_children_types() {
         assert_expr_eq(
             "5 :tuple(:i64 :i64)",
-            chain(
+            chain_init(
                 val(5),
                 &[op(
                     Operator::Type,
@@ -244,7 +256,7 @@ mod types {
     fn test_typeless_children_types() {
         assert_expr_eq(
             "5 :tuple(x y)",
-            chain(
+            chain_init(
                 val(5),
                 &[op(
                     Operator::Type,
@@ -257,7 +269,7 @@ mod types {
     fn test_children_types() {
         assert_expr_eq(
             "5 :tuple(x:i64 y:i64)",
-            chain(
+            chain_init(
                 val(5),
                 &[op(
                     Operator::Type,
@@ -352,6 +364,6 @@ fn test_struct() {
 fn test_field() {
     assert_expr_eq(
         "[] .x",
-        chain(list(&[]), &[op(Operator::Field, ident("x"))]),
+        chain_init(list(&[]), &[op(Operator::Field, ident("x"))]),
     );
 }

@@ -599,7 +599,19 @@ fn construct_chain(
             open_brace_span.merge(&span),
         )),
         Some(PartialExpression::Expression(initial)) => {
-            construct_chain_transformations(accumulated, initial, source, open_brace_span)
+            let span = Span {
+                start: initial.span.start,
+                end: initial.span.start,
+            };
+            construct_chain_transformations(
+                accumulated,
+                Operation::single_no_sem_type(OperatorSpan::new(Operator::Ignore, span), initial),
+                source,
+                open_brace_span,
+            )
+        }
+        Some(PartialExpression::Operation(operation)) => {
+            construct_chain_transformations(accumulated, operation, source, open_brace_span)
         }
         _ => err_span(
             expected("expression or closing brace", elem_expression),
@@ -611,18 +623,19 @@ fn construct_chain(
 
 fn construct_chain_transformations(
     accumulated: &mut VecDeque<PartialExpression>,
-    initial: ExpressionSpan,
+    initial: Operation,
     source: &SourceCode,
     open_brace_span: Span,
 ) -> Result<ExpressionSpan, AnyError> {
     let mut transformations = Operations::new();
+    transformations.push(initial);
     let mut last_span = open_brace_span;
     loop {
         let elem_operator = accumulated.pop_front();
         match elem_operator {
             Some(PartialExpression::CloseBrace(span)) => {
                 return Ok(ExpressionSpan::new_typeless(
-                    Expression::chain(initial, transformations),
+                    Expression::chain(transformations),
                     open_brace_span.merge(&span),
                 ))
             }

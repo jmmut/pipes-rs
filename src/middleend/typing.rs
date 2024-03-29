@@ -313,12 +313,21 @@ impl<'a> Typer<'a> {
         function: &Function,
         span: Span,
     ) -> Result<ExpressionSpan, AnyError> {
+        self.check_type_function_with_input(&builtin_types::ANY, function, span)
+    }
+    fn check_type_function_with_input(
+        &mut self,
+        input_type: &Type,
+        function: &Function,
+        span: Span,
+    ) -> Result<ExpressionSpan, AnyError> {
         let Function {
             parameters,
             body,
             returned,
         } = function;
-        let typed_chain = self.check_types_scope(parameters.clone(), body, span)?;
+        let typed_chain =
+            self.check_types_scope_with_input(input_type.clone(), parameters.clone(), body, span)?;
         let return_unified = unify(&typed_chain.sem_type(), &returned.type_);
         let (typed_params, typed_return) = if let Some(unified) = return_unified {
             (
@@ -348,12 +357,35 @@ impl<'a> Typer<'a> {
         body: &Chain,
         span: Span,
     ) -> Result<ExpressionSpan, AnyError> {
+        self.check_types_scope_with_input(builtin_types::ANY, parameters, body, span)
+    }
+    fn check_types_scope_with_input(
+        &mut self,
+        input_type: Type,
+        mut parameters: TypedIdentifiers,
+        body: &Chain,
+        span: Span,
+    ) -> Result<ExpressionSpan, AnyError> {
         let mut to_unbind = Vec::new();
+        let operator_span = OperatorSpan::new(Operator::Call, span);
+        if let Some(first) = parameters.first_mut() {
+            *first = self.assert_typed_identifier_unifies(
+                &TypedIdentifier::nameless(input_type),
+                &first,
+                operator_span,
+            )?;
+        } else {
+            self.assert_type_unifies(&input_type, &builtin_types::NOTHING, operator_span)?;
+        }
+        let first_param = parameters
+            .first()
+            .map(|p| p.type_.clone())
+            .unwrap_or(builtin_types::NOTHING);
         for parameter in parameters {
             to_unbind.push(parameter.name.clone());
             self.bind_typed_identifier(parameter);
         }
-        let chain = self.check_types_chain(body, span);
+        let chain = self.check_types_chain_with_input(&first_param, body, span);
         for name in to_unbind {
             self.unbind_identifier(&name, 1)?;
         }
@@ -507,7 +539,8 @@ impl<'a> Typer<'a> {
                 self.check_type_callable(input_type, typed_callable, &operands[1..], operator_span)
             }
             Expression::Function(function) => {
-                let typed_callable = self.check_type_function(function, span)?;
+                let typed_callable =
+                    self.check_type_function_with_input(input_type, function, span)?;
                 self.check_type_callable(input_type, typed_callable, &operands[1..], operator_span)
             }
             Expression::Composed(composed) => {
@@ -604,7 +637,7 @@ impl<'a> Typer<'a> {
                 let unified_elem = self.assert_typed_identifier_unifies(
                     &TypedIdentifier::nameless(unified_input.clone()),
                     &times.iteration_elem,
-                    Operator::Call,
+                    operator_span,
                 )?;
                 let typed_body =
                     self.check_types_scope_single(unified_elem.clone(), &times.body, span)?;
@@ -622,7 +655,7 @@ impl<'a> Typer<'a> {
                 let unified_elem = self.assert_typed_identifier_unifies(
                     &TypedIdentifier::nameless(unified_input.clone()),
                     &times_or.iteration_elem,
-                    Operator::Call,
+                    operator_span,
                 )?;
                 let typed_body =
                     self.check_types_scope_single(unified_elem.clone(), &times_or.body, span)?;
@@ -731,7 +764,7 @@ impl<'a> Typer<'a> {
                     self.assert_type_unifies(input_type, &expected_input, operator_span)?;
                 let typed_something = if let Some(some) = is_something_or_nothing(&unified_elem) {
                     let unified_elem =
-                        self.assert_typed_identifier_unifies(&some, elem, Operator::Call)?;
+                        self.assert_typed_identifier_unifies(&some, elem, operator_span)?;
                     self.check_types_scope_single(unified_elem, &something, span)
                 } else {
                     err(format!(
@@ -845,19 +878,16 @@ impl<'a> Typer<'a> {
         span: Span,
     ) -> Result<TypedIdentifier, AnyError> {
         let expected_input = list_any();
-        let unified_input = self.assert_type_unifies(
-            input_type,
-            &expected_input,
-            OperatorSpan {
-                operator: Operator::Call,
-                span,
-            },
-        )?;
+        let operator_span = OperatorSpan {
+            operator: Operator::Call,
+            span,
+        };
+        let unified_input = self.assert_type_unifies(input_type, &expected_input, operator_span)?;
         let inner_input_type = unified_input.single_element()?;
         let unified_elem = self.assert_typed_identifier_unifies(
             &iteration_elem,
             &inner_input_type,
-            Operator::Call,
+            operator_span,
         )?;
         Ok(unified_elem)
     }
@@ -1020,13 +1050,17 @@ impl<'a> Typer<'a> {
         &mut self,
         actual: &TypedIdentifier,
         expected: &TypedIdentifier,
-        operator: Operator,
+        operator: OperatorSpan,
     ) -> Result<TypedIdentifier, AnyError> {
         let unified = unify_typed_identifier(expected, &actual);
         if let Some(unified) = unified {
             Ok(unified)
         } else {
-            err(type_mismatch_op(operator, &actual.type_, &expected.type_))
+            err_span(
+                type_mismatch_op(operator.operator, &actual.type_, &expected.type_),
+                self.get_current_source(),
+                operator.span,
+            )
         }
     }
     fn assert_typed_identifiers_unify(
@@ -1233,6 +1267,10 @@ mod tests {
     fn test_noop_function() {
         assert_type_eq("5 |function(x){}", "i64");
     }
+    #[test]
+    fn test_op_function() {
+        assert_type_eq("5 |function(x){+1}", "i64");
+    }
 
     #[test]
     fn test_basic_operation() {
@@ -1345,7 +1383,8 @@ mod tests {
     #[test]
     fn test_browse() {
         assert_type_eq("[1] |browse(e) {e}", "i64");
-        assert_type_eq("[1] |browse(e) {}", "nothing");
+        assert_type_eq("[1] |browse(e) {}", "i64");
+        assert_type_eq("[1] |browse(e) {;}", "nothing");
         assert_types_wrong("1 |browse(e) {e}");
     }
     #[test]
@@ -1364,7 +1403,8 @@ mod tests {
         );
         assert_type_eq("[1] |browse_or(e) {e} {0}", "i64");
         assert_type_eq("[1] |browse_or(e) {} {0}", "i64");
-        assert_type_eq("[1] |browse_or(e) {} {}", "nothing");
+        assert_type_eq("[1] |browse_or(e) {} {}", "or(:i64  :nothing)"); // the first empty brace means it will return the first elem always, except when empty
+        assert_type_eq("[1] |browse_or(e) {;} {;}", "nothing");
         assert_types_wrong("[1] |browse_or(e) {e} {[]}");
     }
     #[test]

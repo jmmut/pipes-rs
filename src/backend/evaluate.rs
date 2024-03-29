@@ -225,14 +225,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .ok_or_else(|| format!("Pointer {} is not a valid array", list_pointer).into())
     }
 
-    fn evaluate_chain_passing_value(
-        &mut self,
-        initial: GenericValue,
-        initial_sem_type: &Type,
-        chain: &Chain,
-    ) -> Result<i64, AnyError> {
-        self.evaluate_chain(chain)
-    }
+    // fn evaluate_chain_passing_value(
+    //     &mut self,
+    //     initial: GenericValue,
+    //     initial_sem_type: &Type,
+    //     chain: &Chain,
+    // ) -> Result<i64, AnyError> {
+    //     self.evaluate_chain(chain)
+    // }
 
     fn evaluate_chain(
         &mut self,
@@ -1009,6 +1009,7 @@ mod tests {
     #[test]
     fn test_function() {
         assert_eq!(interpret("5 |function(x) {x}"), 5);
+        assert_eq!(interpret("5 |function(x) {+1}"), 6);
         let err = interpret_fallible("4|3").expect_err("should have failed");
         assert_mentions(err, &["as a function", "3"])
     }
