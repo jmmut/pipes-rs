@@ -225,25 +225,22 @@ impl<R: Read, W: Write> Runtime<R, W> {
             .ok_or_else(|| format!("Pointer {} is not a valid array", list_pointer).into())
     }
 
-    // fn evaluate_chain_passing_value(
-    //     &mut self,
-    //     initial: GenericValue,
-    //     initial_sem_type: &Type,
-    //     chain: &Chain,
-    // ) -> Result<i64, AnyError> {
-    //     self.evaluate_chain(chain)
-    // }
+    fn evaluate_chain(&mut self, chain: &Chain) -> Result<i64, AnyError> {
+        self.evaluate_chain_passing_value(NOTHING, &builtin_types::NOTHING, chain)
+    }
 
-    fn evaluate_chain(
+    fn evaluate_chain_passing_value(
         &mut self,
+        initial: GenericValue,
+        initial_sem_type: &Type,
         Chain {
             // initial,
             operations,
         }: &Chain,
     ) -> Result<i64, AnyError> {
         let mut identifiers = HashMap::<String, usize>::new();
-        let mut accumulated = NOTHING;
-        let mut previous_sem_type = &builtin_types::NOTHING;
+        let mut accumulated = initial;
+        let mut previous_sem_type = initial_sem_type;
         // let mut previous_sem_type = initial
         //     .as_ref()
         //     .map(|i| &i.semantic_type)
@@ -429,7 +426,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
             self.bind_identifier(parameter.name.clone(), *argument);
         }
 
-        let result = self.evaluate_chain(body)?;
+        let result = self.evaluate_chain_passing_value(
+            arguments.get(0).cloned().unwrap_or(NOTHING),
+            &builtin_types::UNKNOWN,
+            body,
+        )?;
 
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
         Ok(result)

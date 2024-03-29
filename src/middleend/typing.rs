@@ -1229,6 +1229,12 @@ mod tests {
     }
 
     #[test]
+    fn test_nothing() {
+        assert_type_eq("{}", "nothing");
+        assert_type_eq("{;}", "nothing");
+    }
+
+    #[test]
     fn test_basic_i64_type() {
         assert_types_ok("4 :i64");
     }
@@ -1270,6 +1276,7 @@ mod tests {
     #[test]
     fn test_op_function() {
         assert_type_eq("5 |function(x){+1}", "i64");
+        assert_types_wrong("{;} |function(x){+1}");
     }
 
     #[test]
