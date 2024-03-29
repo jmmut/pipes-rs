@@ -20,9 +20,10 @@
 <body>
     <div id="loading_status_div">WebAssembly not loaded</div>
     <div>Input pipes code:</div>
-    <textarea id="input_pipes" cols="80" rows="24" disabled>"Hello, World!" |print
-;3 +5 |to_str |print
-;[60 70 80] #1 |to_str |print
+    <textarea id="input_pipes" cols="80" rows="24" disabled>;"Hello, World!" |print // basic hello world
+
+;3 +5 |to_str |print // printing a number
+;[60 70 80] #1 |to_str |print // accessing an array element
 
 ;function(array) {
     "[ "
@@ -35,14 +36,21 @@
     ;message
     ++"]"
 }
-=int_array_to_str
+=int_array_to_str // named function definition
 
-;[10 20 30] |map(x) {
-    x +6
+;[1 2 3 4 5 6 7]
+|map(x) { // copy array and modify it
+    +10
+}
+|filter(x) {
+    |/2 |*2 ==x
 }
 |int_array_to_str |print
 
-;42</textarea>
+;"5 |function(x) {+1}" |eval |to_str |print  // evaluate pipes code
+
+;42
+</textarea>
     <div>
         <button id="main_button" disabled>Run</button>
         <input id="toggle_continuous" type="checkbox"><label for="toggle_continuous">Run on every key stroke</label></input>
