@@ -226,25 +226,25 @@ impl<R: Read, W: Write> Runtime<R, W> {
     }
 
     fn evaluate_chain(&mut self, chain: &Chain) -> Result<i64, AnyError> {
-        self.evaluate_chain_passing_value(NOTHING, &builtin_types::NOTHING, chain)
+        self.evaluate_chain_passing_typeless_value(NOTHING, chain)
     }
 
+    fn evaluate_chain_passing_typeless_value(
+        &mut self,
+        initial: GenericValue,
+        chain: &Chain,
+    ) -> Result<i64, AnyError> {
+        self.evaluate_chain_passing_value(initial, &builtin_types::NOTHING, chain)
+    }
     fn evaluate_chain_passing_value(
         &mut self,
         initial: GenericValue,
         initial_sem_type: &Type,
-        Chain {
-            // initial,
-            operations,
-        }: &Chain,
+        Chain { operations }: &Chain,
     ) -> Result<i64, AnyError> {
         let mut identifiers = HashMap::<String, usize>::new();
         let mut accumulated = initial;
         let mut previous_sem_type = initial_sem_type;
-        // let mut previous_sem_type = initial
-        //     .as_ref()
-        //     .map(|i| &i.semantic_type)
-        //     .unwrap_or(&builtin_types::UNKNOWN);
         for Operation {
             operator,
             operands,
@@ -426,9 +426,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
             self.bind_identifier(parameter.name.clone(), *argument);
         }
 
-        let result = self.evaluate_chain_passing_value(
+        let result = self.evaluate_chain_passing_typeless_value(
             arguments.get(0).cloned().unwrap_or(NOTHING),
-            &builtin_types::UNKNOWN,
             body,
         )?;
 
@@ -453,8 +452,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let default_result = NOTHING;
         for value in list {
             self.bind_identifier(iteration_elem.name.clone(), value);
-            let result = self.evaluate_chain(&body)?;
-            // let result = self.evaluate_chain_passing_value(value, &builtin_types::UNKNOWN, &body)?;
+            let result = self.evaluate_chain_passing_typeless_value(value, &body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
                 return Ok(result);
@@ -488,7 +486,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         for value in 0..argument {
             self.bind_identifier(iteration_elem.name.clone(), value);
-            let _unused_result = self.evaluate_chain(&body)?;
+            let _unused_result = self.evaluate_chain_passing_typeless_value(value, &body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
         Ok(argument)
@@ -505,7 +503,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         for value in 0..argument {
             self.bind_identifier(iteration_elem.name.clone(), value);
-            let result = self.evaluate_chain(&body)?;
+            let result = self.evaluate_chain_passing_typeless_value(value, &body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
                 return Ok(result);
@@ -525,7 +523,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut list = self.get_list(argument)?.clone(); // TODO remove clone?
         for value in &mut list {
             self.bind_identifier(iteration_elem.name.clone(), *value);
-            *value = self.evaluate_chain(&body)?;
+            *value = self.evaluate_chain_passing_typeless_value(*value, &body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
         self.lists.insert(argument, list);
@@ -544,7 +542,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut new_list = Vec::new();
         for value in &mut list {
             self.bind_identifier(iteration_elem.name.clone(), *value);
-            new_list.push(self.evaluate_chain(&body)?);
+            new_list.push(self.evaluate_chain_passing_typeless_value(*value, &body)?);
             self.unbind_identifier(&iteration_elem.name, 1)?;
         }
         Ok(self.allocate_list(new_list))
@@ -561,7 +559,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut new_list = Vec::new();
         for value in &mut list {
             self.bind_identifier(iteration_elem.name.clone(), *value);
-            if self.evaluate_chain(&body)? != 0 {
+            if self.evaluate_chain_passing_typeless_value(*value, &body)? != 0 {
                 new_list.push(*value);
             }
             self.unbind_identifier(&iteration_elem.name, 1)?;
@@ -580,7 +578,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         if argument != NOTHING {
             self.bind_identifier(elem.name.clone(), argument);
-            let result = self.evaluate_chain(&something)?;
+            let result = self.evaluate_chain_passing_typeless_value(argument, &something)?;
             self.unbind_identifier(&elem.name, 1)?;
             Ok(result)
         } else {
@@ -594,7 +592,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         Inspect { elem, body }: &Inspect,
     ) -> Result<i64, AnyError> {
         self.bind_identifier(elem.name.clone(), argument);
-        self.evaluate_chain(&body)?;
+        self.evaluate_chain_passing_typeless_value(argument, &body)?;
         self.unbind_identifier(&elem.name, 1)?;
         Ok(argument)
     }
@@ -1255,7 +1253,7 @@ mod tests {
             interpret("[10 11] =initial |map(e) {e +100} ;initial #1"),
             11
         );
-        assert_eq!(interpret("[10 11] =initial |map(e) {+100} #1"), 11);
+        assert_eq!(interpret("[10 11] =initial |map(e) {+100} #1"), 111);
         assert_eq!(
             interpret(
                 "public tuple(x:i64 y:i64) =coords ;[{[3 4] |cast(:coords)}] |map(c) {c .x} #0"
@@ -1336,7 +1334,7 @@ mod tests {
         assert_eq!(interpret("3 |inspect(n) {n+1}"), 3);
         assert_eq!(
             interpret_io("3 |inspect(n) {+1 |to_str |print}", ""),
-            (3, "4".to_string())
+            (3, "4\n".to_string())
         );
     }
 
