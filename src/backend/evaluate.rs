@@ -454,6 +454,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         for value in list {
             self.bind_identifier(iteration_elem.name.clone(), value);
             let result = self.evaluate_chain(&body)?;
+            // let result = self.evaluate_chain_passing_value(value, &builtin_types::UNKNOWN, &body)?;
             self.unbind_identifier(&iteration_elem.name, 1)?;
             if result != NOTHING {
                 return Ok(result);
@@ -1187,10 +1188,12 @@ mod tests {
     }
     #[test]
     fn test_browse() {
-        let (result, print_output) =
-            interpret_io("[10 11] |browse(n :i64) {n |to_str |print;}", "");
+        let (result, print_output) = interpret_io("[10 11] |browse(n :i64) {n|to_str |print;}", "");
         assert_eq!(result, NOTHING);
-        assert_eq!(print_output, "10\n11\n")
+        assert_eq!(print_output, "10\n11\n");
+        let (result, print_output) = interpret_io("[10 11] |browse(n :i64) {|to_str |print;}", "");
+        assert_eq!(result, NOTHING);
+        assert_eq!(print_output, "10\n11\n");
     }
 
     #[test]
@@ -1211,6 +1214,8 @@ mod tests {
     fn test_browse_or_broken() {
         let result = interpret("[10 11] |browse_or(n :i64) {n} {5}");
         assert_eq!(result, 10);
+        let result = interpret("[10 11] |browse_or(n :i64) {} {5}");
+        assert_eq!(result, 10);
     }
 
     #[test]
@@ -1227,6 +1232,8 @@ mod tests {
     fn test_times_or_broken() {
         let result = interpret("0=n ;4 |times_or(i) {n +10 =>n ;100} {5} +n");
         assert_eq!(result, 110);
+        let result = interpret("0=n ;4 |times_or(i) {} {5}");
+        assert_eq!(result, 0);
     }
 
     #[test]
@@ -1234,6 +1241,10 @@ mod tests {
         assert_eq!(interpret("[10 11] |replace(e :i64) {e +100} #1"), 111);
         assert_eq!(
             interpret("[10 11] =initial |replace(e :i64) {e +100}; initial #1"),
+            111
+        );
+        assert_eq!(
+            interpret("[10 11] =initial |replace(e :i64) {+100}; initial #1"),
             111
         );
     }
@@ -1244,6 +1255,7 @@ mod tests {
             interpret("[10 11] =initial |map(e) {e +100} ;initial #1"),
             11
         );
+        assert_eq!(interpret("[10 11] =initial |map(e) {+100} #1"), 11);
         assert_eq!(
             interpret(
                 "public tuple(x:i64 y:i64) =coords ;[{[3 4] |cast(:coords)}] |map(c) {c .x} #0"
@@ -1253,10 +1265,7 @@ mod tests {
     }
     #[test]
     fn test_filter() {
-        assert_eq!(
-            interpret("[ 1 2 3 4 5 6] |filter(e) { e |/2 |*2 =?e} #2"),
-            6
-        );
+        assert_eq!(interpret("[ 1 2 3 4 5 6] |filter(e) {|/2 |*2 ==e} #2"), 6);
     }
     #[test]
     fn test_comparison() {
@@ -1318,11 +1327,17 @@ mod tests {
 
     #[test]
     fn test_something() {
+        assert_eq!(interpret("0 |branch{3}{} |something(n) {n} {5}"), 5);
         assert_eq!(interpret("1 |branch{3}{} |something(n) {n} {5}"), 3);
+        assert_eq!(interpret("1 |branch{3}{} |something(n) {} {5}"), 3);
     }
     #[test]
     fn test_inspect() {
         assert_eq!(interpret("3 |inspect(n) {n+1}"), 3);
+        assert_eq!(
+            interpret_io("3 |inspect(n) {+1 |to_str |print}", ""),
+            (3, "4".to_string())
+        );
     }
 
     #[test]
