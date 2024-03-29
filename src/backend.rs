@@ -18,8 +18,8 @@ pub struct Runtime<R: Read, W: Write> {
     identifiers: HashMap<String, BindingsStack>,
     static_identifiers: HashMap<String, BindingsStack>,
     types: HashMap<String, Vec<Type>>,
-    read_input: R,
-    print_output: W,
+    read_input: Option<R>, // these will always be Some(), but stdin/stdout are not Default, and option is. needed for eval
+    print_output: Option<W>,
     _sources: Sources, // TODO: figure out how to show sources. We might be executing some function
     //   pointer, but we don't track where a function ptr was generated
     /// file descriptor to reader. see [Runtime::debugger_prompt]

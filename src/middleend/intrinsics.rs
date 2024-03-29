@@ -14,6 +14,7 @@ pub enum Intrinsic {
     NewArray,
     Size,
     Breakpoint,
+    Eval,
 }
 
 impl Intrinsic {
@@ -27,6 +28,7 @@ impl Intrinsic {
             Intrinsic::NewArray => "new_array",
             Intrinsic::Size => "size",
             Intrinsic::Breakpoint => "breakpoint",
+            Intrinsic::Eval => "eval",
         }
     }
 
@@ -46,6 +48,7 @@ impl Intrinsic {
             Intrinsic::NewArray => parse_type("function(size :i64) (:array(:any))"),
             Intrinsic::Size => parse_type("function(:list(:any)) (:i64)"),
             Intrinsic::Breakpoint => parse_type("function(t  file_descriptor :i64) (t)"),
+            Intrinsic::Eval => parse_type("function(code :list(char :i64)) (result :i64)"),
         }
     }
 }

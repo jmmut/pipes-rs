@@ -5,12 +5,14 @@ use crate::frontend::expression::{
     Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
     TypedIdentifiers,
 };
+use crate::frontend::lex_and_parse;
 use crate::frontend::program::Program;
 use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{Comparison, Operator, FIELD};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 use crate::middleend::typing::expand::{Expand, TypeView};
+use crate::middleend::typing::put_types;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::rc::Rc;
@@ -109,8 +111,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
             identifiers: HashMap::new(),
             types: HashMap::new(),
             static_identifiers,
-            read_input,
-            print_output,
+            read_input: Some(read_input),
+            print_output: Some(print_output),
             _sources: sources,
             extra_inputs: HashMap::new(),
         };
@@ -605,19 +607,26 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let argument = arguments[0];
         match intrinsic {
             Intrinsic::PrintChar => {
-                write!(self.print_output, "{}", argument as u8 as char)?;
+                write!(
+                    self.print_output.as_mut().unwrap(),
+                    "{}",
+                    argument as u8 as char
+                )?;
                 Ok(argument)
             }
             Intrinsic::ReadChar => {
                 let one_byte_buffer: &mut [u8] = &mut [0; 1];
-                self.read_input.read_exact(one_byte_buffer)?;
+                self.read_input
+                    .as_mut()
+                    .unwrap()
+                    .read_exact(one_byte_buffer)?;
                 Ok(one_byte_buffer[0] as GenericValue)
             }
             Intrinsic::Print => {
                 match self.lists.get(&argument) {
                     Some(list) => {
-                        let s = String::from_utf8(list.iter().map(|b| *b as u8).collect())?;
-                        writeln!(self.print_output, "{}", s)?;
+                        let s = Self::pipes_str_to_rust_str(list)?;
+                        writeln!(self.print_output.as_mut().unwrap(), "{}", s)?;
                     }
                     None => err(format!(
                         "\"print\" was called with an invalid array {}",
@@ -628,7 +637,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
             }
             Intrinsic::ReadLines => {
                 let mut all_lines = "".to_string();
-                self.read_input.read_to_string(&mut all_lines)?;
+                self.read_input
+                    .as_mut()
+                    .unwrap()
+                    .read_to_string(&mut all_lines)?;
                 let mut list_of_lists: Vec<GenericValue> = all_lines
                     .split("\n")
                     .map(|str_line| {
@@ -662,7 +674,34 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 self.debugger_prompt(arguments)?;
                 Ok(argument)
             }
+            Intrinsic::Eval => {
+                let result = context("Nested evaluation", self.evaluate_eval(argument))?;
+                Ok(result)
+            }
         }
+    }
+
+    fn evaluate_eval(&mut self, argument: i64) -> Result<GenericValue, AnyError> {
+        let code = Self::pipes_str_to_rust_str(self.get_list(argument)?)?;
+        let mut program = lex_and_parse(code)?;
+        put_types(&mut program)?;
+        let (main, identifiers, sources) = program.take();
+        let copied_input = std::mem::take(&mut self.read_input);
+        let copied_output = std::mem::take(&mut self.print_output);
+        let mut runtime = Runtime::new(
+            copied_input.unwrap(),
+            copied_output.unwrap(),
+            identifiers,
+            sources,
+        )?;
+        let result = runtime.evaluate_recursive(&main)?;
+        self.read_input = runtime.read_input;
+        self.print_output = runtime.print_output;
+        Ok(result)
+    }
+
+    fn pipes_str_to_rust_str(list: &Vec<GenericValue>) -> Result<String, AnyError> {
+        Ok(String::from_utf8(list.iter().map(|b| *b as u8).collect())?)
     }
 
     fn get_list_element(
@@ -959,7 +998,7 @@ mod tests {
         let result = runtime.evaluate_recursive(&main);
         (
             result.unwrap(),
-            String::from_utf8(runtime.print_output).unwrap(),
+            String::from_utf8(runtime.print_output.unwrap()).unwrap(),
         )
     }
 
@@ -1351,6 +1390,18 @@ mod tests {
         assert_eq!(
             interpret("public tuple(x :i64 y :i64) =Coords; public function {[1 2] |cast(:Coords)} =f; {} |public function {0 |branch {{} |f .x} {{} |f .y}} =g"),
             2
+        );
+    }
+
+    #[test]
+    fn test_eval() {
+        assert_eq!(
+            interpret(
+                r#"
+                "5 |pipes_programs/demos/some_namespace/reusable_functions/add_1" |eval
+            "#
+            ),
+            6
         );
     }
 }
