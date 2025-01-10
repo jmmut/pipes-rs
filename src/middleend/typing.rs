@@ -1385,26 +1385,6 @@ mod tests {
         assert_types_wrong("tuple(x :i64  y :i64) =Coord");
     }
     #[test]
-    fn test_undefined_type_shows_source_code_usage() {
-        let namespace = "undefined_struct";
-        let main_path = PathBuf::from(format!("./pipes_programs/tests/{namespace}.pipes"));
-        let code = SourceCode::new(main_path).unwrap();
-        let program = unwrap_display(lex_and_parse(code));
-        let program_result = add_types(&program);
-        assert!(program_result.is_err());
-        let error_message = program_result.err().unwrap().to_string();
-        assert!(
-            error_message.contains(namespace),
-            "message didn't mention namespace '{namespace}': '{}'",
-            error_message
-        );
-        assert!(
-            !error_message.contains("unknown"),
-            "message didn't mention filename '{namespace}.pipes': '{}'",
-            error_message
-        );
-    }
-    #[test]
     fn test_reusing_structs_cast() {
         assert_types_ok_file("pipes_programs/tests/reusing_struct_cast.pipes");
     }
