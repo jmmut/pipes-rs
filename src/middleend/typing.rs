@@ -1264,12 +1264,6 @@ mod tests {
         let program = &parse(code);
         check_types(program).expect_err("should fail");
     }
-    fn assert_types_wrong_file(path: &str) {
-        let main_path = PathBuf::from(path);
-        let code = SourceCode::new(main_path).unwrap();
-        let program = unwrap_display(lex_and_parse(code));
-        check_types(&program).expect_err("should fail");
-    }
 
     #[test]
     fn test_nothing() {

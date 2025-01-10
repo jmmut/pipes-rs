@@ -1,10 +1,10 @@
 
-
-/// a function can return structs
+// this is how you define a custom type from a struct
 ;public tuple(x :i64  y :i64)
 =point
 
-;function (a :i64)(:structs/point) {
+/// a function can return custom types
+;function (a :i64)(:point) {
     [a a]
     |cast(:any)
 }
@@ -13,9 +13,11 @@
 ;5 |diagonal
 =d
 
-;function(p: structs/point) {
-    ; "x: " ++{p .x |to_str} |print
-    ; "y: " ++{p .y |to_str} |print
+
+// a function can take custom types
+;function(p: point) {
+    ;"x: " ++{p .x |to_str} |print
+    ;"y: " ++{p .y |to_str} |print
     ;
 }
 =print_point
@@ -23,10 +25,20 @@
 ;d |print_point
 
 
-;function (a :i64)(:structs/point) {
-    [{a |*2} a]
-    |cast(:any)
+// a function can return anonymous structs
+;function()(:tuple(x :i64  y :i64  z :i64)) {
+    [1 2 3] |cast(:any)
 }
-=sin30
+=vector3d
 
-;5 |sin30 |print_point
+;"z: " ++{{} |vector3d .z |to_str} |print
+
+
+// a function can take anonymous structs
+;function(t :tuple(a :i64  b :i64)) {
+    "a: " ++{t .a |to_str} |print
+}
+=print_first
+;[8 9] |cast(:any) |print_first
+
+;

@@ -101,19 +101,22 @@ fn track_identifiers_recursive(
             Ok(())
         }
         Expression::Function(Function {
-            parameters, body, ..
-        }) => track_identifiers_recursive_scope(import_state, parameters.iter(), body),
+            parameters,
+            returned,
+            body,
+        }) => {
+            track_identifiers_recursive_scope(import_state, parameters.iter_mut(), body)?;
+            check_user_defined_type(&mut returned.type_, import_state)
+        }
         Expression::Composed(Composed::Loop(Loop { body })) => {
-            track_identifiers_recursive_scope(import_state, [].iter(), body)
+            track_identifiers_recursive_scope(import_state, [].iter_mut(), body)
         }
         Expression::Composed(Composed::Browse(Browse {
             iteration_elem,
             body,
-        })) => track_identifiers_recursive_scope(
-            import_state,
-            vec![&*iteration_elem].into_iter(),
-            body,
-        ),
+        })) => {
+            track_identifiers_recursive_scope(import_state, vec![iteration_elem].into_iter(), body)
+        }
         Expression::Composed(Composed::BrowseOr(BrowseOr {
             iteration_elem,
             body,
@@ -121,7 +124,7 @@ fn track_identifiers_recursive(
         })) => {
             track_identifiers_recursive_scope(
                 import_state,
-                vec![&*iteration_elem].into_iter(),
+                vec![iteration_elem].into_iter(),
                 body,
             )?;
             track_identifiers_recursive_chain(import_state, otherwise)
@@ -129,11 +132,9 @@ fn track_identifiers_recursive(
         Expression::Composed(Composed::Times(Times {
             iteration_elem,
             body,
-        })) => track_identifiers_recursive_scope(
-            import_state,
-            vec![&*iteration_elem].into_iter(),
-            body,
-        ),
+        })) => {
+            track_identifiers_recursive_scope(import_state, vec![iteration_elem].into_iter(), body)
+        }
         Expression::Composed(Composed::TimesOr(TimesOr {
             iteration_elem,
             body,
@@ -141,7 +142,7 @@ fn track_identifiers_recursive(
         })) => {
             track_identifiers_recursive_scope(
                 import_state,
-                vec![&*iteration_elem].into_iter(),
+                vec![iteration_elem].into_iter(),
                 body,
             )?;
             track_identifiers_recursive_chain(import_state, otherwise)
@@ -152,7 +153,7 @@ fn track_identifiers_recursive(
         | Expression::Composed(Composed::Filter(Filter { iteration_elem, body})) => {
             track_identifiers_recursive_scope(
                 import_state,
-                vec![&*iteration_elem].into_iter(),
+                vec![iteration_elem].into_iter(),
                 body,
             )
         },
@@ -165,28 +166,26 @@ fn track_identifiers_recursive(
             something,
             nothing,
         })) => {
-            track_identifiers_recursive_scope(import_state, vec![&*elem].into_iter(), something)?;
+            track_identifiers_recursive_scope(import_state, vec![elem].into_iter(), something)?;
             track_identifiers_recursive_chain(import_state, nothing)
         }
         Expression::Composed(Composed::Inspect(Inspect { elem, body })) => {
-            track_identifiers_recursive_scope(import_state, vec![&*elem].into_iter(), body)
+            track_identifiers_recursive_scope(import_state, vec![elem].into_iter(), body)
         }
         Expression::Composed(Composed::Cast(cast)) => {
-            let mut cast_to = cast.target_type.type_.name().to_string();
-            if is_builtin_type(&cast_to).is_none() {
-                let result = check_identifier(&mut cast_to, import_state);
-                cast.target_type.type_ = Type::Simple {
-                    type_name: TypeName::UserDefined(cast_to),
-                };
-                result
-            } else {
-                Ok(())
-            }
+            check_user_defined_type(&mut cast.target_type.type_, import_state)
         }
     }
 }
 
 fn track_identifiers_recursive_type(
+    type_: &mut Type,
+    import_state: &mut ImportState,
+) -> Result<(), AnyError> {
+    check_user_defined_type(type_, import_state)
+}
+
+fn check_user_defined_type(
     type_: &mut Type,
     import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
@@ -315,13 +314,14 @@ fn import_identifier(
     }
 }
 
-fn track_identifiers_recursive_scope<'a, T: Iterator<Item = &'a TypedIdentifier>>(
+fn track_identifiers_recursive_scope<'a, T: Iterator<Item = &'a mut TypedIdentifier>>(
     import_state: &mut ImportState,
     parameters: T,
     body: &mut Chain,
 ) -> Result<(), AnyError> {
     let mut params = 0;
     for parameter in parameters {
+        check_user_defined_type(&mut parameter.type_, import_state)?;
         import_state.parameter_stack.push(parameter.name.clone());
         params += 1;
     }
