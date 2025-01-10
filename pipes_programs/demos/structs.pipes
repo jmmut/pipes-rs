@@ -1,0 +1,32 @@
+
+
+/// a function can return structs
+;public tuple(x :i64  y :i64)
+=point
+
+;function (a :i64)(:structs/point) {
+    [a a]
+    |cast(:any)
+}
+=diagonal
+
+;5 |diagonal
+=d
+
+;function(p: structs/point) {
+    ; "x: " ++{p .x |to_str} |print
+    ; "y: " ++{p .y |to_str} |print
+    ;
+}
+=print_point
+
+;d |print_point
+
+
+;function (a :i64)(:structs/point) {
+    [{a |*2} a]
+    |cast(:any)
+}
+=sin30
+
+;5 |sin30 |print_point

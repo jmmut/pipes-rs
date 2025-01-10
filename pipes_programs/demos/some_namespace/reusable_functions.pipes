@@ -1,4 +1,4 @@
-{}
+
 ;public function(x) {
     x |add_1
 }
@@ -17,4 +17,4 @@
 ;public function(x) {
     x +1
 }
-=add_1 // note this is reused in increment without the namespace
+=add_1 // note this is reused in increment without the namespace. Has to be public, though.

@@ -138,7 +138,7 @@ impl SourceCode {
     pub fn new(file: PathBuf) -> Result<Self, AnyError> {
         let text = context(
             format!("Reading file '{}'", file.to_string_lossy()),
-            std::fs::read_to_string(&file).map_err(|e| e.into()),
+            std::fs::read_to_string(&file),
         )?;
         Ok(Self {
             text,
@@ -151,6 +151,14 @@ impl SourceCode {
             text,
             cursor: Location::new(),
             file: None,
+        }
+    }
+    #[cfg(test)]
+    pub fn new_from_virtual_file(text: String, filename: &str) -> Self {
+        Self {
+            text,
+            cursor: Location::new(),
+            file: Some(PathBuf::from(filename)),
         }
     }
     pub fn get_location(&self) -> Location {

@@ -12,7 +12,7 @@ use crate::AnyError;
 
 pub mod expression;
 pub mod lexer;
-mod parser;
+pub mod parser;
 pub mod program;
 
 pub mod sources;

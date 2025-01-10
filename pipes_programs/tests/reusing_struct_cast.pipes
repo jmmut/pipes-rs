@@ -1,0 +1,2 @@
+// this shows how mentioning a qualified type inside a cast automatically imports it
+;[3 5] |cast(:unqualified_struct/coord) .x

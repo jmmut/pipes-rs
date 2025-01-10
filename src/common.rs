@@ -2,10 +2,13 @@ use crate::frontend::sources::location::{Location, SourceCode, Span};
 
 pub type AnyError = Box<dyn std::error::Error>;
 
-pub fn context<T, S: AsRef<str>>(module: S, result: Result<T, AnyError>) -> Result<T, AnyError> {
+pub fn context<T, S: AsRef<str>, E: Into<AnyError>>(
+    module: S,
+    result: Result<T, E>,
+) -> Result<T, AnyError> {
     result.map_err(|error| {
         // place your breakpoints here
-        format!("{}: {error}", module.as_ref()).into()
+        format!("{}: {}", module.as_ref(), error.into()).into()
     })
 }
 
@@ -84,10 +87,5 @@ pub fn assert_mentions(err: AnyError, mentions: &[&str]) {
 }
 
 pub fn unwrap_display<T>(res: Result<T, AnyError>) -> T {
-    match res {
-        Ok(t) => t,
-        Err(e) => {
-            panic!("{}", e)
-        }
-    }
+    res.unwrap_or_else(|e| panic!("{}", e))
 }

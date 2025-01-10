@@ -10,11 +10,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
     }
     #[cfg(unix)]
     pub fn debugger_prompt(&mut self, arguments: &[i64]) -> Result<(), AnyError> {
-        use std::os::raw;
-        use std::os::fd::FromRawFd;
         use crate::frontend::lex_and_parse_with_identifiers;
         use std::fs::File;
         use std::io::{BufRead, BufReader};
+        use std::os::fd::FromRawFd;
+        use std::os::raw;
         let special_file_descriptor = arguments[1];
         loop {
             let mut command = String::new();

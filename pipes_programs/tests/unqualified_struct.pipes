@@ -1,0 +1,4 @@
+;public tuple(x :i64  y :i64) =coord
+
+// at the moment this is expected to fail :( needs fully qualified type despite being in the same file.
+;[3 5] |cast(:any) :coord .x

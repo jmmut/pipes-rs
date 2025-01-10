@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-
 use strum::IntoEnumIterator;
 
 use crate::common::{context, err, err_span, maybe_format_span, AnyError};
@@ -96,6 +95,12 @@ impl<'a> Typer<'a> {
             current_source: None,
         };
         typer.setup_constants(identifiers)?;
+        typer.current_source = program
+            .sources
+            .get_main()
+            .file
+            .as_ref()
+            .map(|p| format!("{}", p.to_string_lossy()));
         Ok((typer, program.main()))
     }
 
@@ -1168,18 +1173,45 @@ impl<'a> TypingTypeView<'a> {
 
 impl<'a> TypeView for TypingTypeView<'a> {
     fn get_type(&self, name: &str, span: Span) -> Result<&Type, AnyError> {
+        let existing = self.typed_identifiers.get(name);
         if let Some(ExpressionSpan {
             syntactic_type: Expression::Type(type_),
             ..
-        }) = self.typed_identifiers.get(name)
+        }) = existing
         {
             Ok(type_)
+        } else if let Some(ExpressionSpan {
+            syntactic_type: Expression::Identifier(alias),
+            ..
+        }) = existing
+        {
+            self.get_type(alias, span)
+        } else if let Some(expr) = existing {
+            return err(format!(
+                "Identifier '{}' is used as a type, but it's not. It is a {}. Used{}",
+                name,
+                expr,
+                maybe_format_span(self.get_source(name), span),
+            ));
         } else {
+            for (existing, _expr) in self.typed_identifiers {
+                if existing.contains(name) {
+                    let message = format!(
+                        "Definition of type '{}' not found.\n\
+                        Hint: did you mean '{}'?\ntype used{}",
+                        name,
+                        existing,
+                        maybe_format_span(self.get_source(name), span),
+                    );
+                    return err(message);
+                }
+            }
             let message = format!(
                 "Definition of type '{}' not found.\n\
-            Hint: add 'public' to its definition, like 'public <type> = {}'{}",
+                Hint: add 'public' to its definition, like 'public <type> = {}'\n\
+                Hint: use as full namespace, like '<namespace>/<type>'{}",
                 name,
-                name,
+                name.split("/").last().unwrap(),
                 maybe_format_span(self.get_source(name), span)
             );
             err(message)
@@ -1187,19 +1219,18 @@ impl<'a> TypeView for TypingTypeView<'a> {
     }
 
     fn get_source(&self, _identifier_name: &str) -> Option<&SourceCode> {
-        None
+        Some(self._sources.get_main())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
+    use super::*;
     use crate::backend::Runtime;
     use crate::common::unwrap_display;
     use crate::frontend::{lex_and_parse, lex_and_parse_with_identifiers, parse_type};
-
-    use super::*;
+    use std::collections::HashSet;
+    use std::path::PathBuf;
 
     fn parse(code: &str) -> Program {
         unwrap_display(lex_and_parse(code))
@@ -1217,6 +1248,12 @@ mod tests {
         let program = &parse(code);
         assert_ok(check_types(program))
     }
+    fn assert_types_ok_file(path: &str) {
+        let main_path = PathBuf::from(path);
+        let code = SourceCode::new(main_path).unwrap();
+        let program = unwrap_display(lex_and_parse(code));
+        assert_ok(check_types(&program));
+    }
     fn assert_type_eq(code: &str, expected: &str) {
         let program = &parse(code);
         let expected_type = parse_type(expected);
@@ -1226,6 +1263,12 @@ mod tests {
     fn assert_types_wrong(code: &str) {
         let program = &parse(code);
         check_types(program).expect_err("should fail");
+    }
+    fn assert_types_wrong_file(path: &str) {
+        let main_path = PathBuf::from(path);
+        let code = SourceCode::new(main_path).unwrap();
+        let program = unwrap_display(lex_and_parse(code));
+        check_types(&program).expect_err("should fail");
     }
 
     #[test]
@@ -1340,6 +1383,38 @@ mod tests {
     #[test]
     fn test_forbid_non_public_structs() {
         assert_types_wrong("tuple(x :i64  y :i64) =Coord");
+    }
+    #[test]
+    fn test_undefined_type_shows_source_code_usage() {
+        let namespace = "undefined_struct";
+        let main_path = PathBuf::from(format!("./pipes_programs/tests/{namespace}.pipes"));
+        let code = SourceCode::new(main_path).unwrap();
+        let program = unwrap_display(lex_and_parse(code));
+        let program_result = add_types(&program);
+        assert!(program_result.is_err());
+        let error_message = program_result.err().unwrap().to_string();
+        assert!(
+            error_message.contains(namespace),
+            "message didn't mention namespace '{namespace}': '{}'",
+            error_message
+        );
+        assert!(
+            !error_message.contains("unknown"),
+            "message didn't mention filename '{namespace}.pipes': '{}'",
+            error_message
+        );
+    }
+    #[test]
+    fn test_reusing_structs_cast() {
+        assert_types_ok_file("pipes_programs/tests/reusing_struct_cast.pipes");
+    }
+    #[test]
+    fn test_unqualified_struct() {
+        assert_types_ok_file("pipes_programs/tests/unqualified_struct.pipes");
+    }
+    #[test]
+    fn test_reusing_structs_type() {
+        assert_types_ok_file("pipes_programs/tests/reusing_struct_type.pipes");
     }
 
     #[test]

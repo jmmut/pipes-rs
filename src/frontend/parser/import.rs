@@ -6,7 +6,8 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
     Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Filter, Function,
-    Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
+    Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypeName,
+    TypedIdentifier,
 };
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
 use crate::frontend::parser::root::qualify;
@@ -14,6 +15,7 @@ use crate::frontend::sources::lexer::lex;
 use crate::frontend::sources::location::SourceCode;
 use crate::frontend::sources::token::{Operator, OperatorSpan};
 use crate::middleend::intrinsics;
+use crate::middleend::intrinsics::is_builtin_type;
 
 /// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(
@@ -169,16 +171,35 @@ fn track_identifiers_recursive(
         Expression::Composed(Composed::Inspect(Inspect { elem, body })) => {
             track_identifiers_recursive_scope(import_state, vec![&*elem].into_iter(), body)
         }
-        Expression::Composed(Composed::Cast(_)) => Ok(()), // TODO: might need to import user-defined types
+        Expression::Composed(Composed::Cast(cast)) => {
+            let mut cast_to = cast.target_type.type_.name().to_string();
+            if is_builtin_type(&cast_to).is_none() {
+                let result = check_identifier(&mut cast_to, import_state);
+                cast.target_type.type_ = Type::Simple {
+                    type_name: TypeName::UserDefined(cast_to),
+                };
+                result
+            } else {
+                Ok(())
+            }
+        }
     }
 }
 
 fn track_identifiers_recursive_type(
-    _type_: &Type,
-    _import_state: &mut ImportState,
+    type_: &mut Type,
+    import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
-    // FIXME: not implementing this means we have to manually qualify types in pipes code
-    Ok(())
+    let mut cast_to = type_.name().to_string();
+    if is_builtin_type(&cast_to).is_none() {
+        let result = check_identifier(&mut cast_to, import_state);
+        *type_ = Type::Simple {
+            type_name: TypeName::UserDefined(cast_to),
+        };
+        result
+    } else {
+        Ok(())
+    }
 }
 
 fn check_identifier(
