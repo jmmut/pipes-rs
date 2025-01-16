@@ -985,20 +985,13 @@ mod tests {
     }
     fn interpret_io(code_text: &str, read_input: &str) -> (GenericValue, String) {
         let read_input = read_input.bytes().collect::<Vec<u8>>();
-        let print_output = Vec::<u8>::new();
+        let mut print_output = Vec::<u8>::new();
         let mut program = unwrap_display(lex_and_parse(code_text));
         unwrap_display(put_types(&mut program));
-        let (main, identifiers, sources) = program.take();
-        let mut runtime = unwrap_display(Runtime::new(
-            read_input.as_slice(),
-            print_output,
-            identifiers,
-            sources,
-        ));
-        let result = runtime.evaluate_recursive(&main);
+        let result = Runtime::evaluate(program, read_input.as_slice(), &mut print_output);
         (
-            result.unwrap(),
-            String::from_utf8(runtime.print_output.unwrap()).unwrap(),
+            unwrap_display(result),
+            String::from_utf8(print_output).unwrap(),
         )
     }
 

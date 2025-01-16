@@ -70,6 +70,7 @@ pub const DIVIDE: &str = "|/";
 pub const MODULO: u8 = b'%';
 pub const IGNORE: u8 = b';';
 pub const CALL: u8 = b'|';
+// pub const CALL_REVERSE: &str = "<|";
 pub const GET: u8 = b'#';
 pub const TYPE: u8 = b':';
 pub const ASSIGNMENT: u8 = b'=';

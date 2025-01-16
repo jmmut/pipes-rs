@@ -86,6 +86,11 @@ pub fn assert_mentions(err: AnyError, mentions: &[&str]) {
     }
 }
 
+/// This function is equivalent to doing simply .unwrap(), whose message is:
+/// > called `Result::unwrap()` on an `Err` value: "Reverse parser: expected operand after operator but was '|to_str'"
+///
+/// but using this function to do the panic ourselves is clearer (straight to the point) in some cases:
+/// > Reverse parser: expected operand after operator but was '|to_str'
 pub fn unwrap_display<T>(res: Result<T, AnyError>) -> T {
     res.unwrap_or_else(|e| panic!("{}", e))
 }
