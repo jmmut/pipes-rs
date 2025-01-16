@@ -10,16 +10,16 @@ use crate::frontend::sources::token::{Operator, OperatorSpan};
 
 use super::*;
 
-fn val(value: i64) -> Expression {
+pub fn val(value: i64) -> Expression {
     Expression::Value(value)
 }
-fn ident(name: &str) -> Expression {
+pub fn ident(name: &str) -> Expression {
     Expression::Identifier(name.to_string())
 }
-fn chain_init(initial: Expression, operations: &[Operation]) -> Expression {
+pub fn chain_init(initial: Expression, operations: &[Operation]) -> Expression {
     Expression::Chain(raw_chain_init(initial, operations))
 }
-fn chain(operations: &[Operation]) -> Expression {
+pub fn chain(operations: &[Operation]) -> Expression {
     Expression::Chain(raw_chain(operations))
 }
 fn raw_chain_init(initial: Expression, operations: &[Operation]) -> Chain {
@@ -42,7 +42,7 @@ impl From<Expression> for Chain {
     }
 }
 
-fn op(operator: Operator, operands: impl Into<Vec<Expression>>) -> Operation {
+pub fn op(operator: Operator, operands: impl Into<Vec<Expression>>) -> Operation {
     Operation::several_no_sem_type(
         OperatorSpan::spanless(operator),
         to_expr_span_vec(&operands.into()),
@@ -109,11 +109,15 @@ fn branch(yes: impl Into<Chain>, no: impl Into<Chain>) -> Expression {
 
 fn assert_expr_eq(code: &str, expected: Expression) {
     let program = unwrap_display(lex_and_parse(code));
-    let actual = program.main().syn_type();
+    let actual = program.main.take().0;
+    assert_exprs_eq(actual, expected);
+}
+
+pub fn assert_exprs_eq(actual: Expression, expected: Expression) {
     assert_eq!(
-        actual, &expected,
+        actual, expected,
         "\ndisplayed left:  {}\ndisplayed right: {}",
-        actual, &expected
+        actual, expected
     );
 }
 

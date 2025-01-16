@@ -17,7 +17,7 @@ pub mod program;
 
 pub mod sources;
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 //#[cfg(test)]
 //mod benchmarks;

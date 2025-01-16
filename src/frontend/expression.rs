@@ -50,8 +50,8 @@ impl ExpressionSpan {
     pub fn span(&self) -> Span {
         self.span
     }
-    pub fn take(self) -> (Expression, Span) {
-        (self.syntactic_type, self.span)
+    pub fn take(self) -> (Expression, Type, Span) {
+        (self.syntactic_type, self.semantic_type, self.span)
     }
 }
 impl PartialEq for ExpressionSpan {
@@ -102,6 +102,7 @@ pub enum Composed {
     Something(Something),
     Inspect(Inspect),
     Cast(Cast),
+    Comptime(Comptime),
 }
 impl Composed {
     pub fn name(&self) -> &'static str {
@@ -118,6 +119,7 @@ impl Composed {
             Composed::Something(_) => Keyword::Something.name(),
             Composed::Inspect(_) => Keyword::Inspect.name(),
             Composed::Cast(_) => Keyword::Cast.name(),
+            Composed::Comptime(_) => Keyword::Comptime.name(),
         }
     }
 }
@@ -649,6 +651,11 @@ pub struct Inspect {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Cast {
     pub target_type: TypedIdentifier,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Comptime {
+    pub body: Chain,
 }
 
 pub type Expressions = Vec<ExpressionSpan>;

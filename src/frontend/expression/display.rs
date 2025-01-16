@@ -1,8 +1,9 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::frontend::expression::{
-    Branch, BrowseOr, Cast, Chain, Composed, Expression, ExpressionSpan, Filter, Function, Loop,
-    Map, Operation, Replace, TimesOr, Type, TypeName, TypedIdentifier, TypedIdentifiers,
+    Branch, Browse, BrowseOr, Cast, Chain, Composed, Comptime, Expression, ExpressionSpan, Filter,
+    Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypeName,
+    TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::sources::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::builtin_types;
@@ -67,12 +68,16 @@ impl Display for Composed {
             #[rustfmt::skip]
             Composed::Map(Map { iteration_elem, body})
             | Composed::Replace(Replace { iteration_elem, body})
-            | Composed::Filter(Filter { iteration_elem, body}) => {
+            | Composed::Filter(Filter { iteration_elem, body})
+            | Composed::Browse(Browse { iteration_elem, body })
+            | Composed::Times(Times {iteration_elem, body})
+            | Composed::Inspect(Inspect { elem: iteration_elem, body }) => {
                 write_types_chain(f, name, iteration_elem, body)
             },
             #[rustfmt::skip]
             Composed::BrowseOr(BrowseOr { iteration_elem, body, otherwise, })
-            | Composed::TimesOr(TimesOr { iteration_elem, body, otherwise, }) => {
+            | Composed::TimesOr(TimesOr { iteration_elem, body, otherwise, })
+            | Composed::Something(Something { elem: iteration_elem, something: body, nothing: otherwise })=> {
                 write_types_chain_chain(f, name, iteration_elem, body, otherwise)
             },
             Composed::Branch(Branch { yes, no }) => {
@@ -81,7 +86,9 @@ impl Display for Composed {
             Composed::Cast(Cast { target_type }) => {
                 write!(f, "{}({})", Keyword::Cast.name(), target_type)
             }
-            _ => unimplemented!("missing display for {:?}", self),
+            Composed::Comptime(Comptime { body }) => {
+                write!(f, "{} {}", Keyword::Comptime.name(), body)
+            }
         }
     }
 }

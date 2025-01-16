@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    take_single, Branch, Cast, Chain, Composed, Expression, ExpressionSpan, Operation, Operations,
-    Type, TypedIdentifier, TypedIdentifiers,
+    take_single, Branch, Cast, Chain, Composed, Comptime, Expression, ExpressionSpan, Operation,
+    Operations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
@@ -352,6 +352,7 @@ fn construct_keyword(
         Keyword::Inspect => construct_inspect(parser),
         Keyword::Public => construct_public(parser),
         Keyword::Cast => construct_cast(parser),
+        Keyword::Comptime => construct_comptime(parser),
     }?;
     Ok((expr, span.merge(&content_span)))
 }
@@ -584,6 +585,15 @@ fn construct_cast(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
         ))
     } else {
         error_expected("type inside parenthesis", elem)
+    }
+}
+fn construct_comptime(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    match chain(parser.accumulated.pop_front()) {
+        Ok((body, span_body)) => Ok((
+            Expression::Composed(Composed::Comptime(Comptime { body })),
+            span_body,
+        )),
+        Err(elem) => error_expected("chain for the 'comptime' body", elem),
     }
 }
 

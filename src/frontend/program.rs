@@ -3,19 +3,17 @@ use std::collections::{HashMap, HashSet};
 use crate::frontend::expression::{Expression, ExpressionSpan};
 use crate::frontend::sources::Sources;
 
+pub type Identifiers = HashMap<String, ExpressionSpan>;
+
 #[derive(Debug, Clone)]
 pub struct Program {
     pub main: ExpressionSpan,
-    pub identifiers: HashMap<String, ExpressionSpan>,
+    pub identifiers: Identifiers,
     pub sources: Sources,
 }
 
 impl Program {
-    pub fn new_from(
-        main: ExpressionSpan,
-        identifiers: HashMap<String, ExpressionSpan>,
-        sources: Sources,
-    ) -> Self {
+    pub fn new_from(main: ExpressionSpan, identifiers: Identifiers, sources: Sources) -> Self {
         Self {
             main,
             identifiers,
@@ -36,7 +34,7 @@ impl Program {
     pub fn main(&self) -> &ExpressionSpan {
         &self.main
     }
-    pub fn take(self) -> (ExpressionSpan, HashMap<String, ExpressionSpan>, Sources) {
+    pub fn take(self) -> (ExpressionSpan, Identifiers, Sources) {
         (self.main, self.identifiers, self.sources)
     }
 }

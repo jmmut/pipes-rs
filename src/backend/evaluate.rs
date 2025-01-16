@@ -382,6 +382,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 self.call_inspect_expression(argument, inspect)
             }
             Expression::Composed(Composed::Cast(_)) => Ok(argument),
+            Expression::Composed(Composed::Comptime(_)) => {
+                err("'comptime' is unsupported at runtime")
+            }
             Expression::Chain(chain) => {
                 let function_pointer = self.evaluate_chain(chain)?;
                 self.call_function_pointer(&evaluated_arguments, function_pointer)

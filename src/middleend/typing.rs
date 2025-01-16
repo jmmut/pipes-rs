@@ -804,6 +804,10 @@ impl<'a> Typer<'a> {
                     unified_elem,
                 )
             }
+            Composed::Comptime(comptime) => {
+                let typed_callable = self.check_types_chain(&comptime.body, span)?;
+                return self.check_type_callable(input_type, typed_callable, &[], operator_span);
+            }
         };
         let operands = ExpressionSpan::new(
             Expression::Composed(typed_composed),

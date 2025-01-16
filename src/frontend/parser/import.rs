@@ -5,8 +5,8 @@ use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
 use crate::frontend::expression::{
-    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Filter, Function,
-    Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypeName,
+    Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan, Filter,
+    Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypeName,
     TypedIdentifier,
 };
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
@@ -174,6 +174,9 @@ fn track_identifiers_recursive(
         }
         Expression::Composed(Composed::Cast(cast)) => {
             check_user_defined_type(&mut cast.target_type.type_, import_state)
+        }
+        Expression::Composed(Composed::Comptime(Comptime { body })) => {
+            track_identifiers_recursive_chain(import_state, body)
         }
     }
 }

@@ -158,6 +158,7 @@ pub enum Keyword {
     Inspect,
     Public,
     Cast,
+    Comptime,
 }
 
 impl Keyword {
@@ -177,6 +178,7 @@ impl Keyword {
             Keyword::Inspect => "inspect",
             Keyword::Public => "public",
             Keyword::Cast => "cast",
+            Keyword::Comptime => "comptime",
         }
     }
 }
