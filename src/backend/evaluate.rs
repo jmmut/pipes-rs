@@ -98,7 +98,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         context("Runtime", runtime.evaluate_recursive(&main))
     }
 
-    fn new(
+    pub fn new(
         read_input: R,
         print_output: W,
         identifiers: HashMap<String, ExpressionSpan>,
@@ -198,7 +198,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 function.clone(),
                 Closure::new_from_current_scope(&self.identifiers),
             ),
-            _ => err(format!("Can't evaluate expression {:?}", expression))?,
+            _ => err(format!(
+                "Evaluating this expression at runtime is not supported: '{}'",
+                expression
+            ))?,
         }
     }
 

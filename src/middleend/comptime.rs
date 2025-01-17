@@ -4,10 +4,16 @@ use crate::frontend::expression::{Chain, Composed, Comptime, Expression, Express
 use crate::frontend::program::{Identifiers, Program};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::builtin_types;
+use std::io::{stdin, stdout, Stdin, Stdout};
 
 pub fn rewrite(program: Program) -> Result<Program, AnyError> {
     let (main, identifiers, sources) = program.take();
+    let runtime = context(
+        "Comptime evaluation setup",
+        Runtime::new(stdin(), stdout(), identifiers.clone(), sources.clone()),
+    )?;
     let rewriter = Rewriter {
+        runtime,
         identifiers,
         sources,
     };
@@ -15,6 +21,7 @@ pub fn rewrite(program: Program) -> Result<Program, AnyError> {
 }
 
 struct Rewriter {
+    runtime: Runtime<Stdin, Stdout>,
     pub identifiers: Identifiers,
     pub sources: Sources,
 }
@@ -41,18 +48,13 @@ impl Rewriter {
                     body: Chain::empty(),
                 };
                 std::mem::swap(&mut taken, comptime);
-                let composed_expr_span = ExpressionSpan::new(
+                let mut composed_expr_span = ExpressionSpan::new(
                     Expression::Chain(taken.body),
                     expression_span.sem_type().clone(),
                     expression_span.span,
                 );
-                let identifiers = std::mem::take(&mut self.identifiers);
-                let sources = std::mem::take(&mut self.sources);
-                let value = Runtime::evaluate(
-                    Program::new_from(composed_expr_span, identifiers, sources),
-                    std::io::stdin(),
-                    std::io::stdout(),
-                )?;
+                self.rewrite_expression_span(&mut composed_expr_span)?;
+                let value = self.runtime.evaluate_recursive(&composed_expr_span)?;
                 let new_expression = Expression::Value(value);
                 let new_expr_span =
                     ExpressionSpan::new(new_expression, builtin_types::I64, expression_span.span);
@@ -80,21 +82,36 @@ mod tests {
     use crate::frontend::lex_and_parse;
     use crate::frontend::program::Program;
     use crate::frontend::tests::{assert_exprs_eq, chain_init, val};
+    use crate::middleend::typing::{add_types, put_types};
 
     fn parse(code: &str) -> Program {
         unwrap_display(lex_and_parse(code))
     }
 
+    fn test_rewrite(code: &str) -> Program {
+        let mut program = parse(code);
+        unwrap_display(put_types(&mut program));
+        let rewritten = unwrap_display(rewrite(program));
+        rewritten
+    }
+    fn typed(expression: Expression) -> Expression {
+        let program = Program::new_raw(expression);
+        unwrap_display(add_types(&program)).main.syntactic_type
+    }
+
     #[test]
     fn test_basic() {
-        let program = parse("comptime { 5 +2 }");
-        let rewritten = unwrap_display(rewrite(program));
-        assert_eq!(rewritten.main.syntactic_type, Expression::Value(7));
+        let program = test_rewrite("comptime { 5 +2 }");
+        assert_eq!(program.main.syntactic_type, Expression::Value(7));
     }
     #[test]
     fn test_basic_nested() {
-        let program = parse("{;comptime { 5 +2 }}");
-        let rewritten = unwrap_display(rewrite(program));
-        assert_exprs_eq(rewritten.main.syntactic_type, chain_init(val(7), &[]));
+        let program = test_rewrite("{;comptime { 5 +2 }}");
+        assert_exprs_eq(program.main.syntactic_type, typed(chain_init(val(7), &[])));
+    }
+    #[test]
+    fn test_nested_comptime() {
+        let program = test_rewrite("{;comptime {5 +{1 +comptime {2 +4}}}}");
+        assert_exprs_eq(program.main.syntactic_type, typed(chain_init(val(12), &[])));
     }
 }

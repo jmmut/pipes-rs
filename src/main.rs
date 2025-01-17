@@ -8,6 +8,7 @@ use pipes_rs::backend::Runtime;
 use pipes_rs::common::AnyError;
 use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::sources::location::SourceCode;
+use pipes_rs::middleend::comptime::rewrite;
 use pipes_rs::middleend::typing::put_types;
 
 #[derive(Parser, Debug)]
@@ -52,6 +53,7 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
     let mut program = lex_and_parse(code_string)?;
 
     put_types(&mut program)?;
+    let program = rewrite(program)?;
 
     // two ifs so that --debug-ast and --prettify only prints once, prettified
     if debug_ast || prettify {

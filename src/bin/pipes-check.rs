@@ -10,6 +10,7 @@ use pipes_rs::backend::Runtime;
 use pipes_rs::common::AnyError;
 use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::sources::location::SourceCode;
+use pipes_rs::middleend::comptime::rewrite;
 use pipes_rs::middleend::typing::put_types;
 
 /// Continuously (~10 times per second) try to interpret (or just typecheck) a pipes program.
@@ -61,6 +62,7 @@ fn interpret<R: Read, W: Write>(args: &Args, read_src: R, print_dst: W) -> Resul
     let mut program = lex_and_parse(code_string)?;
 
     put_types(&mut program)?;
+    let program = rewrite(program)?;
 
     if !check {
         let result = Runtime::evaluate(program, read_src, print_dst)?;

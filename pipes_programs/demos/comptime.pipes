@@ -1,0 +1,11 @@
+
+// in an interpreter it doesn't make that big of a difference,
+// but you can run code before runtime if you put it inside 'comptime {}'.
+// you can check that your number is baked into the program by running `pipes-rs comptime.pipes  -p`
+
+;"outside comptime, will appear later" |print
+;7 +comptime {
+    ;"inside comptime, will appear before" |print
+    ;"give me a digit and press enter: " |print
+    ;0 |read_char -'0'
+}

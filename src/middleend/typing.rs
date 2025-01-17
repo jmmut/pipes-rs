@@ -4,8 +4,8 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, err_span, maybe_format_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    Branch, Browse, BrowseOr, Chain, Composed, Expression, ExpressionSpan, Expressions, Filter,
-    Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type,
+    Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan, Expressions,
+    Filter, Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type,
     TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::program::Program;
@@ -234,11 +234,15 @@ impl<'a> Typer<'a> {
             Expression::Chain(chain) => self.check_types_chain(chain, *span),
             Expression::StaticList { elements } => self.check_types_list(elements, *span),
             Expression::Function(function) => self.check_type_function(function, *span),
+            Expression::Composed(Composed::Comptime(comptime)) => {
+                self.check_types_comptime(comptime, *span)
+            }
             Expression::Composed(_) => {
                 unimplemented!()
             }
         }
     }
+
     fn check_types_identifier(
         &mut self,
         name: &String,
@@ -352,6 +356,20 @@ impl<'a> Typer<'a> {
                 typed_chain.syntactic_type.to_chain()?,
             ),
             Type::function(typed_params, typed_return),
+            span,
+        ))
+    }
+
+    fn check_types_comptime(
+        &mut self,
+        comptime: &Comptime,
+        span: Span,
+    ) -> Result<ExpressionSpan, AnyError> {
+        let chain = self.check_types_chain(&comptime.body, span)?;
+        let (syn, sem) = to_chain_and_type(chain)?;
+        Ok(ExpressionSpan::new(
+            Expression::Composed(Composed::Comptime(Comptime { body: syn })),
+            sem,
             span,
         ))
     }
@@ -580,11 +598,6 @@ impl<'a> Typer<'a> {
         composed_span: Span,
     ) -> Result<Operation, AnyError> {
         let span = operator_span.span;
-        let to_chain_and_type = |typed_body: ExpressionSpan| -> Result<(Chain, Type), AnyError> {
-            let op_type = typed_body.semantic_type;
-            let body = typed_body.syntactic_type.to_chain()?;
-            Ok((body, op_type))
-        };
         let (typed_composed, operation_type) = match composed {
             Composed::Cast(cast) => {
                 // note that we ignore the unified op_type! we are casting to something that might
@@ -1132,6 +1145,12 @@ fn list_any() -> Type {
         vec![TypedIdentifier::nameless(builtin_types::ANY)],
     );
     expected_input
+}
+
+fn to_chain_and_type(typed_body: ExpressionSpan) -> Result<(Chain, Type), AnyError> {
+    let op_type = typed_body.semantic_type;
+    let body = typed_body.syntactic_type.to_chain()?;
+    Ok((body, op_type))
 }
 
 fn type_mismatch_op(operator: Operator, actual: &Type, expected: &Type) -> String {
