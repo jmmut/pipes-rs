@@ -819,7 +819,10 @@ impl<'a> Typer<'a> {
             }
             Composed::Comptime(comptime) => {
                 let typed_callable = self.check_types_chain(&comptime.body, span)?;
-                return self.check_type_callable(input_type, typed_callable, &[], operator_span);
+                let typed_op = self.check_type_callable(input_type, typed_callable, &[], operator_span)?;
+                let Operation {  operands, .. } = typed_op;
+                let (syn, sem) = to_chain_and_type(operands[0].clone())?; // TODO: how to move an elem out of a vector without cloning??
+                (Composed::Comptime(Comptime { body: syn }), sem,)
             }
         };
         let operands = ExpressionSpan::new(
