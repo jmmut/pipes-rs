@@ -1,5 +1,5 @@
 use crate::backend::evaluate::{BindingsStack, Closure, GenericValue, ListPointer};
-use crate::frontend::expression::{Function, Type};
+use crate::frontend::expression::{ExpressionSpan, Function, Type};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::Intrinsic;
 use std::collections::HashMap;
@@ -17,6 +17,7 @@ pub struct Runtime<R: Read, W: Write> {
     functions: Vec<Rc<FunctionOrIntrinsic>>,
     identifiers: HashMap<String, BindingsStack>,
     static_identifiers: HashMap<String, BindingsStack>,
+    identifier_expressions: HashMap<String, ExpressionSpan>,
     types: HashMap<String, Vec<Type>>,
     read_input: Option<R>, // these will always be Some(), but stdin/stdout are not Default, and option is. needed for eval
     print_output: Option<W>,

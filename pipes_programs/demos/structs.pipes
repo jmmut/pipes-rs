@@ -41,4 +41,18 @@
 =print_first
 ;[8 9] |cast(:any) |print_first
 
-;
+
+// accessing a field of the first anonymous parameter
+;function(:point) {
+    .x
+}
+=get_first
+;[6 7] |cast(:any) |get_first |to_str |print
+
+;public function(x){+100} =plus_100
+
+// identifiers (like 'point') are available inside evaluated strings,
+// but at the moment need to be fully-qualified (like 'structs/point')
+;"[26 27] |cast(:any) |function(:structs/point) {.x} |structs/plus_100 |to_str |print" |eval
+
+;5

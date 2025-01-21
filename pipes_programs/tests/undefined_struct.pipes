@@ -1,2 +1,2 @@
-
-;[3 5] |cast(:any) :undefined_struct .x
+// this is expected to fail
+;[3 5] |cast(:any) :some_undefined_struct .x

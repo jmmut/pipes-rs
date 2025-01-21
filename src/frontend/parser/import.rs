@@ -224,21 +224,7 @@ fn check_identifier(
             if !import_state.imported.contains_key(identifier)
                 && !import_state.available.contains(identifier)
             {
-                let mut imported = import_state.imported.keys().collect::<Vec<_>>();
-                imported.sort_unstable();
-                let mut available = import_state.available.iter().collect::<Vec<_>>();
-                available.sort_unstable();
-                err(format!(
-                    "identifier '{}' not found in scope for file {:?}. Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
-                        Assignments: {:?}\n  Available to this file: {:?}\n  Imported by this file: {:?}",
-                    identifier,
-                    import_state.source.file,
-                    import_state.parameter_stack,
-                    import_state.intrinsic_names,
-                    import_state.assignments,
-                    available,
-                    imported
-                ))
+                err_undefined_identifier(identifier, import_state)
             } else {
                 Ok(())
             }
@@ -281,7 +267,7 @@ fn import_identifier(
             *identifier = qualify(identifier, root, file)?;
             Ok(())
         } else {
-            err(format!("undefined identifier '{}'", identifier))
+            err_undefined_identifier(identifier, import_state)
         }
     } else {
         let _function_name = paths.pop().unwrap();
@@ -315,6 +301,27 @@ fn import_identifier(
         );
         Ok(())
     }
+}
+
+fn err_undefined_identifier(
+    identifier: &mut String,
+    import_state: &mut ImportState,
+) -> Result<(), AnyError> {
+    let mut imported = import_state.imported.keys().collect::<Vec<_>>();
+    imported.sort_unstable();
+    let mut available = import_state.available.iter().collect::<Vec<_>>();
+    available.sort_unstable();
+    err(format!(
+        "identifier '{}' not found in scope{}. Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
+                    Assignments: {:?}\n  Available to this file: {:?}\n  Imported by this file: {:?}",
+        identifier,
+        if let Some(file) = &import_state.source.file { format!(" for file {:?}", file) } else { "".to_string() },
+        import_state.parameter_stack,
+        import_state.intrinsic_names,
+        import_state.assignments,
+        available,
+        imported
+    ))
 }
 
 fn track_identifiers_recursive_scope<'a, T: Iterator<Item = &'a mut TypedIdentifier>>(

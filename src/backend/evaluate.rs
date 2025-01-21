@@ -5,15 +5,15 @@ use crate::frontend::expression::{
     Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypedIdentifier,
     TypedIdentifiers,
 };
-use crate::frontend::lex_and_parse;
+use crate::frontend::lex_and_parse_with_identifiers;
 use crate::frontend::program::Program;
 use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{Comparison, Operator, FIELD};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 use crate::middleend::typing::expand::{Expand, TypeView};
-use crate::middleend::typing::put_types;
-use std::collections::HashMap;
+use crate::middleend::typing::put_some_types;
+use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::rc::Rc;
 use strum::IntoEnumIterator;
@@ -77,14 +77,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
     /// let program = lex_and_parse(r#""Hello World!" |print"#).unwrap();
     /// Runtime::evaluate(program, std::io::stdin(), std::io::stdout()).unwrap();
     /// ```
-    /// To use a in-memory buffers (useful for providing input or capturing output in tests),
+    /// To use in-memory buffers (useful for providing input or capturing output in tests),
     /// you can do this, because `&[u8]` implements Read and `&mut Vec<u8>` implements Write:
     /// ```no_run
     /// use pipes_rs::{backend::Runtime, frontend::{program::Program, lex_and_parse}};
     /// let expression = lex_and_parse("'5' |print_char ;0 |read_char").unwrap();
-    /// let into = "7".as_bytes();
+    /// let input = "7".as_bytes();
     /// let mut out = Vec::<u8>::new();
-    /// let result = Runtime::evaluate(expression, into, &mut out);
+    /// let result = Runtime::evaluate(expression, input, &mut out);
     /// assert_eq!(result.unwrap() as u8, '7' as u8);
     /// assert_eq!(out, "5".as_bytes());
     /// ```
@@ -109,6 +109,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             lists: HashMap::new(),
             functions,
             identifiers: HashMap::new(),
+            identifier_expressions: HashMap::new(),
             types: HashMap::new(),
             static_identifiers,
             read_input: Some(read_input),
@@ -148,13 +149,17 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 if let ExpressionSpan {
                     syntactic_type: Expression::Type(type_),
                     ..
-                } = expression
+                } = &expression
                 {
-                    self.types.insert(name.clone(), vec![type_]);
-                    self.bind_static_identifier(name, NOTHING);
+                    self.types.insert(name.clone(), vec![type_.clone()]);
+                    self.bind_static_identifier(name.clone(), NOTHING);
+                    self.identifier_expressions.insert(name, expression);
                 } else {
                     match context("Runtime setup", self.evaluate_recursive(&expression)) {
-                        Ok(value) => self.bind_static_identifier(name, value),
+                        Ok(value) => {
+                            self.bind_static_identifier(name.clone(), value);
+                            self.identifier_expressions.insert(name, expression);
+                        }
                         Err(e) => {
                             errors.push(e);
                             failed.push((name, expression));
@@ -339,7 +344,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 self.call_function_pointer(&evaluated_arguments, function_ptr)
                     .map_err(|err| {
                         format!(
-                            "Bug: Identifier '{}' is not a valid function. Details: {}",
+                            "Bug: Failed when calling function '{}'. Details: {}",
                             function_name, err
                         )
                         .into()
@@ -430,14 +435,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
     ) -> Result<i64, AnyError> {
         let mut identifiers_inside = closure.clone().to_identifiers();
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
+        let first_arg = arguments.get(0).cloned().unwrap_or(NOTHING);
+        let first_param_type = parameters
+            .get(0)
+            .map_or(builtin_types::NOTHING, |p| p.type_.clone());
         for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
             self.bind_identifier(parameter.name.clone(), *argument);
         }
-
-        let result = self.evaluate_chain_passing_typeless_value(
-            arguments.get(0).cloned().unwrap_or(NOTHING),
-            body,
-        )?;
+        let result = self.evaluate_chain_passing_value(first_arg, &first_param_type, body)?;
 
         std::mem::swap(&mut self.identifiers, &mut identifiers_inside);
         Ok(result)
@@ -689,20 +694,14 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
     fn evaluate_eval(&mut self, argument: i64) -> Result<GenericValue, AnyError> {
         let code = Self::pipes_str_to_rust_str(self.get_list(argument)?)?;
-        let mut program = lex_and_parse(code)?;
-        put_types(&mut program)?;
-        let (main, identifiers, sources) = program.take();
-        let copied_input = std::mem::take(&mut self.read_input);
-        let copied_output = std::mem::take(&mut self.print_output);
-        let mut runtime = Runtime::new(
-            copied_input.unwrap(),
-            copied_output.unwrap(),
-            identifiers,
-            sources,
+        let mut program = lex_and_parse_with_identifiers(
+            code,
+            HashSet::from_iter(self.identifier_expressions.keys().cloned()),
         )?;
-        let result = runtime.evaluate_recursive(&main)?;
-        self.read_input = runtime.read_input;
-        self.print_output = runtime.print_output;
+        put_some_types(&mut program, &self.identifier_expressions)?;
+        let (main, new_identifiers, _sources) = program.take();
+        self.setup_constants(new_identifiers)?;
+        let result = self.evaluate_recursive(&main)?;
         Ok(result)
     }
 
@@ -1402,5 +1401,11 @@ mod tests {
             ),
             6
         );
+    }
+    #[test]
+    fn test_eval_identifiers() {
+        let main_path = PathBuf::from("./pipes_programs/demos/structs.pipes");
+        let code = SourceCode::new(main_path).unwrap();
+        assert_eq!(interpret(code), 5);
     }
 }

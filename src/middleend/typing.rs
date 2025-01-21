@@ -8,7 +8,7 @@ use crate::frontend::expression::{
     Filter, Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type,
     TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::program::Program;
+use crate::frontend::program::{Identifiers, Program};
 use crate::frontend::sources::location::{SourceCode, Span};
 use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan, FIELD};
 use crate::frontend::sources::Sources;
@@ -28,7 +28,14 @@ pub fn add_types(program: &Program) -> Result<Program, AnyError> {
 }
 
 pub fn put_types(program: &mut Program) -> Result<(), AnyError> {
-    let typed_program = context("Type checking", Typer::add_types_to_program(program))?;
+    put_some_types(program, &HashMap::new())
+}
+
+pub fn put_some_types(program: &mut Program, identifiers: &Identifiers) -> Result<(), AnyError> {
+    let typed_program = context(
+        "Type checking",
+        Typer::add_some_types_to_program(program, identifiers.clone()),
+    )?;
     *program = typed_program;
     Ok(())
 }
@@ -63,7 +70,8 @@ pub fn is_builtin_simple_type(name: &str) -> Option<Type> {
 
 type BindingsTypesStack = Vec<Type>;
 struct Typer<'a> {
-    typed_identifiers: HashMap<String, ExpressionSpan>,
+    typed_identifiers: Identifiers,
+    new_typed_identifiers: Identifiers,
     sources: &'a Sources,
     identifier_types: HashMap<String, BindingsTypesStack>,
     current_source: Option<String>,
@@ -72,24 +80,43 @@ struct Typer<'a> {
 /// Setup and utils to manage state
 impl<'a> Typer<'a> {
     pub fn add_types_to_program(program: &Program) -> Result<Program, AnyError> {
-        let (mut typer, main) = Typer::new(program)?;
+        Self::add_some_types_to_program(program, HashMap::new())
+    }
+
+    pub fn add_some_types_to_program(
+        program: &Program,
+        typed_identifiers: Identifiers,
+    ) -> Result<Program, AnyError> {
+        let (mut typer, main) = Typer::new_with_identifiers(program, typed_identifiers)?;
         let typed_main = typer.add_types(main)?;
         Ok(Program::new_from(
             typed_main,
-            typer.typed_identifiers,
+            typer.new_typed_identifiers,
             program.sources.clone(),
         ))
     }
 
+    #[allow(unused)]
     pub fn new(program: &'a Program) -> Result<(Self, &'a ExpressionSpan), AnyError> {
-        let identifier_types = Self::build_intrinsics();
+        Self::new_with_identifiers(program, HashMap::new())
+    }
+    pub fn new_with_identifiers(
+        program: &'a Program,
+        typed_identifiers: Identifiers,
+    ) -> Result<(Self, &'a ExpressionSpan), AnyError> {
+        let mut identifier_types = Self::build_intrinsics();
+        for (name, expr) in &typed_identifiers {
+            identifier_types.insert(name.to_string(), vec![expr.sem_type().clone()]);
+        }
+
         let Program {
             identifiers,
             sources,
             ..
         } = program;
         let mut typer = Self {
-            typed_identifiers: HashMap::new(),
+            new_typed_identifiers: HashMap::new(),
+            typed_identifiers,
             sources,
             identifier_types,
             current_source: None,
@@ -128,7 +155,9 @@ impl<'a> Typer<'a> {
                 match typed_identifier_expression {
                     Ok(expr_span) => {
                         self.bind_identifier_type(name.clone(), expr_span.sem_type().clone());
-                        self.typed_identifiers.insert(name.clone(), expr_span);
+                        self.typed_identifiers
+                            .insert(name.clone(), expr_span.clone());
+                        self.new_typed_identifiers.insert(name.clone(), expr_span);
                     }
                     Err(e) => {
                         errors.push(e);
@@ -819,10 +848,11 @@ impl<'a> Typer<'a> {
             }
             Composed::Comptime(comptime) => {
                 let typed_callable = self.check_types_chain(&comptime.body, span)?;
-                let typed_op = self.check_type_callable(input_type, typed_callable, &[], operator_span)?;
-                let Operation {  operands, .. } = typed_op;
+                let typed_op =
+                    self.check_type_callable(input_type, typed_callable, &[], operator_span)?;
+                let Operation { operands, .. } = typed_op;
                 let (syn, sem) = to_chain_and_type(operands[0].clone())?; // TODO: how to move an elem out of a vector without cloning??
-                (Composed::Comptime(Comptime { body: syn }), sem,)
+                (Composed::Comptime(Comptime { body: syn }), sem)
             }
         };
         let operands = ExpressionSpan::new(
