@@ -1,0 +1,52 @@
+
+// you can put code inside a string and call "eval". it can only return i64
+;"5 +1" |eval |to_str |print
+
+// inside the eval string you can use fully-qualified identifiers from the outside scope
+;public function(x) {+1} =some_increment
+;"8 |eval/some_increment" |eval |to_str |print
+
+// eval can only return i64, but public definitions will be exported for other evals
+;"public function(x){+2} =double_increment" |eval
+;"1 |double_increment" |eval |to_str |print
+
+// you can call eval inside a comptime chain. this would allow compile-time metaprogramming
+// if the definitions inside the eval were available in the outside scope, which is in the roadmap.
+;200 +comptime {"3 |eval/some_increment" |eval} |to_str |print
+
+// an example of using comptime and eval to mimic macros that programmatically generate identifiers
+// TODO: not working
+//;public function (n :i64) {
+//    ;"" =result
+//    ;n |times(i) {
+//        ;i |*i =value
+//        ;result ++";" ++{value |to_str} ++" =X_" ++{i |to_str} ++"\n" =>result
+//    }
+//    ;result
+//}
+//=generate_X_definitions
+//
+//;comptime {"5 |eval/generate_X_definitions" |eval}
+//;3 |generate_X_definitions |print   // equivalent to macro debugging
+//;comptime {"X_5" |eval} |to_str |print
+
+// an example of using eval to mimic macros that programmatically generate identifiers
+;public function (n :i64) {
+    ;"" =result
+    ;n |times(i) {
+        ;i |*i =value
+        //;f"{result};public {value} =X_{i}\n" => result  // at some point I would like to add format strings
+        ;result ++";public " ++{value |to_str} ++" =X_" ++{i |to_str} ++"\n" =>result
+    }
+    ;result
+}
+=generate_X_definitions
+
+;"\nHere are the generated definitions:" |print
+;5 |generate_X_definitions
+|print   // equivalent to macro debugging
+|eval
+;"X_4" |eval |to_str |print // making those definitions available outside of eval is not done but is in the roadmap
+
+
+;

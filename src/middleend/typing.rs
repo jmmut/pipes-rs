@@ -1600,4 +1600,8 @@ mod tests {
             "i64",
         );
     }
+    #[test]
+    fn test_intrinsic() {
+        // TODO: "function (list) {list |size} =length ; 5 |length" // unimplemented: this should fail
+    }
 }

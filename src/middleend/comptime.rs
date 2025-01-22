@@ -54,7 +54,7 @@ impl Rewriter {
                     expression_span.span,
                 );
                 self.rewrite_expression_span(&mut composed_expr_span)?;
-                let value = self.runtime.evaluate_recursive(&composed_expr_span)?;
+                let value = self.runtime.evaluate_recursive(&composed_expr_span)?; // TODO: take identifiers that might have been created
                 let new_expression = Expression::Value(value); // TODO: this might be a function pointer or other things
                 let new_expr_span =
                     ExpressionSpan::new(new_expression, builtin_types::I64, expression_span.span);
