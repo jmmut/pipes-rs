@@ -144,6 +144,7 @@ impl Display for Operator {
 
 #[derive(Copy, Clone, PartialEq, Debug, EnumIter)]
 pub enum Keyword {
+    Nothing,
     Function,
     Loop,
     Browse,
@@ -164,6 +165,9 @@ pub enum Keyword {
 impl Keyword {
     pub fn name(&self) -> &'static str {
         match self {
+            // not sure about this, but it seems easier to parse (for humans and computers) if the
+            // value nothing (none) and the type nothing (nothing) are called different
+            Keyword::Nothing => "none",
             Keyword::Function => "function",
             Keyword::Loop => "loop",
             Keyword::Browse => "browse",

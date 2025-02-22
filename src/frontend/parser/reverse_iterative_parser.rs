@@ -338,6 +338,7 @@ fn construct_keyword(
     span: Span,
 ) -> Result<(Expression, Span), AnyError> {
     let (expr, content_span) = match keyword {
+        Keyword::Nothing => Ok((Expression::Nothing, span)),
         Keyword::Function => construct_function(&mut parser.accumulated),
         Keyword::Loop => construct_loop(parser),
         Keyword::Browse => construct_browse(parser),
@@ -789,7 +790,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
                 let expr = ExpressionSpan::new_typeless(Expression::chain(vec![o]), span);
                 expr
             }
-            None => ExpressionSpan::new_spanless(Expression::Nothing),
+            None => ExpressionSpan::new_spanless(Expression::empty_chain()),
             Some(v) => {
                 accumulated.push_front(v);
                 return err(format!("unfinished code: {:?}", accumulated));

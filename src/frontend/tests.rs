@@ -129,12 +129,14 @@ fn assert_code_eq(code: &str, expected_code: &str) {
 
 #[test]
 fn test_nothing() {
-    assert_expr_eq("", Expression::Nothing);
     lex_and_parse(";").expect("should parse (maybe doesn't evaluate)");
+    lex_and_parse("{;}").expect("should parse (maybe doesn't evaluate)");
+    assert_expr_eq("none", Expression::Nothing);
 }
 
 #[test]
 fn test_nothing_braces() {
+    assert_expr_eq("", Expression::empty_chain());
     assert_expr_eq("{}", Expression::empty_chain());
     lex_and_parse("[{}]").expect("should parse (maybe doesn't evaluate)");
     lex_and_parse("[5 {}]").expect("should parse (maybe doesn't evaluate)");
