@@ -371,3 +371,12 @@ fn test_field() {
         chain_init(list(&[]), &[op(Operator::Field, ident("x"))]),
     );
 }
+
+#[test]
+fn test_public() {
+    // this should be ok
+    // public function() {} =some_func
+    //
+    // what should this do? store nothing in some_func?? otherwise we are breaking the no-precedence rule
+    // {} |public function() {} =some_func
+}
