@@ -17,6 +17,9 @@ struct Args {
     /// Input file with pipes code to interpret. Either this or the code string must be provided
     input_file: Option<PathBuf>,
 
+    /// Optional initial value that the script will receive
+    initial_value: Option<i64>,
+
     /// Inline pipes code to be interpreted. Either this or the input file must be provided
     #[arg(short, long)]
     evaluate_string: Option<String>,
@@ -46,6 +49,7 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         evaluate_string,
         check,
         input_file,
+        initial_value,
         prettify,
         debug_ast,
     } = args;
@@ -65,7 +69,7 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
     }
 
     if !check {
-        let result = Runtime::evaluate(program, read_src, print_dst)?;
+        let result = Runtime::evaluate_with_initial(program, initial_value, read_src, print_dst)?;
         if result != NOTHING {
             println!("{}", result);
         }
@@ -101,6 +105,7 @@ mod tests {
             evaluate_string: None,
             check: false,
             input_file: Some(PathBuf::from("pipes_programs/demos/hello_world.pipes")),
+            initial_value: None,
             debug_ast: false,
             prettify: false,
         };

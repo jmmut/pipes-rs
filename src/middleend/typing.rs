@@ -88,7 +88,7 @@ impl<'a> Typer<'a> {
         typed_identifiers: Identifiers,
     ) -> Result<Program, AnyError> {
         let (mut typer, main) = Typer::new_with_identifiers(program, typed_identifiers)?;
-        let typed_main = typer.add_types(main)?;
+        let typed_main = typer.add_types_with_initial(&builtin_types::I64, main)?;
         Ok(Program::new_from(
             typed_main,
             typer.new_typed_identifiers,
@@ -247,6 +247,13 @@ impl<'a> Typer<'a> {
         &mut self,
         expression_span: &ExpressionSpan,
     ) -> Result<ExpressionSpan, AnyError> {
+        self.add_types_with_initial(&builtin_types::NOTHING, expression_span)
+    }
+    pub fn add_types_with_initial(
+        &mut self,
+        input_type: &Type,
+        expression_span: &ExpressionSpan,
+    ) -> Result<ExpressionSpan, AnyError> {
         let ExpressionSpan {
             syntactic_type,
             span,
@@ -260,7 +267,7 @@ impl<'a> Typer<'a> {
             Expression::Value(_) => Ok(clone_with_sem_type(builtin_types::I64)),
             Expression::Identifier(name) => self.check_types_identifier(name, *span),
             Expression::Type(_) => Ok(clone_with_sem_type(builtin_types::TYPE)),
-            Expression::Chain(chain) => self.check_types_chain(chain, *span),
+            Expression::Chain(chain) => self.check_types_chain_with_input(input_type, chain, *span),
             Expression::StaticList { elements } => self.check_types_list(elements, *span),
             Expression::Function(function) => self.check_type_function(function, *span),
             Expression::Composed(Composed::Comptime(comptime)) => {
@@ -1323,8 +1330,14 @@ mod tests {
 
     #[test]
     fn test_nothing() {
-        assert_type_eq("{}", "nothing");
         assert_type_eq("{;}", "nothing");
+    }
+
+    #[test]
+    fn test_input_is_i64() {
+        assert_type_eq("", "i64");
+        assert_type_eq("{}", "i64");
+        assert_types_ok("|to_str");
     }
 
     #[test]

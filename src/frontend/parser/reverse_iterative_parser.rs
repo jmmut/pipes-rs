@@ -784,6 +784,11 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
     let mut main = if accumulated.len() <= 1 {
         match accumulated.pop_front() {
             Some(PartialExpression::Expression(e)) => e,
+            Some(PartialExpression::Operation(o)) => {
+                let span = o.content_span();
+                let expr = ExpressionSpan::new_typeless(Expression::chain(vec![o]), span);
+                expr
+            }
             None => ExpressionSpan::new_spanless(Expression::Nothing),
             Some(v) => {
                 accumulated.push_front(v);

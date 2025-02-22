@@ -97,6 +97,24 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut runtime = Self::new(read_input, print_output, identifiers, sources)?;
         context("Runtime", runtime.evaluate_recursive(&main))
     }
+    pub fn evaluate_with_initial(
+        program: Program,
+        initial_value: Option<i64>,
+        read_input: R,
+        print_output: W,
+    ) -> Result<GenericValue, AnyError> {
+        let (main, identifiers, sources) = program.take();
+        let mut runtime = Self::new(read_input, print_output, identifiers, sources)?;
+        let (initial, _type) = if let Some(initial) = initial_value {
+            (initial, &builtin_types::I64)
+        } else {
+            (NOTHING, &builtin_types::NOTHING)
+        };
+        context(
+            "Runtime",
+            runtime.evaluate_recursive_with_initial(initial, &_type, &main),
+        )
+    }
 
     pub fn new(
         read_input: R,
@@ -193,11 +211,22 @@ impl<R: Read, W: Write> Runtime<R, W> {
         &mut self,
         expression: &ExpressionSpan,
     ) -> Result<GenericValue, AnyError> {
+        self.evaluate_recursive_with_initial(NOTHING, &builtin_types::NOTHING, expression)
+    }
+
+    pub fn evaluate_recursive_with_initial(
+        &mut self,
+        intial: GenericValue,
+        initial_sem_type: &Type,
+        expression: &ExpressionSpan,
+    ) -> Result<GenericValue, AnyError> {
         match expression.syn_type() {
             Expression::Nothing => Ok(NOTHING),
             Expression::Value(n) => Ok(*n),
             Expression::Identifier(name) => self.get_identifier(name),
-            Expression::Chain(chain) => self.evaluate_chain(chain),
+            Expression::Chain(chain) => {
+                self.evaluate_chain_passing_value(intial, initial_sem_type, chain)
+            }
             Expression::StaticList { elements } => self.evaluate_list(elements),
             Expression::Function(function) => self.allocate_function(
                 function.clone(),

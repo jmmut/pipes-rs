@@ -130,6 +130,7 @@ fn assert_code_eq(code: &str, expected_code: &str) {
 #[test]
 fn test_nothing() {
     assert_expr_eq("", Expression::Nothing);
+    lex_and_parse(";").expect("should parse (maybe doesn't evaluate)");
 }
 
 #[test]
@@ -214,7 +215,6 @@ fn test_several_operands() {
 #[test]
 fn test_unfinished() {
     lex_and_parse("5+").expect_err("should fail");
-    lex_and_parse(";").expect_err("should fail");
 }
 
 #[test]
