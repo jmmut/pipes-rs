@@ -13,7 +13,7 @@ use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 use crate::middleend::typing::expand::{Expand, TypeView};
 use crate::middleend::typing::put_some_types;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Read, Write};
 use std::rc::Rc;
 use strum::IntoEnumIterator;
@@ -27,18 +27,18 @@ pub const NOTHING: i64 = i64::MIN;
 
 #[derive(Clone)]
 pub struct Closure {
-    captured_identifiers: HashMap<String, GenericValue>,
+    captured_identifiers: BTreeMap<String, GenericValue>,
 }
 
 impl Closure {
     #[allow(unused)]
     pub fn new() -> Closure {
         Self {
-            captured_identifiers: HashMap::new(),
+            captured_identifiers: BTreeMap::new(),
         }
     }
-    pub fn new_from_current_scope(identifiers: &HashMap<String, BindingsStack>) -> Closure {
-        let mut captured_identifiers = HashMap::new();
+    pub fn new_from_current_scope(identifiers: &BTreeMap<String, BindingsStack>) -> Closure {
+        let mut captured_identifiers = BTreeMap::new();
         for (name, stack) in identifiers {
             if let Some(last) = stack.last() {
                 captured_identifiers.insert(name.clone(), *last);
@@ -57,8 +57,8 @@ impl Closure {
                 .push(*captured_value);
         }
     }
-    pub fn to_identifiers(self) -> HashMap<String, BindingsStack> {
-        let mut identifiers = HashMap::new();
+    pub fn to_identifiers(self) -> BTreeMap<String, BindingsStack> {
+        let mut identifiers = BTreeMap::new();
         for (name, value) in self.captured_identifiers {
             let mut stack = BindingsStack::new();
             stack.push(value);
@@ -126,7 +126,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         let mut runtime = Runtime {
             lists: HashMap::new(),
             functions,
-            identifiers: HashMap::new(),
+            identifiers: BTreeMap::new(),
             identifier_expressions: HashMap::new(),
             types: HashMap::new(),
             static_identifiers,

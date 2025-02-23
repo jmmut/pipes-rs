@@ -12,6 +12,9 @@ crate-type = ["rlib", "cdylib"]  # TODO: why this?
 [profile.dev]
 #debug = 0
 #strip = "debuginfo"
+[profile.bench]
+debug = true
+opt-level = 2
 
 [dependencies]
 clap = {version = "=4.4.7", features = ["derive"]} # for CLI parsing
