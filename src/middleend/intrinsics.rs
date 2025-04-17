@@ -33,23 +33,20 @@ impl Intrinsic {
     }
 
     pub fn type_(&self) -> Type {
-        match self {
-            Intrinsic::PrintChar => parse_type("function(char_to_print :i64) (same_char :i64)"),
-            Intrinsic::ReadChar => parse_type("function(reserved :i64) (char :i64)"),
-            Intrinsic::Print => {
-                parse_type("function(str :list(letter :i64)) (same_input :array(letter :i64))")
-            }
+        let type_str = match self {
+            Intrinsic::PrintChar => "function(char_to_print :i64) (same_char :i64)",
+            Intrinsic::ReadChar => "function(reserved :i64) (char :i64)",
+            Intrinsic::Print => "function(str :list(letter :i64)) (same_input :array(letter :i64))",
             Intrinsic::ReadLines => {
-                parse_type("function(reserved :i64) (lines :array(line :array(letter :i64)))")
+                "function(reserved :i64) (lines :array(line :array(letter :i64)))"
             }
-            Intrinsic::ToStr => {
-                parse_type("function(number :i64) (number_str :array(digit_char :i64))")
-            }
-            Intrinsic::NewArray => parse_type("function(size :i64) (:array(:any))"),
-            Intrinsic::Size => parse_type("function(:list(:any)) (:i64)"),
-            Intrinsic::Breakpoint => parse_type("function(t  file_descriptor :i64) (t)"),
-            Intrinsic::Eval => parse_type("function(code :list(char :i64)) (result :i64)"),
-        }
+            Intrinsic::ToStr => "function(number :i64) (number_str :array(digit_char :i64))",
+            Intrinsic::NewArray => "function(size :i64) (:array(:any))",
+            Intrinsic::Size => "function(:list(:any)) (:i64)",
+            Intrinsic::Breakpoint => "function(t  file_descriptor :i64) (t)",
+            Intrinsic::Eval => "function(code :list(char :i64)) (result :i64)",
+        };
+        parse_type(type_str)
     }
 }
 
