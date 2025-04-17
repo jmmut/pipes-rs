@@ -12,7 +12,7 @@ use crate::frontend::expression::{
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
 use crate::frontend::parser::root::qualify;
 use crate::frontend::sources::lexer::lex;
-use crate::frontend::sources::location::SourceCode;
+use crate::frontend::sources::location::{SourceCode, Span};
 use crate::frontend::sources::token::{Operator, OperatorSpan};
 use crate::middleend::intrinsics;
 use crate::middleend::intrinsics::is_builtin_type;
@@ -88,11 +88,12 @@ fn track_identifiers_recursive(
     expression: &mut ExpressionSpan,
     import_state: &mut ImportState,
 ) -> Result<(), AnyError> {
+    let span = expression.span;
     match expression.syn_type_mut() {
         Expression::Nothing => Ok(()),
         Expression::Value(_) => Ok(()),
-        Expression::Identifier(name) => check_identifier(name, import_state),
-        Expression::Type(type_) => track_identifiers_recursive_type(type_, import_state),
+        Expression::Identifier(name) => check_identifier(name, import_state, span),
+        Expression::Type(type_) => track_identifiers_recursive_type(type_, import_state, span),
         Expression::Chain(chain) => track_identifiers_recursive_chain(import_state, chain),
         Expression::StaticList { elements } => {
             for element in elements {
@@ -105,18 +106,21 @@ fn track_identifiers_recursive(
             returned,
             body,
         }) => {
-            track_identifiers_recursive_scope(import_state, parameters.iter_mut(), body)?;
-            check_user_defined_type(&mut returned.type_, import_state)
+            track_identifiers_recursive_scope(import_state, parameters.iter_mut(), body, span)?;
+            check_user_defined_type(&mut returned.type_, import_state, span)
         }
         Expression::Composed(Composed::Loop(Loop { body })) => {
-            track_identifiers_recursive_scope(import_state, [].iter_mut(), body)
+            track_identifiers_recursive_scope(import_state, [].iter_mut(), body, span)
         }
         Expression::Composed(Composed::Browse(Browse {
             iteration_elem,
             body,
-        })) => {
-            track_identifiers_recursive_scope(import_state, vec![iteration_elem].into_iter(), body)
-        }
+        })) => track_identifiers_recursive_scope(
+            import_state,
+            vec![iteration_elem].into_iter(),
+            body,
+            span,
+        ),
         Expression::Composed(Composed::BrowseOr(BrowseOr {
             iteration_elem,
             body,
@@ -126,15 +130,19 @@ fn track_identifiers_recursive(
                 import_state,
                 vec![iteration_elem].into_iter(),
                 body,
+                span,
             )?;
             track_identifiers_recursive_chain(import_state, otherwise)
         }
         Expression::Composed(Composed::Times(Times {
             iteration_elem,
             body,
-        })) => {
-            track_identifiers_recursive_scope(import_state, vec![iteration_elem].into_iter(), body)
-        }
+        })) => track_identifiers_recursive_scope(
+            import_state,
+            vec![iteration_elem].into_iter(),
+            body,
+            span,
+        ),
         Expression::Composed(Composed::TimesOr(TimesOr {
             iteration_elem,
             body,
@@ -144,6 +152,7 @@ fn track_identifiers_recursive(
                 import_state,
                 vec![iteration_elem].into_iter(),
                 body,
+                span,
             )?;
             track_identifiers_recursive_chain(import_state, otherwise)
         }
@@ -155,6 +164,7 @@ fn track_identifiers_recursive(
                 import_state,
                 vec![iteration_elem].into_iter(),
                 body,
+span,
             )
         },
         Expression::Composed(Composed::Branch(Branch { yes, no })) => {
@@ -166,14 +176,19 @@ fn track_identifiers_recursive(
             something,
             nothing,
         })) => {
-            track_identifiers_recursive_scope(import_state, vec![elem].into_iter(), something)?;
+            track_identifiers_recursive_scope(
+                import_state,
+                vec![elem].into_iter(),
+                something,
+                span,
+            )?;
             track_identifiers_recursive_chain(import_state, nothing)
         }
         Expression::Composed(Composed::Inspect(Inspect { elem, body })) => {
-            track_identifiers_recursive_scope(import_state, vec![elem].into_iter(), body)
+            track_identifiers_recursive_scope(import_state, vec![elem].into_iter(), body, span)
         }
         Expression::Composed(Composed::Cast(cast)) => {
-            check_user_defined_type(&mut cast.target_type.type_, import_state)
+            check_user_defined_type(&mut cast.target_type.type_, import_state, span)
         }
         Expression::Composed(Composed::Comptime(Comptime { body })) => {
             track_identifiers_recursive_chain(import_state, body)
@@ -184,17 +199,19 @@ fn track_identifiers_recursive(
 fn track_identifiers_recursive_type(
     type_: &mut Type,
     import_state: &mut ImportState,
+    span: Span,
 ) -> Result<(), AnyError> {
-    check_user_defined_type(type_, import_state)
+    check_user_defined_type(type_, import_state, span)
 }
 
 fn check_user_defined_type(
     type_: &mut Type,
     import_state: &mut ImportState,
+    span: Span,
 ) -> Result<(), AnyError> {
     let mut cast_to = type_.name().to_string();
     if is_builtin_type(&cast_to).is_none() {
-        let result = check_identifier(&mut cast_to, import_state);
+        let result = check_identifier(&mut cast_to, import_state, span);
         *type_ = Type::Simple {
             type_name: TypeName::UserDefined(cast_to),
         };
@@ -207,6 +224,7 @@ fn check_user_defined_type(
 fn check_identifier(
     identifier: &mut String,
     import_state: &mut ImportState,
+    span: Span,
 ) -> Result<(), AnyError> {
     if !import_state.parameter_stack.contains(identifier)
         && !import_state.intrinsic_names.contains(identifier)
@@ -220,11 +238,11 @@ fn check_identifier(
             && !import_state.imported.contains_key(identifier)
             && !import_state.available.contains(identifier)
         {
-            import_identifier(identifier, import_state)?;
+            import_identifier(identifier, import_state, span)?;
             if !import_state.imported.contains_key(identifier)
                 && !import_state.available.contains(identifier)
             {
-                err_undefined_identifier(identifier, import_state)
+                err_undefined_identifier(identifier, import_state, span)
             } else {
                 Ok(())
             }
@@ -251,6 +269,7 @@ fn check_identifier(
 fn import_identifier(
     identifier: &mut String,
     import_state: &mut ImportState,
+    span: Span,
 ) -> Result<(), AnyError> {
     // let root = import_state.project_root?;
     let mut paths = identifier
@@ -267,7 +286,7 @@ fn import_identifier(
             *identifier = qualify(identifier, root, file)?;
             Ok(())
         } else {
-            err_undefined_identifier(identifier, import_state)
+            err_undefined_identifier(identifier, import_state, span)
         }
     } else {
         let _function_name = paths.pop().unwrap();
@@ -306,16 +325,17 @@ fn import_identifier(
 fn err_undefined_identifier(
     identifier: &mut String,
     import_state: &mut ImportState,
+    span: Span,
 ) -> Result<(), AnyError> {
     let mut imported = import_state.imported.keys().collect::<Vec<_>>();
     imported.sort_unstable();
     let mut available = import_state.available.iter().collect::<Vec<_>>();
     available.sort_unstable();
     err(format!(
-        "identifier '{}' not found in scope{}. Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
+        "identifier '{}' not found in scope{}Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
                     Assignments: {:?}\n  Available to this file: {:?}\n  Imported by this file: {:?}",
         identifier,
-        if let Some(file) = &import_state.source.file { format!(" for file {:?}", file) } else { "".to_string() },
+        import_state.source.format_span(span),
         import_state.parameter_stack,
         import_state.intrinsic_names,
         import_state.assignments,
@@ -328,10 +348,11 @@ fn track_identifiers_recursive_scope<'a, T: Iterator<Item = &'a mut TypedIdentif
     import_state: &mut ImportState,
     parameters: T,
     body: &mut Chain,
+    span: Span,
 ) -> Result<(), AnyError> {
     let mut params = 0;
     for parameter in parameters {
-        check_user_defined_type(&mut parameter.type_, import_state)?;
+        check_user_defined_type(&mut parameter.type_, import_state, span)?;
         import_state.parameter_stack.push(parameter.name.clone());
         params += 1;
     }
