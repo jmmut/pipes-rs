@@ -1,0 +1,31 @@
+
+// Types can be omitted in many places
+// like function signatures
+;function (list) {list |size} =length
+;[1 2 3 4] |length |to_str |print
+//; 5 |length // unimplemented: this should fail
+
+// or variable definitions.
+;[1 2 3 4 5] |length =some_length |to_str |print
+
+// You can also use partial typing
+;function (l :list) {l} =pass_through_list
+
+
+// and it will work with different types
+;[1 2 3] |pass_through_list |size |to_str |print
+;[function{} function{}] |pass_through_list |size |to_str |print
+
+// and will complain if the partial type is not satisfied. Uncomment next line to see the error
+//;4 |pass_through_list  // COMPILE ERROR
+
+// Error: Type checking: (from src/middleend/typing.rs:1131:13)
+// Type mismatch for arguments when calling function:
+//     actual arguments:   (:i64)
+//     expected arguments: (l :list(:any))
+//  at pipes_programs/demos/type_inference.pipes:18:4-21:
+// ;4 |pass_through_list  // COMPILE ERROR
+//    ^----------------^
+
+;
+

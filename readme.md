@@ -1,6 +1,9 @@
+# Pipes
 
 Pipes is an experimental toy programming language about applying successive transformations to some data.
 Think bash with static typing.
+Hello world is `"Hello World!" |print ;`.
+See syntax below or see examples in `./pipes-programs/demos/`.
 
 This repo contains an interpreter written in rust and a couple related tools, like a web+wasm playground.
 
@@ -177,14 +180,14 @@ compiler backend (as I did in a previous version of this project
 https://bitbucket.org/jmmut/pipes/), and the program `[1 2 3] |function(x) {x+1}
 =a` would fail typechecking before runtime, despite not mentioning any type,
 neither for the function definition, nor for the variable `a`. Typechecking
-fails because the function expects an i64, but an array was passed.
+fails because addition can not be done on arrays.
 
 And as the project matures you can add types to make it more robust. A nice
 little feature is that you can also add names (for documentation purposes) to
 the returned types, and to the nested types:
 
     [1 2 3]
-    |function(score :list(points :i64)(total_points :i64) {|sum}
+    |function(score :list(points :i64))(total_points :i64) { |sum }
     ==6
 
 ### I hate operator precedence tables

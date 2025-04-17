@@ -10,7 +10,7 @@
     ;0 |read_char -'0'
 }
 
-// returning non-i64 (functions, arrays, strings, etc) from comptime is not supported yet
+// returning non-i64 (functions, arrays, strings, etc) or defining identifiers in comptime is not supported yet
 //;7
 //|comptime {
 //    3 |function (x) { function(outer) { x + outer} }

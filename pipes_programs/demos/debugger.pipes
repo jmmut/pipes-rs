@@ -1,7 +1,7 @@
 
 // if you put `|breakpoint 0` at any place of your program (say program.pipes), when you run it
-// (e.g. with `pipes-rs program.pipes`), the program will pause and show a prompt where you
-// can execute arbitrary Pipes code, and when you press enter the program will continue.
+// (e.g. with `pipes-rs program.pipes`), the program will pause and show a prompt where you can
+// execute arbitrary Pipes code, and when you type "continue", "exit" or "quit" the program will continue.
 
 // This feature is intended to debug your program, mostly to print local variables, but also
 // for calling functions or other experimentation.
@@ -23,10 +23,9 @@ function(x) {
 
 0
 |read_lines
-|map(line) {
-    line
+|map(line :list) {
     |map(char) {
-        char |increment
+        |increment
     }
 }
-|browse(line) { line |print; }
+|browse(line) { |print; }
