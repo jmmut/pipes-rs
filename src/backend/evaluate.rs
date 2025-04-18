@@ -1017,7 +1017,7 @@ mod tests {
         let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
         result
     }
-    fn interpret_io(code_text: &str, read_input: &str) -> (GenericValue, String) {
+    fn interpret_io<S: Into<SourceCode>>(code_text: S, read_input: &str) -> (GenericValue, String) {
         let read_input = read_input.bytes().collect::<Vec<u8>>();
         let mut print_output = Vec::<u8>::new();
         let mut program = unwrap_display(lex_and_parse(code_text));
@@ -1170,10 +1170,7 @@ mod tests {
     }
     #[test]
     fn test_intrinsics() {
-        let (result, print_output) = interpret_io(
-            "'5' |print_char; 0|read_char",
-            &"72",
-        );
+        let (result, print_output) = interpret_io("'5' |print_char; 0|read_char", &"72");
         assert_eq!(result, '7' as u8 as GenericValue);
         assert_eq!(print_output, "5");
     }
@@ -1435,6 +1432,8 @@ mod tests {
     fn test_eval_identifiers() {
         let main_path = PathBuf::from("./pipes_programs/demos/structs.pipes");
         let code = SourceCode::new(main_path).unwrap();
-        assert_eq!(interpret(code), 5);
+        let (result, out) = interpret_io(code, "");
+        assert_eq!(result, 5);
+        assert_eq!(out, "x: 5\ny: 5\nz: 3\na: 8\n6\n126\n");
     }
 }
