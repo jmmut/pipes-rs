@@ -1,16 +1,18 @@
 
-// Types can be omitted in many places
-// like function signatures
-;function (list) {list |size} =length
-;[1 2 3 4] |length |to_str |print
-//; 5 |length // unimplemented: this should fail
+// Pipes supports static progressive typing.
+// That means that types will be checked at compile time but can be omitted in many places
+// like function signatures (length is a "function(list :list(:any))(:i64)", like "size") 
+;function (list) {|size} =length
 
-// or variable definitions.
+// or variable definitions (some_length is i64).
 ;[1 2 3 4 5] |length =some_length |to_str |print
+
+;[1 2 3 4] |length |to_str |print  // Ok
+//;5 |length  // COMPILE ERROR: 5 is not a list
+
 
 // You can also use partial typing
 ;function (l :list) {l} =pass_through_list
-
 
 // and it will work with different types
 ;[1 2 3] |pass_through_list |size |to_str |print
@@ -19,11 +21,11 @@
 // and will complain if the partial type is not satisfied. Uncomment next line to see the error
 //;4 |pass_through_list  // COMPILE ERROR
 
-// Error: Type checking: (from src/middleend/typing.rs:1131:13)
+// Error: Type checking: (from src/middleend/typing.rs:1171:13)
 // Type mismatch for arguments when calling function:
 //     actual arguments:   (:i64)
 //     expected arguments: (l :list(:any))
-//  at pipes_programs/demos/type_inference.pipes:18:4-21:
+//  at pipes_programs/demos/type_inference.pipes:20:4-21:
 // ;4 |pass_through_list  // COMPILE ERROR
 //    ^----------------^
 

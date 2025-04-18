@@ -1090,14 +1090,14 @@ mod tests {
     fn test_function_closure() {
         assert_eq!(
             interpret(
-                r#"
-        3 |{
-            5 |function(x){
-                function(y){
-                    x-y
-                }
-            }
-        }"#
+                "
+                3 |{
+                    5 |function(x){
+                        function(y){
+                            x-y
+                        }
+                    }
+                }"
             ),
             2
         );
@@ -1170,12 +1170,12 @@ mod tests {
     }
     #[test]
     fn test_intrinsics() {
-        let mut out = Vec::<u8>::new();
-        let into = "72".as_bytes();
-        let expression = lex_and_parse("'5' |print_char; 0|read_char").unwrap();
-        let result = Runtime::evaluate(expression, into, &mut out);
-        assert_eq!(result.unwrap() as u8, '7' as u8);
-        assert_eq!(out, "5".as_bytes());
+        let (result, print_output) = interpret_io(
+            "'5' |print_char; 0|read_char",
+            &"72",
+        );
+        assert_eq!(result, '7' as u8 as GenericValue);
+        assert_eq!(print_output, "5");
     }
     #[test]
     fn test_read_lines() {
