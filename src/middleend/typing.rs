@@ -1076,7 +1076,7 @@ impl<'a> Typer<'a> {
             None => {
                 if let Type::Function { parameters, .. } = typed_callable.sem_type() {
                     self.assert_typed_identifiers_unify(&actual_params, parameters, span.span)?;
-                    unreachable!()
+                    err("should be unreachable")
                 } else {
                     err(self.type_mismatch(&typed_callable, &expected_function))
                 }

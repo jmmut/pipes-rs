@@ -273,7 +273,6 @@ fn import_identifier(
     import_state: &mut ImportState,
     span: Span,
 ) -> Result<(), AnyError> {
-    // let root = import_state.project_root?;
     let path_parts = identifier.bytes().filter(|c| *c == b'/').count();
     if path_parts < 1 {
         if let (Some(root), Some(file)) = (
@@ -288,26 +287,32 @@ fn import_identifier(
             err_undefined_identifier(identifier, import_state, span)
         }
     } else {
-        let (relative_path_to_import, source_code) =
-            find_source_code(identifier, &import_state, span)?;
-        let tokens = lex(source_code)?;
-        let mut available: HashSet<String> = import_state.imported.keys().cloned().collect();
-        available.extend(import_state.available.clone());
-        let parser = Parser::new_with_available(
-            tokens.source_code,
-            available,
-            import_state.project_root.clone(),
-        );
-        let mut program = parse_tokens_cached_inner(tokens.tokens, parser)?;
-        import_state
-            .imported
-            .extend(std::mem::take(&mut program.exported));
-        import_state.other_sources.extend(
-            program
-                .sources
-                .take_all(relative_path_to_import.to_string_lossy().to_string()),
-        );
-        Ok(())
+        #[cfg(not(unix))]  // can't read files in wasm
+        return err_undefined_identifier(identifier, import_state, span);
+        
+        #[cfg(unix)]
+        {
+            let (relative_path_to_import, source_code) =
+                find_source_code(identifier, &import_state, span)?;
+            let tokens = lex(source_code)?;
+            let mut available: HashSet<String> = import_state.imported.keys().cloned().collect();
+            available.extend(import_state.available.clone());
+            let parser = Parser::new_with_available(
+                tokens.source_code,
+                available,
+                import_state.project_root.clone(),
+            );
+            let mut program = parse_tokens_cached_inner(tokens.tokens, parser)?;
+            import_state
+                .imported
+                .extend(std::mem::take(&mut program.exported));
+            import_state.other_sources.extend(
+                program
+                    .sources
+                    .take_all(relative_path_to_import.to_string_lossy().to_string()),
+            );
+            Ok(())
+        }
     }
 }
 
@@ -370,6 +375,15 @@ pub fn get_corelib_path() -> PathBuf {
     corelib_path
 }
 
+#[cfg(not(unix))]  // can't read files in wasm
+fn err_undefined_identifier<T>(
+    identifier: &str,
+    import_state: &ImportState,
+    span: Span,
+) -> Result<T, AnyError> {
+    err_undefined_identifier_from_expected(identifier, import_state, span, vec![])
+}
+#[cfg(unix)]
 fn err_undefined_identifier<T>(
     identifier: &str,
     import_state: &ImportState,
