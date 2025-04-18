@@ -48,7 +48,7 @@
                 {actual_elem |to_str}
                 "\n  expected: "
                 {expected_elem |to_str}]
-                |flatten
+                |core/flatten
                 |print
                 ;"  actual array  : " ++ {actual |printer}
                 ++ "\n  expected array: " ++ {expected |printer}
@@ -76,32 +76,8 @@
 =array_eq
 
 ;public function(actual :list(:i64)  expected :list(:i64))(are_equal_bool :i64) {
-    actual |array_eq_printer expected function(list) {list |assert/quote}
+    actual |array_eq_printer expected function(list) {list |core/quote}
 }
 =str_eq
-
-;public function(list :list) {
-    0 -1 =i;
-    list |size +2 |new_array |replace(e) {
-        i +1 =>i;
-        i =? 0 |branch { '"' } {
-            i =? {list |size +1} |branch { '"' } {
-                list #{i -1}
-            }
-        }
-    }
-}
-=quote
-
-;public function(nested :list(:list)) {
-    ;[] =accum
-    ;nested
-    |browse_or(inner) {
-        accum ++inner => accum;
-    } {
-        accum
-    }
-}
-=flatten
 
 ;
