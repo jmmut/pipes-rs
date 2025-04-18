@@ -549,16 +549,14 @@ impl<'a> Typer<'a> {
             Operator::Get => {
                 let array = list_any();
                 let unified_input = self.is_castable_to(input, &array, operator)?;
+                let single_elem = unified_input.single_element()?.type_;
+                *input = unified_input;
                 let typed_operand = self.assert_expr_unifies(
                     operand_expr_span,
                     &builtin_types::I64,
                     *operand_span,
                 )?;
-                Ok(Operation::single(
-                    operator,
-                    typed_operand,
-                    unified_input.single_element()?.type_,
-                ))
+                Ok(Operation::single(operator, typed_operand, single_elem))
             }
             Operator::Type => {
                 if let Expression::Type(expected_type) = operand {
@@ -1645,6 +1643,13 @@ mod tests {
     #[test]
     fn test_propagate_type_to_parameter() {
         assert_type_eq("function (x) {+1}", "function(x :i64)(:i64)");
+        assert_type_eq("function (x) {#1}", "function(x :list)(:any)");
+        assert_type_eq("function (list) {list |size}", "function(list :list)(:any)");
+
+        // the next assertion should not be tested, as it's more complicated.
+        // f could be partially generic and applied to similar but different types.
+        // e.g. function(f :function(:list)) {[1 2 3] |f; [function{} function{}] |f}
+        // assert_type_eq("function (f) {1 |f}", "function(x :function(:i64))(:any)");
     }
     #[test]
     fn test_intrinsic() {
