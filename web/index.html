@@ -19,8 +19,7 @@
 
 <body>
     <div id="loading_status_div">WebAssembly not loaded</div>
-    <div>Input pipes code:</div>
-    <textarea id="input_pipes" cols="80" rows="24" disabled>;"Hello, World!" |print // basic hello world
+    <textarea id="input_pipes" cols="90" rows="25" disabled>;"Hello, World!" |print // basic hello world
 
 ;3 +5 |to_str |print // printing a number
 ;[60 70 80] #1 |to_str |print // accessing an array element
@@ -55,7 +54,7 @@
         <button id="main_button" disabled>Run</button>
         <input id="toggle_continuous" type="checkbox"><label for="toggle_continuous">Run on every key stroke</label></input>
     </div>
-    <div><textarea id="output_pipes" cols="80" rows="5" disabled></textarea></div>
+    <div><textarea id="output_pipes" cols="90" rows="20" disabled></textarea></div>
     <div><output id="result_pipes"></output></div>
     <script type="module">
         "use strict";

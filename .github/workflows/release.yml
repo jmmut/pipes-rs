@@ -51,8 +51,8 @@ jobs:
       - name: Compile and package WebAssembly
         run: |
           cargo install wasm-pack
-          ./recompile_web.sh
-          zip -FS -r ${PROJECT_NAME}-wasm.zip built_html/*
+          ./web/recompile.sh
+          zip -FS -r ${PROJECT_NAME}-wasm.zip web/built_html/*
           sha512sum ${PROJECT_NAME}-wasm.zip
 
       - name: Deploy WebAssembly to itch.io
