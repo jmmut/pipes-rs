@@ -1,0 +1,94 @@
+{}
+;public function(expected) {
+    function(actual) {
+        actual |eq expected
+    }
+}
+=eq_old
+
+;public function(actual expected) {
+    actual =?expected
+    |branch {
+        1
+    } {
+        "Assertion failed:\n  actual  : "
+        ++ {actual |to_str}
+        ++ "\n  expected: "
+        ++ {expected |to_str}
+        |print
+        ;0
+    }
+}
+=eq
+
+
+;public function(expected :array(:i64)) {
+    function(actual :array(:i64)) {
+        actual |array_eq expected
+    }
+}
+=array_eq_old
+
+;public function
+        (actual :list(:i64)  expected :list(:i64)  printer :function(:list(:i64))(:list(:i64)))
+        (are_equal_bool :i64)
+{
+    actual |size =? {expected |size}
+    |branch {
+        {0 -1} =i
+        ;actual
+        |browse_or(actual_elem) {
+            i +1 => i
+            ;expected #i
+            =expected_elem
+            =?actual_elem
+            |branch {
+            } {
+                ["Assertion failed: Element #"  {i |to_str} " is different:\n  actual  : "
+                {actual_elem |to_str}
+                "\n  expected: "
+                {expected_elem |to_str}]
+                |common/flatten
+                |print
+                ;"  actual array  : " ++ {actual |printer}
+                ++ "\n  expected array: " ++ {expected |printer}
+                |print
+                ; 0
+            }
+        } {1}
+    } {
+        "Assertion failed:\n  actual size  : "
+        ++ {actual |size |to_str}
+        ++ "\n  expected size: "
+        ++ {expected |size |to_str}
+        |print
+        ;"  actual array  : " ++ {actual |printer}
+        ++ "\n  expected array: " ++ {expected |printer}
+        |print
+        ;0
+    }
+}
+=array_eq_printer
+
+;public function(actual :list(:i64)  expected :list(:i64))(are_equal_bool :i64) {
+    actual |array_eq_printer expected function(list) {list |common/int_array_to_str}
+}
+=array_eq
+
+;public function(actual :list(:i64)  expected :list(:i64))(are_equal_bool :i64) {
+    actual |array_eq_printer expected function(list) {list |assert/quote}
+}
+=str_eq
+
+;public function(list :list) {
+    0 -1 =i;
+    list |size +2 |new_array |replace(e) {
+        i +1 =>i;
+        i =? 0 |branch { '"' } {
+            i =? {list |size +1} |branch { '"' } {
+                list #{i -1}
+            }
+        }
+    }
+}
+=quote

@@ -343,6 +343,12 @@ fn test_import() {
 }
 
 #[test]
+fn test_import_core() {
+    let code = "[1 2 3 1 2 1] |core/count 1";
+    unwrap_display(lex_and_parse(code));
+}
+
+#[test]
 fn test_undefined_in_else() {
     lex_and_parse("[]|browse_or(e) {} {e}").expect_err("should fail");
     lex_and_parse("[]|times_or(e) {} {e}").expect_err("should fail");
