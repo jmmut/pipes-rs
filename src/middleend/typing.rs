@@ -873,14 +873,18 @@ impl<'a> Typer<'a> {
                 )
             }
             Composed::Inspect(inspect) => {
-                let unified_elem =
+                let unified_elem_type =
                     self.assert_type_unifies(input_type, &inspect.elem.type_, operator_span)?;
+                let unified_elem =
+                    TypedIdentifier::new(inspect.elem.name.clone(), unified_elem_type.clone());
+                let (_, typed_body) =
+                    self.check_types_scope_single(unified_elem.clone(), &inspect.body, span)?;
                 (
                     Composed::Inspect(Inspect {
-                        elem: TypedIdentifier::new(inspect.elem.name.clone(), unified_elem.clone()),
-                        body: inspect.body.clone(),
+                        elem: unified_elem, // don't specialize param type based on internal operations (could affect return type?)
+                        body: typed_body.syntactic_type.to_chain()?,
                     }),
-                    unified_elem,
+                    unified_elem_type, // don't specialize return type based on internal operations
                 )
             }
             Composed::Comptime(comptime) => {
