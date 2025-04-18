@@ -1,4 +1,4 @@
-{}
+
 ;public function(expected) {
     function(actual) {
         actual |eq expected
@@ -48,7 +48,7 @@
                 {actual_elem |to_str}
                 "\n  expected: "
                 {expected_elem |to_str}]
-                |common/flatten
+                |flatten
                 |print
                 ;"  actual array  : " ++ {actual |printer}
                 ++ "\n  expected array: " ++ {expected |printer}
@@ -71,7 +71,7 @@
 =array_eq_printer
 
 ;public function(actual :list(:i64)  expected :list(:i64))(are_equal_bool :i64) {
-    actual |array_eq_printer expected function(list) {list |common/int_array_to_str}
+    actual |array_eq_printer expected function(list) {list |core/int_array_to_str}
 }
 =array_eq
 
@@ -92,3 +92,16 @@
     }
 }
 =quote
+
+;public function(nested :list(:list)) {
+    ;[] =accum
+    ;nested
+    |browse_or(inner) {
+        accum ++inner => accum;
+    } {
+        accum
+    }
+}
+=flatten
+
+;

@@ -232,7 +232,7 @@ fn construct_identifier(parser: &mut Parser, identifier: String, mut span: Span)
         }
         None => Expression::Identifier(identifier),
     };
-    return ExpressionSpan::new_typeless(expr, span);
+    ExpressionSpan::new_typeless(expr, span)
 }
 
 fn construct_transformation(

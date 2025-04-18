@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::common::{context, AnyError};
+use crate::frontend::parser::import::get_corelib_path;
 
 const PIPES_ROOT_FILENAME: &'static str = "pipes_root.toml";
 
@@ -54,16 +55,23 @@ pub fn maybe_qualify(
 }
 
 pub fn qualify(identifier: &str, root: &PathBuf, file: &PathBuf) -> Result<String, AnyError> {
-    let mut file_copy = context(
-        format!("canonicalizing path '{}'", file.to_string_lossy()),
-        file.canonicalize(),
-    )?;
+    let mut file_copy = if file.is_absolute() {
+        file.clone()
+    } else {
+        context(
+            format!("canonicalizing path '{}'", file.to_string_lossy()),
+            file.canonicalize(),
+        )?
+    };
     file_copy.set_extension("");
     let root_canonical = context(
         format!("canonicalizing path '{}'", file.to_string_lossy()),
         root.canonicalize(),
     )?;
-    let namespace = file_copy.strip_prefix(root_canonical)?;
+    let namespace = file_copy.strip_prefix(root_canonical).or_else(|_e| {
+        let corelib_canonical = get_corelib_path();
+        file_copy.strip_prefix(corelib_canonical)
+    })?;
     let namespace_str = namespace.to_string_lossy();
     let qualified = format!("{}/{}", namespace_str, identifier);
     Ok(qualified)

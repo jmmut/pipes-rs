@@ -349,6 +349,12 @@ fn test_import_core() {
 }
 
 #[test]
+fn test_import_second_operand() {
+    let code = "2 |function(a b) {a +b} nonexisting_var";
+    lex_and_parse(code).expect_err("should fail but was");
+}
+
+#[test]
 fn test_undefined_in_else() {
     lex_and_parse("[]|browse_or(e) {} {e}").expect_err("should fail");
     lex_and_parse("[]|times_or(e) {} {e}").expect_err("should fail");

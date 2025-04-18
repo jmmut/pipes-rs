@@ -1370,6 +1370,17 @@ mod tests {
         let code = SourceCode::new(main_path).unwrap();
         assert_eq!(interpret(code), 6);
     }
+
+    #[test]
+    fn test_evaluate_import_core() {
+        assert_eq!(interpret("[1 2 3 1 2 1] |core/count 1"), 3);
+    }
+    #[test]
+    fn test_evaluate_import_core_from_file() {
+        let main_path = PathBuf::from("./pipes_programs/demos/corelib.pipes");
+        let code = SourceCode::new(main_path).unwrap();
+        assert_eq!(interpret(code), 3);
+    }
     #[test]
     fn test_evaluate_import_fileless() {
         assert_eq!(

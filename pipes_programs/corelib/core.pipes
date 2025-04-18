@@ -122,7 +122,7 @@
 
 ;public function (elems :list  index :i64  value) {
     ;0 -1 =i
-    ;list
+    ;elems
     |replace(e) {
         i +1 =>i =?index |branch {
             value
@@ -138,7 +138,7 @@
 
 
 ;public function(list sep) {
-    ;list |common/count sep
+    ;list |count sep
     +1
     |new_array
     =parts
@@ -273,14 +273,6 @@
 }
 =sum
 
-;public function(nested :list(:list)) {
-    [] =accum;
-    nested
-    |browse_or(inner) {
-        accum ++inner => accum;
-    } {
-        accum
-    }
-}
-=flatten
+//;public assert/flatten
+//=flatten
 ;

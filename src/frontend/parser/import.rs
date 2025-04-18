@@ -17,10 +17,12 @@ use crate::frontend::sources::token::{Operator, OperatorSpan};
 use crate::middleend::intrinsics;
 use crate::middleend::intrinsics::is_builtin_type;
 
+const CORELIB_PATH: &'static str = ".local/share/pipes/core/";
+const PIPES_EXTENSION: &'static str = "pipes";
+
 /// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(
     main: &mut ExpressionSpan,
-    // main: &mut ExpressionSpan,
     parser: &mut Parser,
 ) -> Result<(HashMap<String, ExpressionSpan>, HashMap<String, SourceCode>), AnyError> {
     let context_str = if let Some(path) = parser.source.file.as_ref() {
@@ -38,7 +40,7 @@ pub fn import(
     for (_name, public_exported) in &mut parser.exported {
         let _ = context(
             context_str.clone(),
-            track_identifiers_recursive(public_exported, &mut import_state),
+            track_identifiers_recursive(public_exported, &mut import_state), // TODO: why this?
         )?;
     }
     let _ = context(
@@ -272,11 +274,8 @@ fn import_identifier(
     span: Span,
 ) -> Result<(), AnyError> {
     // let root = import_state.project_root?;
-    let mut paths = identifier
-        .split('/')
-        .map(|s| s.to_string())
-        .collect::<Vec<_>>();
-    if paths.len() < 2 {
+    let path_parts = identifier.bytes().filter(|c| *c == b'/').count();
+    if path_parts < 1 {
         if let (Some(root), Some(file)) = (
             import_state.project_root.as_ref(),
             import_state.source.file.as_ref(),
@@ -289,18 +288,8 @@ fn import_identifier(
             err_undefined_identifier(identifier, import_state, span)
         }
     } else {
-        let _function_name = paths.pop().unwrap();
-        let imported_path = PathBuf::from_iter(paths.into_iter());
-        // let mut path_to_import = root.join(imported_path);
-        let mut relative_path_to_import = imported_path.clone();
-        relative_path_to_import.set_extension("pipes");
-        let path_to_import = if let Some(mut root) = import_state.project_root.clone() {
-            root.push(&relative_path_to_import);
-            root
-        } else {
-            relative_path_to_import.clone()
-        };
-        let source_code = SourceCode::new(path_to_import.clone())?;
+        let (relative_path_to_import, source_code) =
+            find_source_code(identifier, &import_state, span)?;
         let tokens = lex(source_code)?;
         let mut available: HashSet<String> = import_state.imported.keys().cloned().collect();
         available.extend(import_state.available.clone());
@@ -322,20 +311,96 @@ fn import_identifier(
     }
 }
 
-fn err_undefined_identifier(
-    identifier: &mut String,
-    import_state: &mut ImportState,
+fn find_source_code(
+    identifier: &str,
+    import_state: &ImportState,
     span: Span,
-) -> Result<(), AnyError> {
+) -> Result<(PathBuf, SourceCode), AnyError> {
+    let relative_path_to_import = get_relative_path_to_import(identifier);
+    let path_to_import = get_project_location(&relative_path_to_import, import_state);
+    let source_code_res = SourceCode::new(path_to_import.clone());
+    let source_code = match source_code_res {
+        Ok(s) => s,
+        Err(_e) => {
+            let corelib_path = get_corelib_location(&relative_path_to_import);
+            match SourceCode::new(corelib_path.clone()) {
+                Ok(s) => s,
+                Err(_e_core) => err_undefined_identifier_from_expected(
+                    identifier,
+                    &import_state,
+                    span,
+                    vec![path_to_import, corelib_path],
+                )?,
+            }
+        }
+    };
+    Ok((relative_path_to_import, source_code))
+}
+
+fn get_relative_path_to_import(identifier: &str) -> PathBuf {
+    let mut namespace_parts = identifier
+        .split('/')
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
+    let _function_name = namespace_parts.pop().unwrap();
+    let imported_path = PathBuf::from_iter(namespace_parts.into_iter());
+    let mut relative_path_to_import = imported_path;
+    relative_path_to_import.set_extension(PIPES_EXTENSION);
+    relative_path_to_import
+}
+
+fn get_project_location(relative_path_to_import: &PathBuf, import_state: &ImportState) -> PathBuf {
+    if let Some(mut root) = import_state.project_root.clone() {
+        root.push(&relative_path_to_import);
+        root
+    } else {
+        relative_path_to_import.clone()
+    }
+}
+
+fn get_corelib_location(relative_path_to_import: &PathBuf) -> PathBuf {
+    let mut corelib_path = get_corelib_path();
+    corelib_path.push(&relative_path_to_import);
+    corelib_path
+}
+
+pub fn get_corelib_path() -> PathBuf {
+    let home = std::env::var("HOME").unwrap(); // TODO: support windows
+    let corelib_path = PathBuf::from(format!("{}/{}", home, CORELIB_PATH));
+    corelib_path
+}
+
+fn err_undefined_identifier<T>(
+    identifier: &str,
+    import_state: &ImportState,
+    span: Span,
+) -> Result<T, AnyError> {
+    let relative_path_to_import = get_relative_path_to_import(identifier);
+    let path_to_import = get_project_location(&relative_path_to_import, import_state);
+    let corelib_path = get_corelib_location(&relative_path_to_import);
+    err_undefined_identifier_from_expected(
+        identifier,
+        import_state,
+        span,
+        vec![path_to_import, corelib_path],
+    )
+}
+fn err_undefined_identifier_from_expected<T>(
+    identifier: &str,
+    import_state: &ImportState,
+    span: Span,
+    expected_location: Vec<PathBuf>,
+) -> Result<T, AnyError> {
     let mut imported = import_state.imported.keys().collect::<Vec<_>>();
     imported.sort_unstable();
     let mut available = import_state.available.iter().collect::<Vec<_>>();
     available.sort_unstable();
     err(format!(
-        "identifier '{}' not found in scope{}Available:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
+        "Undefined identifier '{}'{}{}\nAvailable identifiers:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
                     Assignments: {:?}\n  Available to this file: {:?}\n  Imported by this file: {:?}",
         identifier,
         import_state.source.format_span(span),
+        format!("Expected in any of: {:?}", expected_location),
         import_state.parameter_stack,
         import_state.intrinsic_names,
         import_state.assignments,
@@ -372,8 +437,7 @@ fn track_identifiers_recursive_chain(
         operator, operands, ..
     } in &mut chain.operations
     {
-        let operand = operands.get_mut(0);
-        if let Some(operand) = operand {
+        for operand in operands {
             if let (
                 OperatorSpan {
                     operator: Operator::Assignment,
@@ -391,7 +455,7 @@ fn track_identifiers_recursive_chain(
                     ..
                 },
                 Expression::Identifier(_name),
-            ) = (operator, operand.syn_type().clone())
+            ) = (&operator, operand.syn_type().clone())
             { // field access should not be imported
             } else {
                 track_identifiers_recursive(operand, import_state)?;
