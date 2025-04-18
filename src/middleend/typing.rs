@@ -589,6 +589,7 @@ impl<'a> Typer<'a> {
                     unified_input = typed_operand.semantic_type.clone();
                     typed_operands.push(typed_operand);
                 }
+                *input = unified_input.clone();
                 Ok(Operation::several(operator, typed_operands, unified_input))
             }
             Operator::Comparison(_) => {
@@ -596,6 +597,7 @@ impl<'a> Typer<'a> {
                     self.assert_type_unifies(input, &builtin_types::I64, operator)?;
                 let typed_operand =
                     self.assert_expr_unifies(operand_expr_span, &unified_input, operator.span)?;
+                *input = unified_input;
                 let type_ = typed_operand.semantic_type.clone(); // TODO: really should be bool
                 Ok(Operation::single(operator, typed_operand, type_))
             }
@@ -605,7 +607,7 @@ impl<'a> Typer<'a> {
 
     fn get_call_type(
         &mut self,
-        input_type: &Type,
+        input_type: &mut Type,
         operands: &Expressions,
         span: Span,
     ) -> Result<Operation, AnyError> {
@@ -654,7 +656,7 @@ impl<'a> Typer<'a> {
     }
     fn add_types_composed(
         &mut self,
-        input_type: &Type,
+        input_type: &mut Type,
         composed: &Composed,
         operator_span: OperatorSpan,
         composed_span: Span,
@@ -1026,7 +1028,7 @@ impl<'a> Typer<'a> {
     /// returns the type of the callable and the typed operands
     fn check_type_callable(
         &mut self,
-        input_type: &Type,
+        input_type: &mut Type,
         mut typed_callable: ExpressionSpan,
         operands: &[ExpressionSpan],
         span: OperatorSpan,
@@ -1048,11 +1050,13 @@ impl<'a> Typer<'a> {
         );
         match unify(&expected_function, typed_callable.sem_type()) {
             Some(func_type) => {
-                let returned = match &func_type {
-                    Type::Function { returned, .. } => returned,
-                    _ => err("Bug: should be either a function or a type mismatch")?,
-                };
                 typed_callable.semantic_type = func_type.clone();
+                let Type::Function { parameters, returned } = func_type else {
+                     return err("Bug: should be either a function or a type mismatch");
+                };
+                if *input_type != builtin_types::NOTHING {
+                    *input_type = parameters.into_iter().next().unwrap().type_;
+                }
                 typed_operands[0] = typed_callable;
                 Ok(Operation::several(
                     span,
@@ -1641,15 +1645,26 @@ mod tests {
         );
     }
     #[test]
-    fn test_propagate_type_to_parameter() {
+    fn test_propagate_type_to_unnamed_parameter() {
         assert_type_eq("function (x) {+1}", "function(x :i64)(:i64)");
         assert_type_eq("function (x) {#1}", "function(x :list)(:any)");
-        assert_type_eq("function (list) {list |size}", "function(list :list)(:any)");
+        assert_type_eq("function (s) {++[] \"asdf\"}", "function(s :list(:i64))(:list(:i64))");
+        assert_type_eq("function (n) {<3}", "function(n :i64)(:i64)");
+        assert_type_eq("function (l) {|size}", "function(l :list)(:i64)");
 
         // the next assertion should not be tested, as it's more complicated.
         // f could be partially generic and applied to similar but different types.
         // e.g. function(f :function(:list)) {[1 2 3] |f; [function{} function{}] |f}
         // assert_type_eq("function (f) {1 |f}", "function(x :function(:i64))(:any)");
+    }
+    #[test]
+    fn test_propagate_type_to_parameter() {
+        assert_type_eq("function (x) {x+1}", "function(x :i64)(:i64)");
+        assert_type_eq("function (x) {x#1}", "function(x :list)(:any)");
+        assert_type_eq("function (s) {s++[] \"asdf\"}", "function(s :list(:i64))(:list(:i64))");
+        assert_type_eq("function (n) {n<3}", "function(n :i64)(:i64)");
+        assert_type_eq("function (l) {l|size}", "function(l :list)(:i64)");
+        assert_type_eq("function (f) {\"a\" |f ; [[] []] |f;}", "function(f :function(:list)(:any))(:nothing)");
     }
     #[test]
     fn test_intrinsic() {
