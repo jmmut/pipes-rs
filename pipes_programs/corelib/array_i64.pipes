@@ -1,0 +1,25 @@
+
+;public function(array :list(:i64)) {
+    ;"[ "
+    =message
+    ;array
+    |browse(elem) {
+        message ++{elem |to_str} " " =>message
+        ;
+    }
+    ;message
+    ++"]"
+}
+=to_str
+
+
+;public function(array :list(:i64)) {
+    ;0 =result
+    ;array
+    |browse(x) {
+        +result => result
+        ;
+    }
+    ;result
+}
+=sum

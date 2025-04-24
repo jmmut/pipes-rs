@@ -1,0 +1,56 @@
+
+;public function
+    (str :list(:i64))
+    (:or (:i64 :nothing))
+{
+    |size =?0 |branch {
+        ;none
+    } {
+        ;0 =accum
+        ;0 =error
+        ;str |browse_or(char) {
+            -'0' =digit
+            < 0 |branch {
+                ;1 =>error
+            } {
+                ;digit > 9 |branch {
+                    ;1 =>error
+                } {
+                    accum |* 10 +digit =>accum
+                    ;
+                }
+            }
+        } {
+            ;accum
+        }
+        =result
+        ;error |branch {;none} {;result}
+    }
+}
+=parse
+
+;[{;"0" |parse |assert/eq 0
+} {;"5" |parse |assert/eq 5
+} {;"5326" |parse |assert/eq 5326
+} {;"asdf" |parse |assert/eq none
+} {;"132asdf" |parse |assert/eq none
+} {;" " |parse |assert/eq none
+} {;"" |parse |assert/eq none
+}] |core/count_named_tests "i64/parse"
+
+;public function (str :list(:i64)  default :i64) (:i64) {
+    str |parse |something(n) {n} {default}
+}
+=parse_or
+
+
+;public function (n :i64) (:i64) {
+    <0 |branch {
+        0 -n
+    } {
+        n
+    }
+}
+=abs
+
+;

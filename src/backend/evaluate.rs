@@ -1373,7 +1373,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_import_core() {
-        assert_eq!(interpret("[1 2 3 1 2 1] |core/count 1"), 3);
+        assert_eq!(interpret("[1 2 3 1 2 1] |array/count 1"), 3);
     }
     #[test]
     fn test_evaluate_import_core_from_file() {

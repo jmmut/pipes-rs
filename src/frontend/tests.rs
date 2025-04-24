@@ -344,7 +344,7 @@ fn test_import() {
 
 #[test]
 fn test_import_core() {
-    let code = "[1 2 3 1 2 1] |core/count 1";
+    let code = "[1 2 3 1 2 1] |array/count 1";
     unwrap_display(lex_and_parse(code));
 }
 

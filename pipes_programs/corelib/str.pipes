@@ -1,0 +1,51 @@
+
+;public function(list :list(:i64)) (:list(:i64)) {
+    ;0 =i
+    ;0 =past_start_space
+    ;0 =past_end_space
+    ;list |browse_or(e) {
+        e =? ' ' |branch {
+            past_start_space =? 0 |branch {
+                i +1 =>i;
+            } {
+            }
+        } {
+            1 =>past_start_space
+        }
+        ;
+    } {
+        list
+    }
+    |array/subrange [i {list |size}]
+    =start_trimmed
+    |size =end
+    |times(k) {
+        start_trimmed #{start_trimmed |size -k -1} =?' ' |branch {
+            past_end_space =?0 |branch {
+                end -1 =>end;
+            } {
+            }
+        } {
+            1 =>past_end_space;
+        }
+    }
+    ;start_trimmed |array/subrange [0 end]
+}
+=trim
+;"   as df   "
+|trim
+|assert/array_eq "as df"
+
+
+;public function(list :list) {
+    0 -1 =i;
+    list |size +2 |new_array |replace(e) {
+        i +1 =>i;
+        i =? 0 |branch { '"' } {
+            i =? {list |size +1} |branch { '"' } {
+                list #{i -1}
+            }
+        }
+    }
+}
+=quote

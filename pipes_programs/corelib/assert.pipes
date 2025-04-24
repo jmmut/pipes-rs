@@ -48,7 +48,7 @@
                 {actual_elem |to_str}
                 "\n  expected: "
                 {expected_elem |to_str}]
-                |core/flatten
+                |array/flatten
                 |print
                 ;"  actual array  : " ++ {actual |printer}
                 ++ "\n  expected array: " ++ {expected |printer}
@@ -71,12 +71,12 @@
 =array_eq_printer
 
 ;public function(actual :list(:i64)  expected :list(:i64))(are_equal_bool :i64) {
-    actual |array_eq_printer expected function(list) {list |core/int_array_to_str}
+    actual |array_eq_printer expected function(list) {|array_i64/to_str}
 }
 =array_eq
 
 ;public function(actual :list(:i64)  expected :list(:i64))(are_equal_bool :i64) {
-    actual |array_eq_printer expected function(list) {list |core/quote}
+    actual |array_eq_printer expected function(list) {|str/quote}
 }
 =str_eq
 

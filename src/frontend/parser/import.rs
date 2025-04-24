@@ -287,9 +287,9 @@ fn import_identifier(
             err_undefined_identifier(identifier, import_state, span)
         }
     } else {
-        #[cfg(not(unix))]  // can't read files in wasm
+        #[cfg(not(unix))] // can't read files in wasm
         return err_undefined_identifier(identifier, import_state, span);
-        
+
         #[cfg(unix)]
         {
             let (relative_path_to_import, source_code) =
@@ -375,7 +375,7 @@ pub fn get_corelib_path() -> PathBuf {
     corelib_path
 }
 
-#[cfg(not(unix))]  // can't read files in wasm
+#[cfg(not(unix))] // can't read files in wasm
 fn err_undefined_identifier<T>(
     identifier: &str,
     import_state: &ImportState,
