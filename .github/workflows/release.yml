@@ -34,7 +34,9 @@ jobs:
         run: cargo build -r
 
       - name: Run tests
-        run: cargo test -r
+        run: |
+          ./install_corelib.sh
+          cargo test -r
 
       - name: Package Linux
         run: |
@@ -101,7 +103,9 @@ jobs:
         run: cargo build -r
 
       - name: Run tests
-        run: cargo test -r
+        run: |
+          ./install_corelib.sh
+          cargo test -r
 
       - name: Package Mac
         run: |
