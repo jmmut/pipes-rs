@@ -1,10 +1,13 @@
 #!/bin/bash
 
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-echo $SCRIPT_DIR
+#echo $SCRIPT_DIR
 
-mkdir -p  ~/.local/share/pipes/
+INSTALL_DIR=~/.local/share/pipes/
+mkdir -p  $INSTALL_DIR
 
-ln -sfT "${SCRIPT_DIR}/pipes_programs/corelib" ~/.local/share/pipes/core
+rm -f ${INSTALL_DIR}/core
+
+ln -s "${SCRIPT_DIR}/pipes_programs/corelib" ${INSTALL_DIR}/core
 
 
