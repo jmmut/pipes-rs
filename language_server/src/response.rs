@@ -1,11 +1,10 @@
 use crate::analyzer::*;
 use crate::request::*;
 use pipes_rs::common::AnyError;
-use pipes_rs::frontend::expression::{Expression, ExpressionSpan, Function};
+use pipes_rs::frontend::expression::{Expression, ExpressionSpan};
 use pipes_rs::frontend::lex_and_parse;
 use pipes_rs::frontend::sources::location::SourceCode;
 use pipes_rs::middleend::typing::put_types;
-use std::fmt;
 use std::path::PathBuf;
 
 fn generate_error_unimplemented() -> String {
@@ -108,8 +107,7 @@ fn generate_response_hover(request: &Request) -> Result<String, AnyError> {
     let mut program = lex_and_parse(code_string)?;
 
     put_types(&mut program)?;
-    let expression = find_expression_at(&program, request.location().unwrap())
-        .expect("Expected an expression at the location");
+    let expression = find_expression_at(&program, request.location().unwrap())?;
 
     let pipes_type = format_hover_description(&expression);
 

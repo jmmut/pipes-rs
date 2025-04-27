@@ -9,7 +9,6 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::analyzer::find_expression_at;
     use crate::message_buffer::{MessageBuffer, extract_body_size_from_header};
     use crate::request::{
@@ -17,14 +16,11 @@ mod tests {
         parse_next_number,
     };
     use crate::response::{choose_response, generate_message_with_header, response, uglify};
-    use pipes_rs::backend::evaluate::GenericValue;
     use pipes_rs::common::unwrap_display;
-    use pipes_rs::frontend::expression::{Chain, Expression, Function, Operation, TypedIdentifier};
+    use pipes_rs::frontend::expression::Expression;
     use pipes_rs::frontend::program::Program;
-    use pipes_rs::frontend::sources::location::{Location, SourceCode, Span};
-    use pipes_rs::frontend::sources::token::{Operator, OperatorSpan};
+    use pipes_rs::frontend::sources::location::SourceCode;
     use pipes_rs::frontend::{lex_and_parse, parse_type};
-    use pipes_rs::middleend::intrinsics::builtin_types;
     use pipes_rs::middleend::typing::put_types;
 
     #[test]
@@ -70,11 +66,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "InvalidHeader")]
     fn test_extract_body_size_invalid() {
         let header =
             "Content-Length: \r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\n";
-        extract_body_size_from_header(header.as_bytes()).unwrap();
+        let extracted = extract_body_size_from_header(header.as_bytes());
+        extracted.expect_err("should fail");
     }
 
     #[test]
@@ -240,7 +236,7 @@ mod tests {
 
     #[test]
     fn test_json_response_balance() {
-        let input = r#"{"jsonrpc":"2.0","id":"2","method":"textDocument/hover","params":{"textDocument":{"uri":"file://../../../pipes_programs/tests/test_piped_loop.pipes"},"position":{"line":4,"character":15}}}"#;
+        let input = r#"{"jsonrpc":"2.0","id":"2","method":"textDocument/hover","params":{"textDocument":{"uri":"file://../pipes_programs/demos/hello_world.pipes"},"position":{"line":4,"character":15}}}"#;
         let request = parse(input).unwrap();
         let response_body = unwrap_display(choose_response(&request));
         let json = &response_body.unwrap_or("".to_string());

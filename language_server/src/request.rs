@@ -1,5 +1,4 @@
 use pipes_rs::common::{AnyError, err};
-use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
 
@@ -57,14 +56,13 @@ pub fn extract_str(request: &str, key: &str) -> Result<String, AnyError> {
     let start = request[key_pos + key.len()..]
         .find('"')
         .ok_or_else(|| format!("Can't find start quote for key: {}", key))?
-        // + key_pos
+        + key_pos
         + key.len()
         + 1;
     let end = request[start..]
         .find('"')
         .ok_or_else(|| format!("Can't find end quote for key: {}", key))?
-        // + start
-        ;
+        + start;
     Ok(request[start..end].to_string())
 }
 

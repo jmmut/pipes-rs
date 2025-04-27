@@ -60,7 +60,7 @@ pub fn extract_body_size_from_header(header: &[u8]) -> Result<usize, AnyError> {
     if let Some(content_length_start) = header_str.find(CONTENT_LENGTH) {
         if let Some(end) = header_str[content_length_start..].find("\r\n") {
             let value = &header_str[content_length_start + CONTENT_LENGTH.len()..end];
-            Ok(usize::from_str(value)?) // TODO: trim?
+            Ok(usize::from_str(value.trim())?) // TODO: trim?
         } else {
             err(format!("No '\r\n' after {}", CONTENT_LENGTH))
         }
