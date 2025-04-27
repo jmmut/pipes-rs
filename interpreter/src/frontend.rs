@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use crate::common::unwrap_display;
 use crate::frontend::expression::Type;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
+use crate::frontend::parser::root::get_project_root;
 use crate::frontend::parser::{parse_tokens, reverse_iterative_parser};
 use crate::frontend::program::Program;
 use crate::AnyError;
@@ -33,8 +34,8 @@ pub fn lex_and_parse_with_identifiers<S: Into<SourceCode>>(
     identifiers: HashSet<String>,
 ) -> Result<Program, AnyError> {
     let tokens = lex(code_text)?;
-    let ast =
-        Parser::new_with_available(tokens.source_code, identifiers, Some(PathBuf::from("./")));
+    let root = get_project_root(&None, &Some(PathBuf::from("./")));
+    let ast = Parser::new_with_available(tokens.source_code, identifiers, root.ok());
     let expression = parse_tokens_cached(tokens.tokens, ast);
     expression
 }

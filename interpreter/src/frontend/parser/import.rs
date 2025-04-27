@@ -10,7 +10,7 @@ use crate::frontend::expression::{
     TypedIdentifier,
 };
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
-use crate::frontend::parser::root::qualify;
+use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::sources::lexer::lex;
 use crate::frontend::sources::location::{SourceCode, Span};
 use crate::frontend::sources::token::{Operator, OperatorSpan};
@@ -240,6 +240,12 @@ fn check_identifier(
             && !import_state.imported.contains_key(identifier)
             && !import_state.available.contains(identifier)
         {
+            if identifier == "array_i64/to_str" {
+                println!("here");
+            }
+            if identifier == "array/count" {
+                println!("here");
+            }
             import_identifier(identifier, import_state, span)?;
             if !import_state.imported.contains_key(identifier)
                 && !import_state.available.contains(identifier)
@@ -287,13 +293,25 @@ fn import_identifier(
             err_undefined_identifier(identifier, import_state, span)
         }
     } else {
-        #[cfg(not(unix))] // can't read files in wasm
+        #[cfg(not(unix))] // TODO: can't read files in wasm
         return err_undefined_identifier(identifier, import_state, span);
 
         #[cfg(unix)]
         {
-            let (relative_path_to_import, source_code) =
+            let (root, relative_path_to_import, source_code) =
                 find_source_code(identifier, &import_state, span)?;
+            if let (Some(local_root), Some(global_root)) = (root, &import_state.project_root) {
+                if local_root != *global_root {
+                    if let Ok(diff) = local_root.strip_prefix(global_root) {
+                        *identifier = diff.to_string_lossy().to_string() + "/" + identifier;
+                        if import_state.imported.contains_key(identifier)
+                            || import_state.available.contains(identifier)
+                        {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
             let tokens = lex(source_code)?;
             let mut available: HashSet<String> = import_state.imported.keys().cloned().collect();
             available.extend(import_state.available.clone());
@@ -320,16 +338,23 @@ fn find_source_code(
     identifier: &str,
     import_state: &ImportState,
     span: Span,
-) -> Result<(PathBuf, SourceCode), AnyError> {
+) -> Result<
+    (
+        /*root*/ Option<PathBuf>,
+        /*source_code*/ PathBuf,
+        SourceCode,
+    ),
+    AnyError,
+> {
     let relative_path_to_import = get_relative_path_to_import(identifier);
-    let path_to_import = get_project_location(&relative_path_to_import, import_state);
+    let (root, path_to_import) = get_file_root(&relative_path_to_import, import_state);
     let source_code_res = SourceCode::new(path_to_import.clone());
-    let source_code = match source_code_res {
-        Ok(s) => s,
+    let (root, source_code) = match source_code_res {
+        Ok(s) => (root, s),
         Err(_e) => {
-            let corelib_path = get_corelib_location(&relative_path_to_import);
+            let (root, corelib_path) = get_corelib_location(&relative_path_to_import);
             match SourceCode::new(corelib_path.clone()) {
-                Ok(s) => s,
+                Ok(s) => (Some(root), s),
                 Err(_e_core) => err_undefined_identifier_from_expected(
                     identifier,
                     &import_state,
@@ -339,7 +364,7 @@ fn find_source_code(
             }
         }
     };
-    Ok((relative_path_to_import, source_code))
+    Ok((root, relative_path_to_import, source_code))
 }
 
 fn get_relative_path_to_import(identifier: &str) -> PathBuf {
@@ -354,25 +379,37 @@ fn get_relative_path_to_import(identifier: &str) -> PathBuf {
     relative_path_to_import
 }
 
-fn get_project_location(relative_path_to_import: &PathBuf, import_state: &ImportState) -> PathBuf {
-    if let Some(mut root) = import_state.project_root.clone() {
-        root.push(&relative_path_to_import);
-        root
+fn get_file_root(
+    relative_path_to_import: &PathBuf,
+    import_state: &ImportState,
+) -> (
+    /*root*/ Option<PathBuf>,
+    /*file_to_import*/ PathBuf,
+) {
+    let local_root = get_project_root(&None, &import_state.source.file).ok();
+    let global_root = import_state.project_root.clone();
+    if let Some(root) = local_root.or(global_root) {
+        let mut file_to_import = root.clone();
+        file_to_import.push(&relative_path_to_import);
+        (Some(root), file_to_import)
     } else {
-        relative_path_to_import.clone()
+        (None, relative_path_to_import.clone())
     }
 }
 
-fn get_corelib_location(relative_path_to_import: &PathBuf) -> PathBuf {
-    let mut corelib_path = get_corelib_path();
-    corelib_path.push(&relative_path_to_import);
-    corelib_path
+fn get_corelib_location(
+    relative_path_to_import: &PathBuf,
+) -> (/* root */ PathBuf, /* file */ PathBuf) {
+    let corelib_path = get_corelib_path();
+    let mut file_path = corelib_path.clone();
+    file_path.push(&relative_path_to_import);
+    (corelib_path, file_path)
 }
 
 pub fn get_corelib_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap(); // TODO: support windows
     let corelib_path = PathBuf::from(format!("{}/{}", home, CORELIB_PATH));
-    corelib_path
+    corelib_path.canonicalize().unwrap()
 }
 
 #[cfg(not(unix))] // can't read files in wasm
@@ -390,8 +427,8 @@ fn err_undefined_identifier<T>(
     span: Span,
 ) -> Result<T, AnyError> {
     let relative_path_to_import = get_relative_path_to_import(identifier);
-    let path_to_import = get_project_location(&relative_path_to_import, import_state);
-    let corelib_path = get_corelib_location(&relative_path_to_import);
+    let (_root, path_to_import) = get_file_root(&relative_path_to_import, import_state);
+    let (_root, corelib_path) = get_corelib_location(&relative_path_to_import);
     err_undefined_identifier_from_expected(
         identifier,
         import_state,
@@ -410,11 +447,12 @@ fn err_undefined_identifier_from_expected<T>(
     let mut available = import_state.available.iter().collect::<Vec<_>>();
     available.sort_unstable();
     err(format!(
-        "Undefined identifier '{}'{}{}\nAvailable identifiers:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
+        "Undefined identifier '{}'{}{}\nProject root: {:?}\nAvailable identifiers:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \
                     Assignments: {:?}\n  Available to this file: {:?}\n  Imported by this file: {:?}",
         identifier,
         import_state.source.format_span(span),
         format!("Expected in any of: {:?}", expected_location),
+        import_state.project_root,
         import_state.parameter_stack,
         import_state.intrinsic_names,
         import_state.assignments,

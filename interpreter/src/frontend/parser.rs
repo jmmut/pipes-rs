@@ -9,4 +9,4 @@ pub mod reverse_iterative_parser;
 mod import;
 // #[cfg(test)]
 // pub mod recursive_parser;
-mod root;
+pub mod root;

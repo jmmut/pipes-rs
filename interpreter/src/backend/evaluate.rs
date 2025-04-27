@@ -997,7 +997,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::backend::evaluate::*;
-    use crate::common::{assert_mentions, unwrap_display};
+    use crate::common::{assert_mentions, run_in_repo_root, unwrap_display};
     use crate::frontend::lex_and_parse;
     use crate::frontend::sources::location::SourceCode;
     use crate::middleend::typing::put_types;
@@ -1366,7 +1366,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_import() {
-        let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
+        let main_path = PathBuf::from("../pipes_programs/demos/reusing_functions.pipes");
         let code = SourceCode::new(main_path).unwrap();
         assert_eq!(interpret(code), 6);
     }
@@ -1377,8 +1377,11 @@ mod tests {
     }
     #[test]
     fn test_evaluate_import_core_from_file() {
-        let main_path = PathBuf::from("./pipes_programs/demos/corelib.pipes");
-        let code = SourceCode::new(main_path).unwrap();
+        let code = run_in_repo_root(|| {
+            let main_path = PathBuf::from("./pipes_programs/demos/corelib.pipes");
+            SourceCode::new(main_path).unwrap()
+        })
+        .unwrap();
         assert_eq!(interpret(code), 3);
     }
     #[test]
@@ -1439,9 +1442,10 @@ mod tests {
             6
         );
     }
+
     #[test]
     fn test_eval_identifiers() {
-        let main_path = PathBuf::from("./pipes_programs/demos/structs.pipes");
+        let main_path = PathBuf::from("../pipes_programs/demos/structs.pipes");
         let code = SourceCode::new(main_path).unwrap();
         let (result, out) = interpret_io(code, "");
         assert_eq!(result, 5);

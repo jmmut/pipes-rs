@@ -1,5 +1,8 @@
 use crate::frontend::sources::location::{Location, SourceCode, Span};
 
+#[cfg(test)]
+use std::path::PathBuf;
+
 pub type AnyError = Box<dyn std::error::Error>;
 
 pub fn context<T, S: AsRef<str>, E: Into<AnyError>>(
@@ -84,6 +87,24 @@ pub fn assert_mentions(err: AnyError, mentions: &[&str]) {
             err
         );
     }
+}
+
+/// apparently `cargo test` uses the package as working directory, so any test will be in a direct
+/// subfolder of the root.
+#[cfg(test)]
+pub fn set_current_dir_to_repo_root() -> Result<PathBuf, AnyError> {
+    let previous = std::env::current_dir();
+    std::env::set_current_dir(PathBuf::from("..")).unwrap();
+    // println!("current dir set to {:?}", std::env::current_dir());
+    Ok(previous?)
+}
+
+#[cfg(test)]
+pub fn run_in_repo_root<R>(f: impl Fn() -> R) -> Result<R, AnyError> {
+    let previous = set_current_dir_to_repo_root()?;
+    let result = f();
+    std::env::set_current_dir(previous)?;
+    Ok(result)
 }
 
 /// This function is equivalent to doing simply .unwrap(), whose message is:

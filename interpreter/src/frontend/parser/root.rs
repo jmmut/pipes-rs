@@ -68,10 +68,14 @@ pub fn qualify(identifier: &str, root: &PathBuf, file: &PathBuf) -> Result<Strin
         format!("canonicalizing path '{}'", file.to_string_lossy()),
         root.canonicalize(),
     )?;
-    let namespace = file_copy.strip_prefix(root_canonical).or_else(|_e| {
+    let namespace_res = file_copy.strip_prefix(root_canonical).or_else(|_e| {
         let corelib_canonical = get_corelib_path();
         file_copy.strip_prefix(corelib_canonical)
-    })?;
+    });
+    let namespace = context(
+        format!("stripping prefix from {:?}", file_copy),
+        namespace_res,
+    )?;
     let namespace_str = namespace.to_string_lossy();
     let qualified = format!("{}/{}", namespace_str, identifier);
     Ok(qualified)
@@ -115,9 +119,9 @@ mod tests {
     fn test_add_namespace_with_file_with_root() {
         let bare_name = "func";
         let containing_file = Some(PathBuf::from(
-            "pipes_programs/demos/some_namespace/reusable_functions.pipes",
+            "../pipes_programs/demos/some_namespace/reusable_functions.pipes",
         ));
-        let root = Some(PathBuf::from("pipes_programs/demos"));
+        let root = Some(PathBuf::from("../pipes_programs/demos"));
         let namespaced_name = maybe_qualify(bare_name, &containing_file, &root);
         assert_eq!(
             namespaced_name.unwrap(),

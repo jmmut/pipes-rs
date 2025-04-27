@@ -90,6 +90,7 @@ pub struct Parser {
 impl Parser {
     pub fn new(source: SourceCode) -> Self {
         let root = get_project_root(&None, &source.file);
+        println!("root is {:?}", root);
         Self::new_with_available(source, HashSet::new(), root.ok()) // TODO: .ok() loses error message
     }
     pub fn new_with_available(

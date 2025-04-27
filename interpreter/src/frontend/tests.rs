@@ -324,7 +324,7 @@ fn test_loop() {
 
 #[test]
 fn test_import() {
-    let main_path = PathBuf::from("./pipes_programs/demos/reusing_functions.pipes");
+    let main_path = PathBuf::from("../pipes_programs/demos/reusing_functions.pipes");
     let code = SourceCode::new(main_path.clone()).unwrap();
     let parsed = unwrap_display(lex_and_parse(code));
     assert_eq!(
@@ -335,7 +335,10 @@ fn test_import() {
         "actual: {:?}",
         parsed.identifiers.keys()
     );
-    assert_eq!(parsed.sources.get_main().file, Some(main_path));
+    assert_eq!(
+        parsed.sources.get_main().file,
+        Some(main_path.canonicalize().unwrap())
+    );
     assert_eq!(
         parsed.sources.keys().collect::<Vec<_>>(),
         vec!["some_namespace/reusable_functions.pipes"]

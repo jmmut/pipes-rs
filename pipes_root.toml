@@ -1,0 +1,4 @@
+# this file exists so that tests in the rust code can find
+# the pipes code under ./pipes_programs without having to
+# deal with `cargo test` working directory.
+# For example, see pipes_rs::backend::evaluate::tests::test_eval.

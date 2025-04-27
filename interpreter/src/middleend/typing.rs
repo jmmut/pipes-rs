@@ -1489,15 +1489,15 @@ mod tests {
     }
     #[test]
     fn test_reusing_structs_cast() {
-        assert_types_ok_file("pipes_programs/tests/reusing_struct_cast.pipes");
+        assert_types_ok_file("../pipes_programs/tests/reusing_struct_cast.pipes");
     }
     #[test]
     fn test_unqualified_struct() {
-        assert_types_ok_file("pipes_programs/tests/unqualified_struct.pipes");
+        assert_types_ok_file("../pipes_programs/tests/unqualified_struct.pipes");
     }
     #[test]
     fn test_reusing_structs_type() {
-        assert_types_ok_file("pipes_programs/tests/reusing_struct_type.pipes");
+        assert_types_ok_file("../pipes_programs/tests/reusing_struct_type.pipes");
     }
 
     #[test]

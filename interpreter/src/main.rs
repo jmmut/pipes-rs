@@ -104,7 +104,7 @@ mod tests {
         let args = Args {
             evaluate_string: None,
             check: false,
-            input_file: Some(PathBuf::from("pipes_programs/demos/hello_world.pipes")),
+            input_file: Some(PathBuf::from("../pipes_programs/demos/hello_world.pipes")),
             initial_value: None,
             debug_ast: false,
             prettify: false,

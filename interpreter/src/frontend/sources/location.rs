@@ -136,6 +136,8 @@ impl SourceCode {
     }
 
     pub fn new(file: PathBuf) -> Result<Self, AnyError> {
+        let file = file.canonicalize()?;
+        // can not canonicalize here because it expands symlinks, and that breaks corelib imports
         let text = context(
             format!("Reading file '{}'", file.to_string_lossy()),
             std::fs::read_to_string(&file),
