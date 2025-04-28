@@ -25,7 +25,7 @@ impl Span {
         if *self == NO_SPAN {
             other.clone()
         } else if *other == NO_SPAN {
-            other.clone()
+            self.clone()
         } else {
             Span {
                 start: self.start.min(&other.start),
@@ -103,6 +103,12 @@ impl Location {
         } else {
             *other
         }
+    }
+    pub fn line(&self) -> i32 {
+        self.line
+    }
+    pub fn column(&self) -> i32 {
+        self.column
     }
 }
 

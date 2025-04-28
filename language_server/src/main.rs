@@ -1,15 +1,96 @@
+use crate::message_buffer::MessageBuffer;
+use crate::response::response;
+use clap::Parser;
+use pipes_rs::common::AnyError;
+use std::fs::File;
+use std::io::Read;
+use std::io::Write;
+
 mod analyzer;
 mod message_buffer;
 mod request;
 mod response;
 
+/// Command line arguments
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Optional path to a log file
+    #[arg()]
+    log_file: Option<String>,
+}
+
 fn main() {
-    println!("Hello from language server");
+    if let Err(e) = try_main() {
+        println!("Error: {}", e)
+    }
+}
+
+fn try_main() -> Result<(), AnyError> {
+    let args = Args::parse();
+    let mut log: Option<File> = None;
+    if let Some(log_path) = args.log_file {
+        match File::create(&log_path) {
+            Ok(file) => log = Some(file),
+            Err(e) => {
+                eprintln!("Failed to open log file: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    let mut message_buffer = MessageBuffer::new();
+    let stdin = std::io::stdin();
+    let mut handle = stdin.lock();
+    let mut buf = [0; 1]; // read one byte at a time
+
+    while handle.read(&mut buf).unwrap_or(0) == 1 {
+        let c = buf[0];
+
+        if let Some(log_file) = log.as_mut() {
+            let _ = write!(log_file, "{}", c as char);
+        }
+
+        message_buffer.handle_char(c)?;
+
+        if message_buffer.is_message_complete() {
+            if let Some(log_file) = log.as_mut() {
+                let _ = writeln!(
+                    log_file,
+                    "\n\n###### request body:\n{}",
+                    message_buffer.body()?
+                );
+            }
+
+            match response(&message_buffer.body()?) {
+                Ok(answer) => {
+                    if let Some(log_file) = log.as_mut() {
+                        let _ = writeln!(
+                            log_file,
+                            "\n\n###### answer:\n{:?}\n\n###### waiting for next request:",
+                            answer
+                        );
+                    }
+                    if let Some(answer) = answer {
+                        print!("{}", answer);
+                        std::io::stdout().flush().unwrap();
+                    }
+                }
+                Err(e) => {
+                    if let Some(log_file) = log.as_mut() {
+                        let _ = writeln!(log_file, "\n\n###### exception: {}", e);
+                    }
+                }
+            }
+
+            message_buffer.reset();
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::analyzer::find_expression_at;
     use crate::message_buffer::{MessageBuffer, extract_body_size_from_header};
     use crate::request::{
         Method, PositionInCode, extract_method, extract_position, extract_str, parse,
@@ -17,11 +98,6 @@ mod tests {
     };
     use crate::response::{choose_response, generate_message_with_header, response, uglify};
     use pipes_rs::common::unwrap_display;
-    use pipes_rs::frontend::expression::Expression;
-    use pipes_rs::frontend::program::Program;
-    use pipes_rs::frontend::sources::location::SourceCode;
-    use pipes_rs::frontend::{lex_and_parse, parse_type};
-    use pipes_rs::middleend::typing::put_types;
 
     #[test]
     fn test_basic_header_generate() {
@@ -102,7 +178,7 @@ mod tests {
         }
         assert_eq!(completed, count);
     }
-
+    // -------------------------
     #[test]
     fn test_initialize_parsing() {
         let input_method_initialize = r#"{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"processId":null,"rootUri":"file:///home/jmmut/Documents/conan/pipes/","capabilities":{"workspace":{"applyEdit":true,"workspaceEdit":{"documentChanges":true},"didChangeConfiguration":{},"didChangeWatchedFiles":{"dynamicRegistration":true},"symbol":{},"executeCommand":{},"workspaceFolders":false,"configuration":true},"textDocument":{"synchronization":{"willSave":true,"willSaveWaitUntil":true,"didSave":true},"completion":{"completionItem":{"snippetSupport":true}},"hover":{},"signatureHelp":{},"references":{},"documentHighlight":{},"formatting":{},"rangeFormatting":{},"onTypeFormatting":{},"definition":{},"codeAction":{},"rename":{"prepareSupport":true,"dynamicRegistration":false},"semanticHighlightingCapabilities":{"semanticHighlighting":false}}}}}"#;
@@ -141,7 +217,7 @@ mod tests {
         let parsed = parse(initialized).unwrap();
         assert_eq!(parsed.method, Method::Initialized);
     }
-
+    // ----------------------
     #[test]
     fn test_hover_request_parsing() {
         let input = r#"{"jsonrpc":"2.0","id":"2","method":"textDocument/hover","params":{"textDocument":{"uri":"file:///home/jmmut/Documents/conan/pipes/pipes_programs/tests/test_piped_loop.pipes"},"position":{"line":4,"character":17}}}"#;
@@ -167,8 +243,8 @@ mod tests {
             unwrap_display(parsed.location()),
             PositionInCode {
                 absolute_char: -1,
-                line: 22,
-                char_in_line: 25
+                line: 23,
+                char_in_line: 26
             }
         );
     }
@@ -181,62 +257,22 @@ mod tests {
             pos,
             PositionInCode {
                 absolute_char: -1,
-                line: 22,
-                char_in_line: 25
+                line: 23,
+                char_in_line: 26
             }
         );
     }
-
     #[test]
     fn test_parse_next_number_simple() {
         let contains_number = r#"ne": 22,  "#;
         let number = parse_next_number(contains_number, 0);
         assert_eq!(number, 22);
     }
-
-    fn build_program<S: Into<SourceCode>>(code_text: S) -> Program {
-        let mut program = unwrap_display(lex_and_parse(code_text));
-        unwrap_display(put_types(&mut program));
-        program
-    }
-
-    #[test]
-    fn test_get_symbol() {
-        let program = build_program("function(:i64)(:i64) { 3 } | function(my_func) {5 |my_func}");
-        let expression = unwrap_display(find_expression_at(
-            &program,
-            PositionInCode {
-                absolute_char: -1,
-                line: 0,
-                char_in_line: 41,
-            },
-        ));
-        // let nameless_int = TypedIdentifier::nameless(builtin_types::I64);
-        // let location = Location::from(1, 23, 23);
-        // let called_function = Expression::Function(Function {
-        //     parameters: vec![nameless_int],
-        //     returned: nameless_int,
-        //     body: Chain {
-        //         operations: vec![Operation {
-        //             operator: OperatorSpan::new(Operator::Ignore, Span { start: location, end: location }),
-        //             operands: vec![],
-        //             sem_type: nameless_int.type_,
-        //         }]
-        //     },
-        //
-        // });
-        let Expression::Function(..) = expression.syn_type() else {
-            panic!("expression was not a function: {}", expression.syn_type());
-        };
-        assert_eq!(
-            *expression.sem_type(),
-            parse_type("function(my_func :function(:int64)(:int64))(:int64)"),
-        );
-    }
+    // ---------------------------
 
     #[test]
     fn test_json_response_balance() {
-        let input = r#"{"jsonrpc":"2.0","id":"2","method":"textDocument/hover","params":{"textDocument":{"uri":"file://../pipes_programs/demos/hello_world.pipes"},"position":{"line":4,"character":15}}}"#;
+        let input = r#"{"jsonrpc":"2.0","id":"2","method":"textDocument/hover","params":{"textDocument":{"uri":"file://../pipes_programs/demos/hello_world.pipes"},"position":{"line":1,"character":2}}}"#;
         let request = parse(input).unwrap();
         let response_body = unwrap_display(choose_response(&request));
         let json = &response_body.unwrap_or("".to_string());

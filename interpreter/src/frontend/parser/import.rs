@@ -240,12 +240,6 @@ fn check_identifier(
             && !import_state.imported.contains_key(identifier)
             && !import_state.available.contains(identifier)
         {
-            if identifier == "array_i64/to_str" {
-                println!("here");
-            }
-            if identifier == "array/count" {
-                println!("here");
-            }
             import_identifier(identifier, import_state, span)?;
             if !import_state.imported.contains_key(identifier)
                 && !import_state.available.contains(identifier)

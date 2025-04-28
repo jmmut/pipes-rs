@@ -21,7 +21,7 @@ fn generate_error_unimplemented() -> String {
     .to_string()
 }
 
-fn generate_notification(notification: &str) -> String {
+fn _generate_notification(notification: &str) -> String {
     format!(
         r#"
 {{
@@ -80,7 +80,7 @@ fn syn_type_kind(expression: &ExpressionSpan) -> &'static str {
     }
 }
 fn format_hover_description(expression: &ExpressionSpan) -> String {
-    let mut description = format!("{} expression", syn_type_kind(expression));
+    let mut description = format!("Expression type: {}", syn_type_kind(expression));
 
     if let Expression::Identifier(name) = expression.syn_type() {
         description += &format!(" {}", quote(name));
@@ -90,7 +90,7 @@ fn format_hover_description(expression: &ExpressionSpan) -> String {
     //     description += &format!(" {}", quote(&expression.get_binary_operation().operation.to_string()));
     // }
 
-    let type_description = format!("type = {}", expression.sem_type());
+    let type_description = format!("Semantic type: `{}`", expression.sem_type());
     //
     // if matches!(
     //     expression.syn_type(),
@@ -98,8 +98,9 @@ fn format_hover_description(expression: &ExpressionSpan) -> String {
     // ) {
     //     type_description = format!("result {}", type_description);
     // }
+    let serialized = format!("Parsed expression: {}", expression.to_string());
 
-    format!("{}\n{}", description, type_description)
+    format!("{}.\n{}.\n{}.", description, type_description, serialized)
 }
 
 fn generate_response_hover(request: &Request) -> Result<String, AnyError> {
@@ -153,6 +154,7 @@ pub fn choose_response(request: &Request) -> Result<Option<String>, AnyError> {
     }
 }
 
+#[cfg(test)]
 pub fn uglify(mut s: String) -> String {
     s.retain(|c| !(c == ' ' || c == '\n'));
     s

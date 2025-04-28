@@ -122,6 +122,41 @@ impl Composed {
             Composed::Comptime(_) => Keyword::Comptime.name(),
         }
     }
+    pub fn chains(&self) -> Vec<&Chain> {
+        match self {
+            Composed::Loop(Loop { body })
+            | Composed::Browse(Browse { body, .. })
+            | Composed::Times(Times { body, .. })
+            | Composed::Replace(Replace { body, .. })
+            | Composed::Map(Map { body, .. })
+            | Composed::Filter(Filter { body, .. })
+            | Composed::Inspect(Inspect { body, .. })
+            | Composed::Comptime(Comptime { body }) => {
+                vec![body]
+            }
+            Composed::BrowseOr(BrowseOr {
+                body: a,
+                otherwise: b,
+                ..
+            })
+            | Composed::TimesOr(TimesOr {
+                body: a,
+                otherwise: b,
+                ..
+            })
+            | Composed::Branch(Branch { yes: a, no: b })
+            | Composed::Something(Something {
+                something: a,
+                nothing: b,
+                ..
+            }) => {
+                vec![a, b]
+            }
+            Composed::Cast(Cast { .. }) => {
+                vec![]
+            }
+        }
+    }
 }
 
 impl Expression {

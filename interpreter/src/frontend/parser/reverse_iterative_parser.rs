@@ -58,6 +58,16 @@ impl PartialExpression {
     pub fn expression(e: Expression, span: Span) -> PartialExpression {
         PartialExpression::Expression(ExpressionSpan::new_typeless(e, span))
     }
+    pub fn span(&self) -> Span {
+        match self {
+            PartialExpression::CloseBracket(span)
+            | PartialExpression::CloseBrace(span)
+            | PartialExpression::CloseParenthesis(span)
+            | PartialExpression::ChildrenTypes(_, span) => *span,
+            PartialExpression::Expression(expr_span) => expr_span.span(),
+            PartialExpression::Operation(op) => op.content_span(),
+        }
+    }
 }
 impl Display for PartialExpression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -90,7 +100,6 @@ pub struct Parser {
 impl Parser {
     pub fn new(source: SourceCode) -> Self {
         let root = get_project_root(&None, &source.file);
-        println!("root is {:?}", root);
         Self::new_with_available(source, HashSet::new(), root.ok()) // TODO: .ok() loses error message
     }
     pub fn new_with_available(
@@ -799,8 +808,11 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         }
     } else {
         let error_message = format!("unfinished code: {:?}", accumulated);
+        let start_span = accumulated.iter().next().unwrap().span();
+        let end_span = accumulated.iter().last().unwrap().span();
+        let span = start_span.merge(&end_span);
         accumulated.push_back(PartialExpression::CloseBrace(NO_SPAN));
-        let expr = construct_chain(accumulated, &parser.source, NO_SPAN)?;
+        let expr = construct_chain(accumulated, &parser.source, span)?;
         if !accumulated.is_empty() {
             return err(error_message);
         } else {

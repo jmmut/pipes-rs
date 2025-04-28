@@ -74,7 +74,7 @@ fn is_number(c: u8) -> bool {
     c.is_ascii_digit()
 }
 
-pub fn parse_next_number(message: &str, mut pos: usize) -> i64 {
+pub fn parse_next_number(message: &str, mut pos: usize) -> i32 {
     let message_bytes = message.as_bytes();
     while pos < message.len() && !is_number(message_bytes[pos]) {
         pos += 1;
@@ -83,7 +83,7 @@ pub fn parse_next_number(message: &str, mut pos: usize) -> i64 {
     while pos < message.len() && is_number(message_bytes[pos]) {
         let c = message_bytes[pos];
         n *= 10;
-        n += (c as u8 - b'0') as i64;
+        n += (c as u8 - b'0') as i32;
         pos += 1;
     }
     n
@@ -92,8 +92,8 @@ pub fn parse_next_number(message: &str, mut pos: usize) -> i64 {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct PositionInCode {
     pub absolute_char: i32,
-    pub line: i64,
-    pub char_in_line: i64,
+    pub line: i32,
+    pub char_in_line: i32,
 }
 
 fn double_quote(s: &str) -> String {
@@ -125,8 +125,8 @@ pub fn extract_position(request: &str) -> Result<PositionInCode, AnyError> {
 
     Ok(PositionInCode {
         absolute_char: -1,
-        line,
-        char_in_line: character,
+        line: line + 1,
+        char_in_line: character + 1,
     })
 }
 
