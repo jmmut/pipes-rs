@@ -186,3 +186,83 @@ pub fn parse(request: &str) -> Result<Request, AnyError> {
         file_: file,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use pipes_rs::common::unwrap_display;
+    use super::*;
+    
+    #[test]
+    fn test_initialize_parsing() {
+        let input_method_initialize = r#"{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"processId":null,"rootUri":"file:///home/jmmut/Documents/conan/pipes/","capabilities":{"workspace":{"applyEdit":true,"workspaceEdit":{"documentChanges":true},"didChangeConfiguration":{},"didChangeWatchedFiles":{"dynamicRegistration":true},"symbol":{},"executeCommand":{},"workspaceFolders":false,"configuration":true},"textDocument":{"synchronization":{"willSave":true,"willSaveWaitUntil":true,"didSave":true},"completion":{"completionItem":{"snippetSupport":true}},"hover":{},"signatureHelp":{},"references":{},"documentHighlight":{},"formatting":{},"rangeFormatting":{},"onTypeFormatting":{},"definition":{},"codeAction":{},"rename":{"prepareSupport":true,"dynamicRegistration":false},"semanticHighlightingCapabilities":{"semanticHighlighting":false}}}}}"#;
+
+        assert_eq!(
+            unwrap_display(extract_method(input_method_initialize)),
+            "initialize".to_string()
+        );
+        assert_eq!(
+            unwrap_display(extract_str(input_method_initialize, "\"id\"")),
+            "1"
+        );
+        let parsed = parse(input_method_initialize).unwrap();
+        assert_eq!(parsed.method, Method::Initialize);
+    }
+
+    #[test]
+    fn test_parsing_initialized_method() {
+        let initialized = "Content-Length: 52\r\n\r\n{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":{}}";
+        let parsed = parse(initialized).unwrap();
+        assert_eq!(parsed.method, Method::Initialized);
+    }
+    
+    #[test]
+    fn test_hover_request_parsing() {
+        let input = r#"{"jsonrpc":"2.0","id":"2","method":"textDocument/hover","params":{"textDocument":{"uri":"file:///home/jmmut/Documents/conan/pipes/pipes_programs/tests/test_piped_loop.pipes"},"position":{"line":4,"character":17}}}"#;
+        let parsed = parse(input).unwrap();
+        assert_eq!(parsed.method, Method::Hover);
+        assert_eq!(unwrap_display(parsed.id()), "2");
+    }
+
+    #[test]
+    fn test_hover_request_parsing_multiline() {
+        let input = r#"{"jsonrpc":"2.0","id":"2","method":"textDocument/hover","params": {
+          "textDocument": {
+            "uri": "file:///home/jmmut/Documents/conan/pipes/corelib/array/sort.pipes"
+          },
+          "position": {
+            "line": 22,
+            "character": 25
+          }
+        }}"#;
+        let parsed = parse(input).unwrap();
+        assert_eq!(parsed.method, Method::Hover);
+        assert_eq!(
+            unwrap_display(parsed.location()),
+            PositionInCode {
+                absolute_char: -1,
+                line: 23,
+                char_in_line: 26
+            }
+        );
+    }
+
+    #[test]
+    fn test_extract_position_simple() {
+        let pos_input = r#"  "position": {    "line": 22,    "character": 25  }"#;
+        let pos = extract_position(pos_input).unwrap();
+        assert_eq!(
+            pos,
+            PositionInCode {
+                absolute_char: -1,
+                line: 23,
+                char_in_line: 26
+            }
+        );
+    }
+    #[test]
+    fn test_parse_next_number_simple() {
+        let contains_number = r#"ne": 22,  "#;
+        let number = parse_next_number(contains_number, 0);
+        assert_eq!(number, 22);
+    }
+}

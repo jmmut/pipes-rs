@@ -68,3 +68,81 @@ pub fn extract_body_size_from_header(header: &[u8]) -> Result<usize, AnyError> {
         err(format!("No '{}' in header", CONTENT_LENGTH))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_basic_header_buffer_incremental() {
+        let message = "Content-Length: 4\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\nasdf";
+        let mut buffer = MessageBuffer::new();
+        for (i, &c) in message
+            .as_bytes()
+            .iter()
+            .enumerate()
+            .take(message.len() - 1)
+        {
+            buffer.handle_char(c).unwrap();
+            assert_eq!(buffer.is_message_complete(), false, "failed at char {}", i);
+        }
+        buffer
+            .handle_char(*message.as_bytes().last().unwrap())
+            .unwrap();
+        assert_eq!(buffer.is_message_complete(), true);
+    }
+
+    #[test]
+    fn test_extract_body_size_simple() {
+        let header =
+            "Content-Length: 4\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\n";
+        let size = extract_body_size_from_header(header.as_bytes()).unwrap();
+        assert_eq!(size, 4);
+    }
+
+    #[test]
+    fn test_extract_body_size_longer() {
+        let header =
+            "Content-Length: 14\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\n";
+        let size = extract_body_size_from_header(header.as_bytes()).unwrap();
+        assert_eq!(size, 14);
+    }
+
+    #[test]
+    fn test_extract_body_size_invalid() {
+        let header =
+            "Content-Length: \r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\n";
+        let extracted = extract_body_size_from_header(header.as_bytes());
+        extracted.expect_err("should fail");
+    }
+
+    #[test]
+    fn test_full_request_body_parsing() {
+        let full_request = "Content-Length: 4\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\nasdf";
+        let mut buffer = MessageBuffer::new();
+        for &c in full_request.as_bytes() {
+            buffer.handle_char(c).unwrap();
+        }
+        assert!(buffer.is_message_complete());
+        assert_eq!(buffer.body().unwrap(), "asdf");
+    }
+
+    #[test]
+    fn test_multiple_requests_in_a_row() {
+        let full_request = "Content-Length: 4\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\nasdf";
+        let mut buffer = MessageBuffer::new();
+        let count = 2;
+        let mut completed = 0;
+
+        for _ in 0..count {
+            for &c in full_request.as_bytes() {
+                buffer.handle_char(c).unwrap();
+                if buffer.is_message_complete() {
+                    completed += 1;
+                    buffer.reset();
+                }
+            }
+        }
+        assert_eq!(completed, count);
+    }
+}

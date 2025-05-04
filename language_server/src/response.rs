@@ -169,3 +169,32 @@ pub fn response(request: &str) -> Result<Option<String>, AnyError> {
         Ok(response_body)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+ 
+    #[test]
+    fn test_basic_header_generate() {
+        let actual = generate_message_with_header("asdf");
+        let expected = "Content-Length: 4\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\nasdf";
+        assert_eq!(actual, expected);
+    }
+   
+    #[test]
+    fn test_initialize_response_generation() {
+        let input_method_initialize =
+            r#"{"jsonrpc":"2.0","id":"1","method":"initialize","params":{}}"#;
+        let request = generate_message_with_header(input_method_initialize);
+        let _answer = response(&request);
+        // Not asserting content for now (was commented in C++)
+    }
+
+    #[test]
+    fn test_uglify_simple_json() {
+        let input = "\n{\n  \"asdf\": \"qwer\",\n  \"a\": {}\n}\n\n";
+        let uglified = uglify(input.to_string());
+        assert_eq!(uglified, r#"{"asdf":"qwer","a":{}}"#);
+    }
+
+}
