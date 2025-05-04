@@ -145,6 +145,19 @@ executed at runtime, and Types `()` are for typechecking done at compile time
 (or at least done before runtime, as technically there's no compile time in an
 interpreter).
 
+## Architecture
+
+The interpreter goes through these stages, starting from an entry-point source code file:
+
+- lex the source code file
+- parse it
+  - for each undefined identifier:
+    - infer the source code file where it's defined, and lex and parse that file (recursive)
+- infer and check types of the entry-point file and all the imported identifiers
+- evaluate comptime expressions
+- runtime execution
+  - if eval is used, call all previous stages (including runtime) in a nested environment
+
 ## Philosophy of the language
 
 ### Most programs apply transformations to some value
@@ -202,6 +215,8 @@ operation with 0 parameters.
 
 To express `-5 % 7` I could support `5 |- % 7` or `5 |negative % 7`, but it's
 quite unreadable. Too close to Forth.
+
+So currently you need to put an initial `0` so that the minus becomes a binary operation: `0 -5 %7`.
 
 ## Miscellaneous trivia
 
