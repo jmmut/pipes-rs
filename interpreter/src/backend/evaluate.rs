@@ -299,6 +299,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                 Operator::Modulo => accumulated %= self.evaluate_recursive(operand)?,
                 Operator::Ignore => accumulated = self.evaluate_recursive(operand)?,
                 Operator::Call => accumulated = self.call_callable(accumulated, operands)?,
+                Operator::MacroCall => accumulated = self.call_macro(accumulated, operands)?,
                 Operator::Get => accumulated = self.get_list_element(accumulated, operand)?,
                 Operator::Type => {}
                 Operator::Assignment => {
@@ -415,9 +416,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Composed(Composed::Something(something)) => {
                 self.call_something_expression(argument, something)
             }
-            Expression::Composed(Composed::Inspect(inspect)) => {
-                self.call_inspect_expression(argument, inspect)
-            }
+            // Expression::Composed(Composed::Inspect(inspect)) => {
+            //     self.call_inspect_expression(argument, inspect)
+            // }
             Expression::Composed(Composed::Cast(_)) => Ok(argument),
             Expression::Composed(Composed::Comptime(_)) => {
                 err("'comptime' is unsupported at runtime")
@@ -436,6 +437,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
     }
 
+    fn call_macro(&mut self, argument: i64, operands: &Expressions) -> Result<i64, AnyError> {
+        unimplemented!()
+    }
     fn call_function_pointer(
         &mut self,
         arguments: &[i64],
@@ -1406,9 +1410,14 @@ mod tests {
         assert_eq!(interpret("1 |branch{3}{} |something(n) {n} {5}"), 3);
         assert_eq!(interpret("1 |branch{3}{} |something(n) {} {5}"), 3);
     }
+    const INSPECT: &str =
+        ";macro(t: types  c :chain) {=comptime {t #0 .name} ;c ;comptime {t #0 .name}}=inspect ";
     #[test]
     fn test_inspect() {
-        assert_eq!(interpret("3 |inspect(n) {n+1}"), 3);
+        assert_eq!(
+            interpret(format!("{}{}", INSPECT, ";3 |`inspect(n) {n+1}")),
+            3
+        );
         assert_eq!(
             interpret_io("3 |inspect(n) {+1 |to_str |print}", ""),
             (3, "4\n".to_string())

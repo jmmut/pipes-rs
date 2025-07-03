@@ -56,7 +56,9 @@
 ;[0 1 0] |or |assert/eq 1
 ;[0 0 0] |or |assert/eq 0
 
-
+//;public function(x) {
+//
+//}
 
 
 

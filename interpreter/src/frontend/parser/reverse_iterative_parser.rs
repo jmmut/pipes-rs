@@ -360,7 +360,7 @@ fn construct_keyword(
         Keyword::Filter => construct_filter(parser),
         Keyword::Branch => construct_branch(parser),
         Keyword::Something => construct_something(parser),
-        Keyword::Inspect => construct_inspect(parser),
+        // Keyword::Inspect => construct_inspect(parser),
         Keyword::Public => construct_public(parser),
         Keyword::Cast => construct_cast(parser),
         Keyword::Comptime => construct_comptime(parser),
@@ -535,9 +535,9 @@ fn construct_branch(parser: &mut Parser) -> Result<(Expression, Span), AnyError>
 fn construct_something(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     construct_type_chain_chain(parser, Expression::something, "something")
 }
-fn construct_inspect(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
-    construct_type_chain(parser, Expression::inspect, "inspect")
-}
+// fn construct_inspect(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+//     construct_type_chain(parser, Expression::inspect, "inspect")
+// }
 
 fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     let elem = parser.accumulated.pop_front();
@@ -854,6 +854,15 @@ pub fn expected_span<T: Display, S: AsRef<str>>(
     span: Span,
 ) -> String {
     expected(expected_str, actual) + &source.format_span(span)
+}
+#[track_caller]
+pub fn err_expected_span<T: Display, S: AsRef<str>, R>(
+    expected_str: S,
+    actual: Option<T>,
+    source: &SourceCode,
+    span: Span,
+) ->  Result<R, AnyError> {
+    err(expected_span(expected_str, actual, source, span))
 }
 pub fn expected_span_pe<S: AsRef<str>>(
     expected_str: S,

@@ -189,9 +189,9 @@ pub fn parse(request: &str) -> Result<Request, AnyError> {
 
 #[cfg(test)]
 mod tests {
-    use pipes_rs::common::unwrap_display;
     use super::*;
-    
+    use pipes_rs::common::unwrap_display;
+
     #[test]
     fn test_initialize_parsing() {
         let input_method_initialize = r#"{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"processId":null,"rootUri":"file:///home/jmmut/Documents/conan/pipes/","capabilities":{"workspace":{"applyEdit":true,"workspaceEdit":{"documentChanges":true},"didChangeConfiguration":{},"didChangeWatchedFiles":{"dynamicRegistration":true},"symbol":{},"executeCommand":{},"workspaceFolders":false,"configuration":true},"textDocument":{"synchronization":{"willSave":true,"willSaveWaitUntil":true,"didSave":true},"completion":{"completionItem":{"snippetSupport":true}},"hover":{},"signatureHelp":{},"references":{},"documentHighlight":{},"formatting":{},"rangeFormatting":{},"onTypeFormatting":{},"definition":{},"codeAction":{},"rename":{"prepareSupport":true,"dynamicRegistration":false},"semanticHighlightingCapabilities":{"semanticHighlighting":false}}}}}"#;
@@ -214,7 +214,7 @@ mod tests {
         let parsed = parse(initialized).unwrap();
         assert_eq!(parsed.method, Method::Initialized);
     }
-    
+
     #[test]
     fn test_hover_request_parsing() {
         let input = r#"{"jsonrpc":"2.0","id":"2","method":"textDocument/hover","params":{"textDocument":{"uri":"file:///home/jmmut/Documents/conan/pipes/pipes_programs/tests/test_piped_loop.pipes"},"position":{"line":4,"character":17}}}"#;

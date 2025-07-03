@@ -39,6 +39,23 @@ pub enum Token {
 
 pub type Tokens = Vec<Token>;
 
+impl Display for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Number(n) => write!(f, "Number '{}'", n),
+            Token::Operator(o) => write!(f, "Operator '{}'", o),
+            Token::Identifier(name) => write!(f, "Identifier '{}'", name),
+            Token::String(s) => write!(f, "String \"{}\"", String::from_utf8_lossy(s)),
+            Token::Keyword(s) => write!(f, "Keyword \"{}\"", s.name()),
+            Token::OpenBracket => write!(f, "OpenBracket '['"),
+            Token::CloseBracket => write!(f, "CloseBracket ']'"),
+            Token::OpenBrace => write!(f, "OpenBrace '{{'"),
+            Token::CloseBrace => write!(f, "CloseBrace '}}'"),
+            Token::OpenParenthesis => write!(f, "OpenParenthesis '('"),
+            Token::CloseParenthesis => write!(f, "CloseParenthesis ')'"),
+        }
+    }
+}
 #[derive(Copy, Clone)]
 pub struct OperatorSpan {
     pub operator: Operator,
@@ -70,6 +87,7 @@ pub const DIVIDE: &str = "|/";
 pub const MODULO: u8 = b'%';
 pub const IGNORE: u8 = b';';
 pub const CALL: u8 = b'|';
+pub const MACRO_CALL: &str = "|`";
 // pub const CALL_REVERSE: &str = "<|";
 pub const GET: u8 = b'#';
 pub const TYPE: u8 = b':';
@@ -95,6 +113,7 @@ pub enum Operator {
     Modulo,
     Ignore,
     Call,
+    MacroCall,
     Get,
     Type,
     Assignment,
@@ -124,6 +143,7 @@ impl Display for Operator {
             Operator::Modulo => write!(f, "{}", MODULO as char),
             Operator::Ignore => write!(f, "{}", IGNORE as char),
             Operator::Call => write!(f, "{}", CALL as char),
+            Operator::MacroCall => write!(f, "{}", CALL as char),
             Operator::Get => write!(f, "{}", GET as char),
             Operator::Type => write!(f, "{}", TYPE as char),
             Operator::Assignment => write!(f, "{}", ASSIGNMENT as char),
@@ -156,7 +176,7 @@ pub enum Keyword {
     Filter,
     Branch,
     Something,
-    Inspect,
+    // Inspect,
     Public,
     Cast,
     Comptime,
@@ -179,7 +199,7 @@ impl Keyword {
             Keyword::Filter => "filter",
             Keyword::Branch => "branch",
             Keyword::Something => "something",
-            Keyword::Inspect => "inspect",
+            // Keyword::Inspect => "inspect",
             Keyword::Public => "public",
             Keyword::Cast => "cast",
             Keyword::Comptime => "comptime",

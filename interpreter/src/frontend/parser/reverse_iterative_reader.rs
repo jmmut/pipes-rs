@@ -1,3 +1,239 @@
+use std::iter::Peekable;
+use std::vec::IntoIter;
+use crate::common::{err, err_span, AnyError};
+use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
+use crate::frontend::sources::lexer::{lex, TokenizedSource};
+use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
+use crate::frontend::sources::token::{Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token, Tokens};
+
+pub enum NodeType {
+    // Number(i64),
+    // Operator(Operator),
+    // Identifier(String),
+    // String(Vec<u8>),
+    // Keyword(Keyword),
+    // OpenBracket,
+}
+#[derive(Debug)]
+pub enum Node {
+    Number{ n: i64, span: Span},
+    Keyword {keyword: Keyword, span: Span },
+    String { bytes: Vec<u8>, span: Span },
+    Identifier {name: String, span: Span },
+    Types {subtypes: Nodes, span: Span },
+    // Function { parts: Nodes, span: Span},
+    Chain { operations: Nodes, span: Span},
+    Operation { operator: OperatorSpan, operands: Nodes, span: Span},
+}
+
+pub type Nodes = Vec<Node>;
+
+impl Node {
+    pub fn span(&self) -> Span {
+        match self {
+            Node::Number { span, .. } |
+            Node::Keyword { span, .. } |
+            Node::String { span, .. } |
+            Node::Identifier { span, .. } |
+            Node::Types { span, .. } |
+            Node::Chain { span, .. } |
+            Node::Operation { span, .. } => *span,
+        }
+    }
+}
+
+pub fn read(text: &str) -> Result<Node, AnyError> {
+    let tokens = lex(text)?;
+    read_toplevel(tokens)
+}
+
+fn read_toplevel(TokenizedSource {tokens, source_code}: TokenizedSource) -> Result<Node, AnyError> {
+    if tokens.len() == 0 {
+        err("no tokens found")
+    } else {
+        let mut iter = tokens.into_iter().peekable();
+        read_chain(&mut iter, &source_code)
+    }
+}
+type TokenIter = Peekable<IntoIter<LocatedToken>>;
+
+fn read_chain(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
+    if let Some(LocatedToken{token, span}) = iter.next() {
+        if let Token::OpenBrace = token {
+            let open_span = span;
+            read_chain_ops(iter, code, open_span)
+        } else {
+            let expected = format!("a chain starting with {}", Token::OpenBrace);
+            err_expected_span(expected, Some(token), code, span)
+        }
+    } else {
+        err("no tokens found")
+    }
+}
+
+fn read_chain_ops(iter: &mut TokenIter, code: &SourceCode, open_span: Span) -> Result<Node, AnyError> {
+    let mut operations = Vec::new();
+    let mut last_span = open_span;
+    while let Some(LocatedToken { token, span }) = iter.peek() {
+        let span_copy = *span;
+        match token {
+            Token::CloseBrace => {
+                return Ok(Node::Chain { operations, span: open_span.merge(&span) })
+            },
+            _ => operations.push(read_operation(iter, code, last_span)?),
+        }
+        last_span = span_copy;
+    }
+    err_expected_span(Token::CloseBrace.to_string(), None::<bool>, code, last_span)
+}
+
+fn read_operation(iter: &mut TokenIter, code: &SourceCode, previous_span: Span) -> Result<Node, AnyError> {
+    let elem = iter.next();
+    if let Some(LocatedToken {token: Token::Operator(operator), span}) = elem {
+        let operator = OperatorSpan { operator, span };
+        let mut operands = Vec::new();
+        let mut last_span = span;
+        while let Some(token) = iter.peek() {
+            if let LocatedToken { token: Token::Operator(_) | Token::CloseBrace |Token::CloseBracket | Token::CloseParenthesis, .. } = token {
+                let span = operation_span(operator, &mut operands);
+                return Ok(Node::Operation { operator, operands, span })
+            } else {
+                let expr = read_expr(iter, code, last_span)?;
+                last_span = expr.span();
+                operands.push(expr);
+            }
+        }
+        let span = operation_span(operator, &mut operands);
+        Ok(Node::Operation { operator, operands, span })
+    } else {
+        let span = if let Some(token) = &elem {
+            token.span
+        } else {
+            previous_span
+        };
+        err_expected_span("operation (an operator and a list of operands)", elem.map(|e|e.token), code, span)
+    }
+}
+
+fn operation_span(operator: OperatorSpan, operands: &mut Vec<Node>) -> Span {
+    if let Some(last) = operands.last() {
+        operator.span.merge(&last.span())
+    } else {
+        operator.span
+    }
+}
+
+fn read_expr(iter: &mut TokenIter, code: &SourceCode, previous_span: Span) -> Result<Node, AnyError> {
+    match iter.next() {
+        None => {
+            err_expected_span("operation (an operator and a list of operands)", None::<bool>, code, previous_span)
+        }
+        Some(LocatedToken { token, span }) => {
+            match token {
+                Token::Number(n) => Ok(Node::Number { n, span }),
+                Token::Keyword(keyword)  => Ok(Node::Keyword { keyword, span }),
+                Token::Identifier(name) => Ok(Node::Identifier {name, span}),
+                Token::String(bytes) => Ok(Node::String{bytes, span}),
+                Token::OpenBrace => read_chain_ops(iter, code, span),
+                Token::OpenBracket => {unimplemented!()}
+                Token::OpenParenthesis => Ok( 
+                Token::Operator(_) |
+                Token::CloseBrace |
+                Token::CloseBracket |
+                Token::CloseParenthesis => {
+                    err_expected_span("expression", Some(token), code, span)
+                }
+            }
+        }
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        use Node::*;
+        match (self, other) {
+            (Number { n, .. }, Number {n: n_2, ..}) => n == n_2,
+            (Keyword { keyword, .. }, Keyword {keyword: p_2, ..}) => keyword == p_2,
+            (Chain { operations, .. }, Chain {operations: _2, ..}) =>operations == _2,
+            (Operation { operator, operands, .. }, Operation { operator: opt_2, operands:opn_2, .. }) => operator == opt_2 && operands == opn_2,
+            _ => false,
+        }
+    }
+}
+
+
+fn chain(subnodes: Nodes) -> Node {
+    Node::Chain {operations: subnodes, span: NO_SPAN}
+}
+fn empty_chain() -> Node {
+    chain(Vec::new())
+}
+fn number(n: i64) -> Node {
+    Node::Number{n, span: NO_SPAN}
+}
+fn op(operator: Operator, operands: Nodes) -> Node {
+    Node::Operation {operator : OperatorSpan::spanless(operator), operands, span: NO_SPAN}
+}
+fn ignore(operand: Node) -> Node {
+    op(Operator::Ignore, vec![operand])
+}
+fn ignores(operands: Nodes) -> Node {
+    op(Operator::Ignore, operands)
+}
+fn function() -> Node {
+    Node::Keyword {keyword : Keyword::Function, span: NO_SPAN}
+}
+fn empty_types() -> Node {
+    Node::Types {subtypes: vec![], span: NO_SPAN}
+}
+// fn function(parts: Nodes) -> Node {
+//     Node::Function { parts , span: NO_SPAN }
+// }
+
+#[cfg(test)]
+mod tests {
+    use crate::common::unwrap_display;
+    use crate::frontend::sources::token::Operator::Ignore;
+    use super::*;
+
+    #[test]
+    fn test_empty() {
+        let text = "";
+        let _ = read(text).expect_err("");
+    }
+    #[test]
+    fn test_empty_chain() {
+        let text = "{}";
+        let text = "chain[op[ignore 5] op[call function chain[op[ignore 4]]]]";
+        let text = "function(n 4) 4";
+        let text = "5 |function (n) {4}";
+        
+        let read = unwrap_display(read(text));
+        assert_eq!(read, empty_chain());
+    }
+    #[test]
+    fn test_number() {
+        let text = "{;5}";
+        let read = unwrap_display(read(text));
+        assert_eq!(read, chain(vec![ignore(number(5))]));
+    }
+    #[test]
+    fn test_function() {
+        let text = "{;function{}}";
+        let read = unwrap_display(read(text));
+        assert_eq!(read, chain(vec![ignores(vec![function(), empty_chain()])]));
+    }
+    #[test]
+    fn test_function_empty_types() {
+        let text = "{;function(){}}";
+        let read = unwrap_display(read(text));
+        assert_eq!(read, chain(vec![ignores(vec![function(), empty_types(), empty_chain()])]));
+    }
+}
+
+
+
+/*
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
@@ -877,3 +1113,4 @@ pub fn expected_span_pe<S: AsRef<str>>(
         expected(expected_str, actual)
     }
 }
+*/

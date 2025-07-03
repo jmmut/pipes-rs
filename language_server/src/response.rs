@@ -173,14 +173,14 @@ pub fn response(request: &str) -> Result<Option<String>, AnyError> {
 #[cfg(test)]
 mod tests {
     use super::*;
- 
+
     #[test]
     fn test_basic_header_generate() {
         let actual = generate_message_with_header("asdf");
         let expected = "Content-Length: 4\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\nasdf";
         assert_eq!(actual, expected);
     }
-   
+
     #[test]
     fn test_initialize_response_generation() {
         let input_method_initialize =
@@ -196,5 +196,4 @@ mod tests {
         let uglified = uglify(input.to_string());
         assert_eq!(uglified, r#"{"asdf":"qwer","a":{}}"#);
     }
-
 }

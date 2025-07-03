@@ -100,7 +100,7 @@ pub enum Composed {
     Filter(Filter),
     Branch(Branch),
     Something(Something),
-    Inspect(Inspect),
+    // Inspect(Inspect),
     Cast(Cast),
     Comptime(Comptime),
 }
@@ -117,7 +117,7 @@ impl Composed {
             Composed::Filter(_) => Keyword::Filter.name(),
             Composed::Branch(_) => Keyword::Branch.name(),
             Composed::Something(_) => Keyword::Something.name(),
-            Composed::Inspect(_) => Keyword::Inspect.name(),
+            // Composed::Inspect(_) => Keyword::Inspect.name(),
             Composed::Cast(_) => Keyword::Cast.name(),
             Composed::Comptime(_) => Keyword::Comptime.name(),
         }
@@ -130,7 +130,7 @@ impl Composed {
             | Composed::Replace(Replace { body, .. })
             | Composed::Map(Map { body, .. })
             | Composed::Filter(Filter { body, .. })
-            | Composed::Inspect(Inspect { body, .. })
+            // | Composed::Inspect(Inspect { body, .. })
             | Composed::Comptime(Comptime { body }) => {
                 vec![body]
             }
@@ -244,10 +244,10 @@ impl Expression {
             nothing,
         }))
     }
-    #[allow(unused)]
-    pub fn inspect(elem: TypedIdentifier, body: Chain) -> Self {
-        Self::Composed(Composed::Inspect(Inspect { elem, body }))
-    }
+    // #[allow(unused)]
+    // pub fn inspect(elem: TypedIdentifier, body: Chain) -> Self {
+    //     Self::Composed(Composed::Inspect(Inspect { elem, body }))
+    // }
 
     pub fn to_chain(self) -> Result<Chain, AnyError> {
         if let Expression::Chain(chain) = self {

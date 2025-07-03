@@ -547,6 +547,7 @@ impl<'a> Typer<'a> {
                 Ok(Operation::single(operator, typed_operand, type_))
             }
             Operator::Call => self.get_call_type(input, operands, operator.span),
+            Operator::MacroCall => unimplemented!(),
             Operator::Get => {
                 let array = list_any();
                 let unified_input = self.is_castable_to(input, &array, operator)?;
@@ -872,21 +873,21 @@ impl<'a> Typer<'a> {
                     op_type,
                 )
             }
-            Composed::Inspect(inspect) => {
-                let unified_elem_type =
-                    self.assert_type_unifies(input_type, &inspect.elem.type_, operator_span)?;
-                let unified_elem =
-                    TypedIdentifier::new(inspect.elem.name.clone(), unified_elem_type.clone());
-                let (_, typed_body) =
-                    self.check_types_scope_single(unified_elem.clone(), &inspect.body, span)?;
-                (
-                    Composed::Inspect(Inspect {
-                        elem: unified_elem, // don't specialize param type based on internal operations (could affect return type?)
-                        body: typed_body.syntactic_type.to_chain()?,
-                    }),
-                    unified_elem_type, // don't specialize return type based on internal operations
-                )
-            }
+            // Composed::Inspect(inspect) => {
+            //     let unified_elem_type =
+            //         self.assert_type_unifies(input_type, &inspect.elem.type_, operator_span)?;
+            //     let unified_elem =
+            //         TypedIdentifier::new(inspect.elem.name.clone(), unified_elem_type.clone());
+            //     let (_, typed_body) =
+            //         self.check_types_scope_single(unified_elem.clone(), &inspect.body, span)?;
+            //     (
+            //         Composed::Inspect(Inspect {
+            //             elem: unified_elem, // don't specialize param type based on internal operations (could affect return type?)
+            //             body: typed_body.syntactic_type.to_chain()?,
+            //         }),
+            //         unified_elem_type, // don't specialize return type based on internal operations
+            //     )
+            // }
             Composed::Comptime(comptime) => {
                 let typed_callable = self.check_types_chain(&comptime.body, span)?;
                 let typed_op =

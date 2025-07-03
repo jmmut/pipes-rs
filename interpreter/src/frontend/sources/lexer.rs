@@ -5,8 +5,8 @@ use crate::frontend::sources::location::SourceCode;
 use crate::frontend::sources::token::{
     Comparison, Keyword, LocatedToken, LocatedTokens, Operator, Token, ADD, ASSIGNMENT, CALL,
     CONCATENATE, DIFFERENT, DIVIDE, EQUALS, EQUALS_ALT, FIELD, GET, GREATER_THAN,
-    GREATER_THAN_EQUALS, IGNORE, LESS_THAN, LESS_THAN_EQUALS, MODULO, MULTIPLY, OVERWRITE,
-    SUBSTRACT, TYPE,
+    GREATER_THAN_EQUALS, IGNORE, LESS_THAN, LESS_THAN_EQUALS, MACRO_CALL, MODULO, MULTIPLY,
+    OVERWRITE, SUBSTRACT, TYPE,
 };
 
 #[derive(Debug, Clone)]
@@ -141,7 +141,7 @@ fn try_consume_multichar_tokens(code: &mut SourceCode) -> Option<LocatedTokens> 
         Some(Vec::new())
     } else {
         #[rustfmt::skip]
-        let operators = &[
+        const OPERATORS :&[(&str, Operator)] = &[
             (CONCATENATE, Operator::Concatenate),
             (EQUALS, Operator::Comparison(Comparison::Equals)),
             (EQUALS_ALT, Operator::Comparison(Comparison::Equals)),
@@ -151,10 +151,11 @@ fn try_consume_multichar_tokens(code: &mut SourceCode) -> Option<LocatedTokens> 
             (GREATER_THAN_EQUALS, Operator::Comparison(Comparison::GreaterThanEquals)),
             (MULTIPLY, Operator::Multiply),
             (DIVIDE, Operator::Divide),
+            (MACRO_CALL, Operator::MacroCall),
         ];
-        for (text, operator) in *operators {
+        for (text, operator) in OPERATORS {
             if code.consume(text) {
-                let token = Token::Operator(operator);
+                let token = Token::Operator(operator.clone());
                 let located_token = code.span_token(token, initial_location);
                 code.next();
                 return Some(vec![located_token]);
