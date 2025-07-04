@@ -1,7 +1,7 @@
 pub use reverse_iterative_parser::parse_tokens;
 
+pub mod recursive_reader;
 pub mod reverse_iterative_parser;
-pub mod reverse_iterative_reader;
 
 // #[cfg(test)]
 // pub mod slow_iterative_parser;

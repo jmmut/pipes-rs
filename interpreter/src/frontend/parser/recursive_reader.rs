@@ -1,11 +1,9 @@
 use crate::common::{err, err_span, AnyError};
 use crate::frontend::expression::{Type, TypedIdentifier};
-use crate::frontend::parser::reverse_iterative_parser::{err_expected_span};
+use crate::frontend::parser::reverse_iterative_parser::err_expected_span;
 use crate::frontend::sources::lexer::{lex_with_eof, TokenizedSource};
 use crate::frontend::sources::location::{SourceCode, Span};
-use crate::frontend::sources::token::{
-    Keyword, LocatedToken, Operator, OperatorSpan, Token,
-};
+use crate::frontend::sources::token::{Keyword, LocatedToken, Operator, OperatorSpan, Token};
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
@@ -209,64 +207,56 @@ fn read_types(iter: &mut TokenIter, code: &SourceCode, open_span: Span) -> Resul
     loop {
         let LocatedToken { token, span } = iter.peek().unwrap();
         let span_copy = *span;
-        match token {
-            Token::CloseParenthesis => {
-                let _ = iter.next();
-                return Ok(Node::Types {
-                    subtypes,
-                    span: open_span.merge(&span_copy),
-                });
-            }
-            _ => subtypes.push(read_typed_identifier(iter, code)?),
+        if let Token::CloseParenthesis = token {
+            let _ = iter.next();
+            let span = open_span.merge(&span_copy);
+            return Ok(Node::Types { subtypes, span });
+        } else {
+            subtypes.push(read_typed_identifier(iter, code)?)
         }
     }
 }
 
 fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
     let LocatedToken { token, span } = iter.next().unwrap();
-    match token {
-        Token::Identifier(name) => {
-            let LocatedToken { token, span } = iter.peek().unwrap();
-            match token {
-                Token::Operator(Operator::Type) => {
-                    let _ = iter.next().unwrap(); // consume :
-                    let LocatedToken { token, span } = iter.next().unwrap();
-                    match token {
-                        Token::Identifier(type_) => {
-                            let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
-                            Ok(Node::TypedIdentifier {
-                                typed_identifier: TypedIdentifier::new(name, type_),
-                                span,
-                            })
-                        }
-                        actual => err_expected_span("type name after ':'", actual, code, span),
-                    }
-                }
-                _ => Ok(Node::TypedIdentifier {
-                    typed_identifier: TypedIdentifier::any(name),
-                    span: *span,
-                }),
-            }
-        }
-        Token::Operator(Operator::Type) => {
+    if let Token::Identifier(name) = token {
+        let LocatedToken { token, span } = iter.peek().unwrap();
+        if let Token::Operator(Operator::Type) = token {
+            let _ = iter.next().unwrap(); // consume :
             let LocatedToken { token, span } = iter.next().unwrap();
-            match token {
-                Token::Identifier(type_) => {
-                    let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
-                    Ok(Node::TypedIdentifier {
-                        typed_identifier: TypedIdentifier::nameless(type_),
-                        span,
-                    })
-                }
-                actual => err_expected_span("type name after ':'", actual, code, span),
+            if let Token::Identifier(type_) = token {
+                let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
+                Ok(Node::TypedIdentifier {
+                    typed_identifier: TypedIdentifier::new(name, type_),
+                    span,
+                })
+            } else {
+                err_expected_span("type name after ':'", token, code, span)
             }
+        } else {
+            Ok(Node::TypedIdentifier {
+                typed_identifier: TypedIdentifier::any(name),
+                span: *span,
+            })
         }
-        actual => err_expected_span(
+    } else if let Token::Operator(Operator::Type) = token {
+        let LocatedToken { token, span } = iter.next().unwrap();
+        if let Token::Identifier(type_) = token {
+            let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
+            Ok(Node::TypedIdentifier {
+                typed_identifier: TypedIdentifier::nameless(type_),
+                span,
+            })
+        } else {
+            err_expected_span("type name after ':'", token, code, span)
+        }
+    } else {
+        err_expected_span(
             "'<name>' or ':<type>' or '<name> :<type>'",
-            actual,
+            token,
             code,
             span,
-        ),
+        )
     }
 }
 
