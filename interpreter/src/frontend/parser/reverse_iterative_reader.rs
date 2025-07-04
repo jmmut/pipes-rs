@@ -1,6 +1,7 @@
 use std::iter::Peekable;
 use std::vec::IntoIter;
 use crate::common::{err, err_span, AnyError};
+use crate::frontend::expression::{Type, TypedIdentifier};
 use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
 use crate::frontend::sources::lexer::{lex, lex_with_eof, TokenizedSource};
 use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
@@ -20,7 +21,7 @@ pub enum Node {
     Keyword {keyword: Keyword, span: Span },
     String { bytes: Vec<u8>, span: Span },
     Identifier {name: String, span: Span },
-    TypedIdentifier {name: String, type_: String, span: Span },
+    TypedIdentifier {typed_identifier: TypedIdentifier, span: Span },
     Types {subtypes: Nodes, span: Span },
     // Function { parts: Nodes, span: Span},
     Chain { operations: Nodes, span: Span},
@@ -173,7 +174,37 @@ fn read_types(iter: &mut TokenIter, code: &SourceCode, open_span: Span) -> Resul
 }
 
 fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
-    unimplemented!()
+    let LocatedToken {token, span} = iter.next().unwrap();
+    match token {
+        Token::Identifier(name) => {
+            let LocatedToken { token, span } = iter.peek().unwrap();
+            match token {
+                Token::Operator(Operator::Type) => {
+                    let _ = iter.next().unwrap(); // consume :
+                    let LocatedToken { token, span } = iter.next().unwrap();
+                    match token {
+                        Token::Identifier(type_) => {
+                            let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
+                            Ok(Node::TypedIdentifier { typed_identifier: TypedIdentifier::new(name, type_), span })
+                        }
+                        actual => err_expected_span("type name after ':'", actual, code, span)
+                    }
+                }
+                _ => Ok(Node::TypedIdentifier { typed_identifier: TypedIdentifier::any(name), span: *span }),
+            }
+        },
+        Token::Operator(Operator::Type) => {
+            let LocatedToken { token, span } = iter.next().unwrap();
+            match token {
+                Token::Identifier(type_) => {
+                    let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
+                    Ok(Node::TypedIdentifier { typed_identifier: TypedIdentifier::nameless(type_), span })
+                }
+                actual => err_expected_span("type name after ':'", actual, code, span)
+            }
+        },
+        actual =>  err_expected_span("'<name>' or ':<type>' or '<name> :<type>'", actual, code, span)
+    }
 }
 
 impl PartialEq for Node {
@@ -186,7 +217,7 @@ impl PartialEq for Node {
             (Operation { operator, operands, .. }, Operation { operator: opt_2, operands:opn_2, .. }) => operator == opt_2 && operands == opn_2,
             (Node::String { bytes, .. }, Node::String{bytes:b_2, ..}) => bytes == b_2,
             (Node::Identifier {name, .. }, Node::Identifier {name: n_2, .. }) => name == n_2,
-            (Node::TypedIdentifier { name, type_, .. }, Node::TypedIdentifier { name: n_2, type_: t_2, .. }) => name == n_2 && type_ == t_2,
+            (Node::TypedIdentifier { typed_identifier, .. }, Node::TypedIdentifier { typed_identifier: n_2, .. }) => typed_identifier == n_2,
             (Node::Types { subtypes, .. }, Node::Types { subtypes: s_2, .. }) => subtypes == s_2,
             _ => false,
         }
@@ -194,39 +225,45 @@ impl PartialEq for Node {
 }
 
 
-fn chain(subnodes: Nodes) -> Node {
-    Node::Chain {operations: subnodes, span: NO_SPAN}
-}
-fn empty_chain() -> Node {
-    chain(Vec::new())
-}
-fn number(n: i64) -> Node {
-    Node::Number{n, span: NO_SPAN}
-}
-fn op(operator: Operator, operands: Nodes) -> Node {
-    Node::Operation {operator : OperatorSpan::spanless(operator), operands, span: NO_SPAN}
-}
-fn ignore(operand: Node) -> Node {
-    op(Operator::Ignore, vec![operand])
-}
-fn ignores(operands: Nodes) -> Node {
-    op(Operator::Ignore, operands)
-}
-fn function() -> Node {
-    Node::Keyword {keyword : Keyword::Function, span: NO_SPAN}
-}
-fn empty_types() -> Node {
-    Node::Types {subtypes: vec![], span: NO_SPAN}
-}
-// fn function(parts: Nodes) -> Node {
-//     Node::Function { parts , span: NO_SPAN }
-// }
-
 #[cfg(test)]
 mod tests {
     use crate::common::unwrap_display;
+    use crate::frontend::expression::TypedIdentifiers;
     use crate::frontend::sources::token::Operator::Ignore;
+    use crate::middleend::intrinsics::builtin_types;
     use super::*;
+
+    fn chain(subnodes: Nodes) -> Node {
+        Node::Chain {operations: subnodes, span: NO_SPAN}
+    }
+    fn empty_chain() -> Node {
+        chain(Vec::new())
+    }
+    fn number(n: i64) -> Node {
+        Node::Number{n, span: NO_SPAN}
+    }
+    fn op(operator: Operator, operands: Nodes) -> Node {
+        Node::Operation {operator : OperatorSpan::spanless(operator), operands, span: NO_SPAN}
+    }
+    fn ignore(operand: Node) -> Node {
+        op(Operator::Ignore, vec![operand])
+    }
+    fn ignores(operands: Nodes) -> Node {
+        op(Operator::Ignore, operands)
+    }
+    fn function() -> Node {
+        Node::Keyword {keyword : Keyword::Function, span: NO_SPAN}
+    }
+    fn empty_types() -> Node {
+        Node::Types {subtypes: vec![], span: NO_SPAN}
+    }
+    fn types(typed_identifiers: TypedIdentifiers) -> Node {
+        let subtypes = typed_identifiers.into_iter().map(|t| Node::TypedIdentifier { typed_identifier: t, span: NO_SPAN }).collect();
+        Node::Types { subtypes, span: NO_SPAN }
+    }
+    // fn function(parts: Nodes) -> Node {
+    //     Node::Function { parts , span: NO_SPAN }
+    // }
 
     #[test]
     fn test_empty() {
@@ -260,6 +297,15 @@ mod tests {
         let text = "{;function(){}}";
         let read = unwrap_display(read(text));
         assert_eq!(read, chain(vec![ignores(vec![function(), empty_types(), empty_chain()])]));
+    }
+    #[test]
+    fn test_function_types() {
+        let text = "{;function(a :i64){}}";
+        let read = unwrap_display(read(text));
+        assert_eq!(read, chain(vec![ignores(vec![
+            function(),
+            types(vec![TypedIdentifier::new("a".to_string(), builtin_types::I64)]),
+            empty_chain()])]));
     }
     #[test]
     fn test_expected_operator() {

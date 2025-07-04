@@ -583,7 +583,7 @@ pub type TypedIdentifiers = Vec<TypedIdentifier>;
 
 impl TypedIdentifier {
     pub fn new(name: String, type_: Type) -> Self {
-        Self { name, type_: type_ }
+        Self { name, type_ }
     }
     pub fn nothing() -> Self {
         Self {
@@ -615,7 +615,7 @@ impl TypedIdentifier {
     pub fn nameless(type_: Type) -> Self {
         Self {
             name: "".to_string(),
-            type_: type_,
+            type_,
         }
     }
 }
@@ -697,9 +697,9 @@ pub type Expressions = Vec<ExpressionSpan>;
 pub type Operations = Vec<Operation>;
 
 pub fn take_single(mut expressions: Expressions) -> Option<ExpressionSpan> {
-    if expressions.len() != 1 {
-        None
-    } else {
+    if expressions.len() == 1 {
         expressions.pop()
+    } else {
+        None
     }
 }
