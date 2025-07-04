@@ -437,7 +437,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
         }
     }
 
-    fn call_macro(&mut self, argument: i64, operands: &Expressions) -> Result<i64, AnyError> {
+    fn call_macro(&mut self, _argument: i64, _operands: &Expressions) -> Result<i64, AnyError> {
         unimplemented!()
     }
     fn call_function_pointer(

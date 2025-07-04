@@ -1,11 +1,13 @@
-use std::iter::Peekable;
-use std::vec::IntoIter;
 use crate::common::{err, err_span, AnyError};
 use crate::frontend::expression::{Type, TypedIdentifier};
-use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
-use crate::frontend::sources::lexer::{lex, lex_with_eof, TokenizedSource};
-use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
-use crate::frontend::sources::token::{Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token, Tokens};
+use crate::frontend::parser::reverse_iterative_parser::{err_expected_span};
+use crate::frontend::sources::lexer::{lex_with_eof, TokenizedSource};
+use crate::frontend::sources::location::{SourceCode, Span};
+use crate::frontend::sources::token::{
+    Keyword, LocatedToken, Operator, OperatorSpan, Token,
+};
+use std::iter::Peekable;
+use std::vec::IntoIter;
 
 pub enum NodeType {
     // Number(i64),
@@ -17,16 +19,41 @@ pub enum NodeType {
 }
 #[derive(Debug)]
 pub enum Node {
-    Number{ n: i64, span: Span},
-    Keyword {keyword: Keyword, span: Span },
-    String { bytes: Vec<u8>, span: Span },
-    Identifier {name: String, span: Span },
-    TypedIdentifier {typed_identifier: TypedIdentifier, span: Span },
-    Types {subtypes: Nodes, span: Span },
+    Number {
+        n: i64,
+        span: Span,
+    },
+    Keyword {
+        keyword: Keyword,
+        span: Span,
+    },
+    String {
+        bytes: Vec<u8>,
+        span: Span,
+    },
+    Identifier {
+        name: String,
+        span: Span,
+    },
+    TypedIdentifier {
+        typed_identifier: TypedIdentifier,
+        span: Span,
+    },
+    Types {
+        subtypes: Nodes,
+        span: Span,
+    },
     // Function { parts: Nodes, span: Span},
-    Chain { operations: Nodes, span: Span},
+    Chain {
+        operations: Nodes,
+        span: Span,
+    },
     // List {elems: Nodes, span: Span},
-    Operation { operator: OperatorSpan, operands: Nodes, span: Span},
+    Operation {
+        operator: OperatorSpan,
+        operands: Nodes,
+        span: Span,
+    },
 }
 
 pub type Nodes = Vec<Node>;
@@ -34,14 +61,14 @@ pub type Nodes = Vec<Node>;
 impl Node {
     pub fn span(&self) -> Span {
         match self {
-            Node::Number { span, .. } |
-            Node::Keyword { span, .. } |
-            Node::String { span, .. } |
-            Node::Identifier { span, .. } |
-            Node::TypedIdentifier { span, .. } |
-            Node::Types { span, .. } |
-            Node::Chain { span, .. } |
-            Node::Operation { span, .. } => *span,
+            Node::Number { span, .. }
+            | Node::Keyword { span, .. }
+            | Node::String { span, .. }
+            | Node::Identifier { span, .. }
+            | Node::TypedIdentifier { span, .. }
+            | Node::Types { span, .. }
+            | Node::Chain { span, .. }
+            | Node::Operation { span, .. } => *span,
         }
     }
 }
@@ -51,22 +78,31 @@ pub fn read(text: &str) -> Result<Node, AnyError> {
     read_toplevel(tokens)
 }
 
-fn read_toplevel(TokenizedSource {tokens, source_code}: TokenizedSource) -> Result<Node, AnyError> {
+fn read_toplevel(
+    TokenizedSource {
+        tokens,
+        source_code,
+    }: TokenizedSource,
+) -> Result<Node, AnyError> {
     if tokens.len() == 0 {
         err("no tokens found")
     } else {
         let mut iter = tokens.into_iter().peekable();
         let chain_res = read_chain(&mut iter, &source_code)?;
 
-        let LocatedToken {token, span} = iter.next().unwrap();
+        let LocatedToken { token, span } = iter.next().unwrap();
         if let Token::EndOfFile = token {
-                let remaining_tokens = iter.collect::<Vec<_>>();
-                if remaining_tokens.len() != 0 {
-                    let span = remaining_tokens.first().unwrap().span.merge(&remaining_tokens.last().unwrap().span);
-                    err_span("unexpected tokens after chain", &source_code, span)
-                } else {
-                    Ok(chain_res)
-                }
+            let remaining_tokens = iter.collect::<Vec<_>>();
+            if remaining_tokens.len() != 0 {
+                let span = remaining_tokens
+                    .first()
+                    .unwrap()
+                    .span
+                    .merge(&remaining_tokens.last().unwrap().span);
+                err_span("unexpected tokens after chain", &source_code, span)
+            } else {
+                Ok(chain_res)
+            }
         } else {
             err_expected_span(Token::EndOfFile.to_string(), token, &source_code, span)
         }
@@ -75,7 +111,7 @@ fn read_toplevel(TokenizedSource {tokens, source_code}: TokenizedSource) -> Resu
 type TokenIter = Peekable<IntoIter<LocatedToken>>;
 
 fn read_chain(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
-    let LocatedToken{token, span} = iter.next().unwrap();
+    let LocatedToken { token, span } = iter.next().unwrap();
     if let Token::OpenBrace = token {
         let open_span = span;
         read_chain_ops(iter, code, open_span)
@@ -85,14 +121,21 @@ fn read_chain(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError>
     }
 }
 
-fn read_chain_ops(iter: &mut TokenIter, code: &SourceCode, open_span: Span) -> Result<Node, AnyError> {
+fn read_chain_ops(
+    iter: &mut TokenIter,
+    code: &SourceCode,
+    open_span: Span,
+) -> Result<Node, AnyError> {
     let mut operations = Vec::new();
     loop {
         let LocatedToken { token, span } = iter.peek().unwrap();
-        let span_copy=  *span;
+        let span_copy = *span;
         if let Token::CloseBrace = token {
             let _ = iter.next();
-            return Ok(Node::Chain { operations, span: open_span.merge(&span_copy) })
+            return Ok(Node::Chain {
+                operations,
+                span: open_span.merge(&span_copy),
+            });
         } else {
             operations.push(read_operation(iter, code)?)
         }
@@ -113,7 +156,7 @@ fn read_operation(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyEr
         let operator = OperatorSpan { operator, span };
         let mut operands = Vec::new();
         loop {
-            let LocatedToken { token, span } = iter.peek().unwrap();
+            let LocatedToken { token, .. } = iter.peek().unwrap();
             if let Token::Operator(_) | Token::CloseBrace /*|Token::CloseBracket | Token::CloseParenthesis*/ = token {
                 let span = operation_span(operator, &mut operands);
                 return Ok(Node::Operation { operator, operands, span })
@@ -123,7 +166,12 @@ fn read_operation(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyEr
             }
         }
     } else {
-        err_expected_span("operation (an operator and a list of operands)", token, code, span)
+        err_expected_span(
+            "operation (an operator and a list of operands)",
+            token,
+            code,
+            span,
+        )
     }
 }
 
@@ -137,24 +185,22 @@ fn operation_span(operator: OperatorSpan, operands: &mut Vec<Node>) -> Span {
 
 fn read_expr(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
     match iter.next().unwrap() {
-        LocatedToken { token, span } => {
-            match token {
-                Token::Number(n) => Ok(Node::Number { n, span }),
-                Token::Keyword(keyword)  => Ok(Node::Keyword { keyword, span }),
-                Token::Identifier(name) => Ok(Node::Identifier {name, span}),
-                Token::String(bytes) => Ok(Node::String{bytes, span}),
-                Token::OpenBrace => read_chain_ops(iter, code, span),
-                Token::OpenBracket => {unimplemented!()}
-                Token::OpenParenthesis => read_types(iter, code, span),
-                Token::Operator(_) |
-                Token::CloseBrace |
-                Token::CloseBracket |
-                Token::CloseParenthesis |
-                Token::EndOfFile => {
-                    err_expected_span("expression", token, code, span)
-                }
+        LocatedToken { token, span } => match token {
+            Token::Number(n) => Ok(Node::Number { n, span }),
+            Token::Keyword(keyword) => Ok(Node::Keyword { keyword, span }),
+            Token::Identifier(name) => Ok(Node::Identifier { name, span }),
+            Token::String(bytes) => Ok(Node::String { bytes, span }),
+            Token::OpenBrace => read_chain_ops(iter, code, span),
+            Token::OpenBracket => {
+                unimplemented!()
             }
-        }
+            Token::OpenParenthesis => read_types(iter, code, span),
+            Token::Operator(_)
+            | Token::CloseBrace
+            | Token::CloseBracket
+            | Token::CloseParenthesis
+            | Token::EndOfFile => err_expected_span("expression", token, code, span),
+        },
     }
 }
 
@@ -166,15 +212,18 @@ fn read_types(iter: &mut TokenIter, code: &SourceCode, open_span: Span) -> Resul
         match token {
             Token::CloseParenthesis => {
                 let _ = iter.next();
-                return Ok(Node::Types { subtypes, span: open_span.merge(&span_copy) })
-            },
+                return Ok(Node::Types {
+                    subtypes,
+                    span: open_span.merge(&span_copy),
+                });
+            }
             _ => subtypes.push(read_typed_identifier(iter, code)?),
         }
     }
 }
 
 fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
-    let LocatedToken {token, span} = iter.next().unwrap();
+    let LocatedToken { token, span } = iter.next().unwrap();
     match token {
         Token::Identifier(name) => {
             let LocatedToken { token, span } = iter.peek().unwrap();
@@ -185,25 +234,39 @@ fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node
                     match token {
                         Token::Identifier(type_) => {
                             let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
-                            Ok(Node::TypedIdentifier { typed_identifier: TypedIdentifier::new(name, type_), span })
+                            Ok(Node::TypedIdentifier {
+                                typed_identifier: TypedIdentifier::new(name, type_),
+                                span,
+                            })
                         }
-                        actual => err_expected_span("type name after ':'", actual, code, span)
+                        actual => err_expected_span("type name after ':'", actual, code, span),
                     }
                 }
-                _ => Ok(Node::TypedIdentifier { typed_identifier: TypedIdentifier::any(name), span: *span }),
+                _ => Ok(Node::TypedIdentifier {
+                    typed_identifier: TypedIdentifier::any(name),
+                    span: *span,
+                }),
             }
-        },
+        }
         Token::Operator(Operator::Type) => {
             let LocatedToken { token, span } = iter.next().unwrap();
             match token {
                 Token::Identifier(type_) => {
                     let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
-                    Ok(Node::TypedIdentifier { typed_identifier: TypedIdentifier::nameless(type_), span })
+                    Ok(Node::TypedIdentifier {
+                        typed_identifier: TypedIdentifier::nameless(type_),
+                        span,
+                    })
                 }
-                actual => err_expected_span("type name after ':'", actual, code, span)
+                actual => err_expected_span("type name after ':'", actual, code, span),
             }
-        },
-        actual =>  err_expected_span("'<name>' or ':<type>' or '<name> :<type>'", actual, code, span)
+        }
+        actual => err_expected_span(
+            "'<name>' or ':<type>' or '<name> :<type>'",
+            actual,
+            code,
+            span,
+        ),
     }
 }
 
@@ -211,39 +274,62 @@ impl PartialEq for Node {
     fn eq(&self, other: &Self) -> bool {
         use Node::*;
         match (self, other) {
-            (Number { n, .. }, Number {n: n_2, ..}) => n == n_2,
-            (Keyword { keyword, .. }, Keyword {keyword: p_2, ..}) => keyword == p_2,
-            (Chain { operations, .. }, Chain {operations: _2, ..}) =>operations == _2,
-            (Operation { operator, operands, .. }, Operation { operator: opt_2, operands:opn_2, .. }) => operator == opt_2 && operands == opn_2,
-            (Node::String { bytes, .. }, Node::String{bytes:b_2, ..}) => bytes == b_2,
-            (Node::Identifier {name, .. }, Node::Identifier {name: n_2, .. }) => name == n_2,
-            (Node::TypedIdentifier { typed_identifier, .. }, Node::TypedIdentifier { typed_identifier: n_2, .. }) => typed_identifier == n_2,
+            (Number { n, .. }, Number { n: n_2, .. }) => n == n_2,
+            (Keyword { keyword, .. }, Keyword { keyword: p_2, .. }) => keyword == p_2,
+            (Chain { operations, .. }, Chain { operations: _2, .. }) => operations == _2,
+            (
+                Operation {
+                    operator, operands, ..
+                },
+                Operation {
+                    operator: opt_2,
+                    operands: opn_2,
+                    ..
+                },
+            ) => operator == opt_2 && operands == opn_2,
+            (Node::String { bytes, .. }, Node::String { bytes: b_2, .. }) => bytes == b_2,
+            (Node::Identifier { name, .. }, Node::Identifier { name: n_2, .. }) => name == n_2,
+            (
+                Node::TypedIdentifier {
+                    typed_identifier, ..
+                },
+                Node::TypedIdentifier {
+                    typed_identifier: n_2,
+                    ..
+                },
+            ) => typed_identifier == n_2,
             (Node::Types { subtypes, .. }, Node::Types { subtypes: s_2, .. }) => subtypes == s_2,
             _ => false,
         }
     }
 }
 
-
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::common::unwrap_display;
     use crate::frontend::expression::TypedIdentifiers;
-    use crate::frontend::sources::token::Operator::Ignore;
+    use crate::frontend::sources::location::NO_SPAN;
     use crate::middleend::intrinsics::builtin_types;
-    use super::*;
 
     fn chain(subnodes: Nodes) -> Node {
-        Node::Chain {operations: subnodes, span: NO_SPAN}
+        Node::Chain {
+            operations: subnodes,
+            span: NO_SPAN,
+        }
     }
     fn empty_chain() -> Node {
         chain(Vec::new())
     }
     fn number(n: i64) -> Node {
-        Node::Number{n, span: NO_SPAN}
+        Node::Number { n, span: NO_SPAN }
     }
     fn op(operator: Operator, operands: Nodes) -> Node {
-        Node::Operation {operator : OperatorSpan::spanless(operator), operands, span: NO_SPAN}
+        Node::Operation {
+            operator: OperatorSpan::spanless(operator),
+            operands,
+            span: NO_SPAN,
+        }
     }
     fn ignore(operand: Node) -> Node {
         op(Operator::Ignore, vec![operand])
@@ -252,14 +338,29 @@ mod tests {
         op(Operator::Ignore, operands)
     }
     fn function() -> Node {
-        Node::Keyword {keyword : Keyword::Function, span: NO_SPAN}
+        Node::Keyword {
+            keyword: Keyword::Function,
+            span: NO_SPAN,
+        }
     }
     fn empty_types() -> Node {
-        Node::Types {subtypes: vec![], span: NO_SPAN}
+        Node::Types {
+            subtypes: vec![],
+            span: NO_SPAN,
+        }
     }
     fn types(typed_identifiers: TypedIdentifiers) -> Node {
-        let subtypes = typed_identifiers.into_iter().map(|t| Node::TypedIdentifier { typed_identifier: t, span: NO_SPAN }).collect();
-        Node::Types { subtypes, span: NO_SPAN }
+        let subtypes = typed_identifiers
+            .into_iter()
+            .map(|t| Node::TypedIdentifier {
+                typed_identifier: t,
+                span: NO_SPAN,
+            })
+            .collect();
+        Node::Types {
+            subtypes,
+            span: NO_SPAN,
+        }
     }
     // fn function(parts: Nodes) -> Node {
     //     Node::Function { parts , span: NO_SPAN }
@@ -276,7 +377,7 @@ mod tests {
         // let text = "chain[op[ignore 5] op[call function chain[op[ignore 4]]]]";
         // let text = "function(n 4) 4";
         // let text = "5 |function (n) {4}";
-        
+
         let read = unwrap_display(read(text));
         assert_eq!(read, empty_chain());
     }
@@ -296,16 +397,30 @@ mod tests {
     fn test_function_empty_types() {
         let text = "{;function(){}}";
         let read = unwrap_display(read(text));
-        assert_eq!(read, chain(vec![ignores(vec![function(), empty_types(), empty_chain()])]));
+        assert_eq!(
+            read,
+            chain(vec![ignores(vec![
+                function(),
+                empty_types(),
+                empty_chain()
+            ])])
+        );
     }
     #[test]
     fn test_function_types() {
         let text = "{;function(a :i64){}}";
         let read = unwrap_display(read(text));
-        assert_eq!(read, chain(vec![ignores(vec![
-            function(),
-            types(vec![TypedIdentifier::new("a".to_string(), builtin_types::I64)]),
-            empty_chain()])]));
+        assert_eq!(
+            read,
+            chain(vec![ignores(vec![
+                function(),
+                types(vec![TypedIdentifier::new(
+                    "a".to_string(),
+                    builtin_types::I64
+                )]),
+                empty_chain()
+            ])])
+        );
     }
     #[test]
     fn test_expected_operator() {
@@ -313,8 +428,6 @@ mod tests {
         read("{;)").expect_err("should fail but was");
     }
 }
-
-
 
 /*
 use std::collections::{HashMap, HashSet, VecDeque};

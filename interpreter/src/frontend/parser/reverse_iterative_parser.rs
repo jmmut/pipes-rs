@@ -12,7 +12,7 @@ use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
 use crate::frontend::sources::lexer::TokenizedSource;
-use crate::frontend::sources::location::{Location, SourceCode, Span, NO_SPAN};
+use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{
     Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token,
 };
@@ -139,8 +139,7 @@ impl Parser {
                 Token::OpenParenthesis => self.push_f_pe(construct_children_types, span)?,
                 Token::CloseParenthesis => self.push_pe(PartialExpression::CloseParenthesis(span)),
                 Token::String(string) => self.push_pe(construct_string(string, span)),
-                Token::EndOfFile => return Ok(())
-                // _ => return error_expected("anything else", token),
+                Token::EndOfFile => return Ok(()), // _ => return error_expected("anything else", token),
             };
         }
         Ok(())
@@ -866,7 +865,7 @@ pub fn err_expected_span<T: Display, S: AsRef<str>, R>(
     actual: T,
     source: &SourceCode,
     span: Span,
-) ->  Result<R, AnyError> {
+) -> Result<R, AnyError> {
     err(expected_span(expected_str, Some(actual), source, span))
 }
 #[track_caller]
@@ -875,7 +874,7 @@ pub fn err_missing_span<T: Display, S: AsRef<str>, R>(
     actual: T,
     source: &SourceCode,
     span: Span,
-) ->  Result<R, AnyError> {
+) -> Result<R, AnyError> {
     err(expected_span(expected_str, Some(actual), source, span))
 }
 pub fn expected_span_pe<S: AsRef<str>>(

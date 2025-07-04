@@ -394,7 +394,7 @@ impl SourceCode {
 
 #[cfg(test)]
 mod tests {
-    use crate::frontend::sources::location::{Location, SourceCode, Span};
+    use crate::frontend::sources::location::{Location, SourceCode};
 
     #[test]
     fn test_index_of_next() {

@@ -60,7 +60,10 @@ fn try_lex(mut code: SourceCode, add_eof: bool) -> Result<TokenizedSource, AnyEr
         previous_location = code.get_location();
     }
     if add_eof {
-        tokens.push(LocatedToken { token: Token::EndOfFile, span: code.span() });
+        tokens.push(LocatedToken {
+            token: Token::EndOfFile,
+            span: code.span(),
+        });
     }
     // if let Some(token) = tokens.last() {
     //     println!("debugging: {}", code.format_span(token.span));

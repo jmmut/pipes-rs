@@ -72,7 +72,7 @@ pub fn extract_body_size_from_header(header: &[u8]) -> Result<usize, AnyError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_basic_header_buffer_incremental() {
         let message = "Content-Length: 4\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n\r\nasdf";
