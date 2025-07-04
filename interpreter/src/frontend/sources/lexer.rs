@@ -17,10 +17,12 @@ pub struct TokenizedSource {
 }
 
 pub fn lex<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
-    context("Lexer", try_lex(code.into()))
+    context("Lexer", try_lex(code.into(), false))
 }
-
-fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
+pub fn lex_with_eof<S: Into<SourceCode>>(code: S) -> Result<TokenizedSource, AnyError> {
+    context("Lexer", try_lex(code.into(), true))
+}
+fn try_lex(mut code: SourceCode, add_eof: bool) -> Result<TokenizedSource, AnyError> {
     let mut tokens = Vec::<LocatedToken>::new();
     let mut previous_location = code.get_location();
     while !code.consumed() {
@@ -57,7 +59,9 @@ fn try_lex(mut code: SourceCode) -> Result<TokenizedSource, AnyError> {
         }
         previous_location = code.get_location();
     }
-
+    if add_eof {
+        tokens.push(LocatedToken { token: Token::EndOfFile, span: code.span() });
+    }
     // if let Some(token) = tokens.last() {
     //     println!("debugging: {}", code.format_span(token.span));
     // }

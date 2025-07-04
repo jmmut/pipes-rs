@@ -2,7 +2,7 @@ use std::iter::Peekable;
 use std::vec::IntoIter;
 use crate::common::{err, err_span, AnyError};
 use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
-use crate::frontend::sources::lexer::{lex, TokenizedSource};
+use crate::frontend::sources::lexer::{lex, lex_with_eof, TokenizedSource};
 use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token, Tokens};
 
@@ -20,9 +20,11 @@ pub enum Node {
     Keyword {keyword: Keyword, span: Span },
     String { bytes: Vec<u8>, span: Span },
     Identifier {name: String, span: Span },
+    TypedIdentifier {name: String, type_: String, span: Span },
     Types {subtypes: Nodes, span: Span },
     // Function { parts: Nodes, span: Span},
     Chain { operations: Nodes, span: Span},
+    // List {elems: Nodes, span: Span},
     Operation { operator: OperatorSpan, operands: Nodes, span: Span},
 }
 
@@ -35,6 +37,7 @@ impl Node {
             Node::Keyword { span, .. } |
             Node::String { span, .. } |
             Node::Identifier { span, .. } |
+            Node::TypedIdentifier { span, .. } |
             Node::Types { span, .. } |
             Node::Chain { span, .. } |
             Node::Operation { span, .. } => *span,
@@ -43,7 +46,7 @@ impl Node {
 }
 
 pub fn read(text: &str) -> Result<Node, AnyError> {
-    let tokens = lex(text)?;
+    let tokens = lex_with_eof(text)?;
     read_toplevel(tokens)
 }
 
@@ -52,66 +55,74 @@ fn read_toplevel(TokenizedSource {tokens, source_code}: TokenizedSource) -> Resu
         err("no tokens found")
     } else {
         let mut iter = tokens.into_iter().peekable();
-        read_chain(&mut iter, &source_code)
+        let chain_res = read_chain(&mut iter, &source_code)?;
+
+        let LocatedToken {token, span} = iter.next().unwrap();
+        if let Token::EndOfFile = token {
+                let remaining_tokens = iter.collect::<Vec<_>>();
+                if remaining_tokens.len() != 0 {
+                    let span = remaining_tokens.first().unwrap().span.merge(&remaining_tokens.last().unwrap().span);
+                    err_span("unexpected tokens after chain", &source_code, span)
+                } else {
+                    Ok(chain_res)
+                }
+        } else {
+            err_expected_span(Token::EndOfFile.to_string(), token, &source_code, span)
+        }
     }
 }
 type TokenIter = Peekable<IntoIter<LocatedToken>>;
 
 fn read_chain(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
-    if let Some(LocatedToken{token, span}) = iter.next() {
-        if let Token::OpenBrace = token {
-            let open_span = span;
-            read_chain_ops(iter, code, open_span)
-        } else {
-            let expected = format!("a chain starting with {}", Token::OpenBrace);
-            err_expected_span(expected, Some(token), code, span)
-        }
+    let LocatedToken{token, span} = iter.next().unwrap();
+    if let Token::OpenBrace = token {
+        let open_span = span;
+        read_chain_ops(iter, code, open_span)
     } else {
-        err("no tokens found")
+        let expected = format!("a chain starting with {}", Token::OpenBrace);
+        err_expected_span(expected, token, code, span)
     }
 }
 
 fn read_chain_ops(iter: &mut TokenIter, code: &SourceCode, open_span: Span) -> Result<Node, AnyError> {
     let mut operations = Vec::new();
-    let mut last_span = open_span;
-    while let Some(LocatedToken { token, span }) = iter.peek() {
-        let span_copy = *span;
-        match token {
-            Token::CloseBrace => {
-                return Ok(Node::Chain { operations, span: open_span.merge(&span) })
-            },
-            _ => operations.push(read_operation(iter, code, last_span)?),
+    loop {
+        let LocatedToken { token, span } = iter.peek().unwrap();
+        let span_copy=  *span;
+        if let Token::CloseBrace = token {
+            let _ = iter.next();
+            return Ok(Node::Chain { operations, span: open_span.merge(&span_copy) })
+        } else {
+            operations.push(read_operation(iter, code)?)
         }
-        last_span = span_copy;
+        // match token {
+        //     Token::CloseBrace => {
+        //         let _ = iter.next();
+        //         return Ok(Node::Chain { operations, span: open_span.merge(&span_copy) })
+        //     },
+        //     _ =>
+        //         operations.push(read_operation(iter, code)?),
+        // }
     }
-    err_expected_span(Token::CloseBrace.to_string(), None::<bool>, code, last_span)
 }
 
-fn read_operation(iter: &mut TokenIter, code: &SourceCode, previous_span: Span) -> Result<Node, AnyError> {
-    let elem = iter.next();
-    if let Some(LocatedToken {token: Token::Operator(operator), span}) = elem {
+fn read_operation(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
+    let LocatedToken { token, span } = iter.next().unwrap();
+    if let Token::Operator(operator) = token {
         let operator = OperatorSpan { operator, span };
         let mut operands = Vec::new();
-        let mut last_span = span;
-        while let Some(token) = iter.peek() {
-            if let LocatedToken { token: Token::Operator(_) | Token::CloseBrace |Token::CloseBracket | Token::CloseParenthesis, .. } = token {
+        loop {
+            let LocatedToken { token, span } = iter.peek().unwrap();
+            if let Token::Operator(_) | Token::CloseBrace /*|Token::CloseBracket | Token::CloseParenthesis*/ = token {
                 let span = operation_span(operator, &mut operands);
                 return Ok(Node::Operation { operator, operands, span })
             } else {
-                let expr = read_expr(iter, code, last_span)?;
-                last_span = expr.span();
+                let expr = read_expr(iter, code)?;
                 operands.push(expr);
             }
         }
-        let span = operation_span(operator, &mut operands);
-        Ok(Node::Operation { operator, operands, span })
     } else {
-        let span = if let Some(token) = &elem {
-            token.span
-        } else {
-            previous_span
-        };
-        err_expected_span("operation (an operator and a list of operands)", elem.map(|e|e.token), code, span)
+        err_expected_span("operation (an operator and a list of operands)", token, code, span)
     }
 }
 
@@ -123,12 +134,9 @@ fn operation_span(operator: OperatorSpan, operands: &mut Vec<Node>) -> Span {
     }
 }
 
-fn read_expr(iter: &mut TokenIter, code: &SourceCode, previous_span: Span) -> Result<Node, AnyError> {
-    match iter.next() {
-        None => {
-            err_expected_span("operation (an operator and a list of operands)", None::<bool>, code, previous_span)
-        }
-        Some(LocatedToken { token, span }) => {
+fn read_expr(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
+    match iter.next().unwrap() {
+        LocatedToken { token, span } => {
             match token {
                 Token::Number(n) => Ok(Node::Number { n, span }),
                 Token::Keyword(keyword)  => Ok(Node::Keyword { keyword, span }),
@@ -136,16 +144,36 @@ fn read_expr(iter: &mut TokenIter, code: &SourceCode, previous_span: Span) -> Re
                 Token::String(bytes) => Ok(Node::String{bytes, span}),
                 Token::OpenBrace => read_chain_ops(iter, code, span),
                 Token::OpenBracket => {unimplemented!()}
-                Token::OpenParenthesis => Ok( 
+                Token::OpenParenthesis => read_types(iter, code, span),
                 Token::Operator(_) |
                 Token::CloseBrace |
                 Token::CloseBracket |
-                Token::CloseParenthesis => {
-                    err_expected_span("expression", Some(token), code, span)
+                Token::CloseParenthesis |
+                Token::EndOfFile => {
+                    err_expected_span("expression", token, code, span)
                 }
             }
         }
     }
+}
+
+fn read_types(iter: &mut TokenIter, code: &SourceCode, open_span: Span) -> Result<Node, AnyError> {
+    let mut subtypes = Vec::new();
+    loop {
+        let LocatedToken { token, span } = iter.peek().unwrap();
+        let span_copy = *span;
+        match token {
+            Token::CloseParenthesis => {
+                let _ = iter.next();
+                return Ok(Node::Types { subtypes, span: open_span.merge(&span_copy) })
+            },
+            _ => subtypes.push(read_typed_identifier(iter, code)?),
+        }
+    }
+}
+
+fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
+    unimplemented!()
 }
 
 impl PartialEq for Node {
@@ -156,6 +184,10 @@ impl PartialEq for Node {
             (Keyword { keyword, .. }, Keyword {keyword: p_2, ..}) => keyword == p_2,
             (Chain { operations, .. }, Chain {operations: _2, ..}) =>operations == _2,
             (Operation { operator, operands, .. }, Operation { operator: opt_2, operands:opn_2, .. }) => operator == opt_2 && operands == opn_2,
+            (Node::String { bytes, .. }, Node::String{bytes:b_2, ..}) => bytes == b_2,
+            (Node::Identifier {name, .. }, Node::Identifier {name: n_2, .. }) => name == n_2,
+            (Node::TypedIdentifier { name, type_, .. }, Node::TypedIdentifier { name: n_2, type_: t_2, .. }) => name == n_2 && type_ == t_2,
+            (Node::Types { subtypes, .. }, Node::Types { subtypes: s_2, .. }) => subtypes == s_2,
             _ => false,
         }
     }
@@ -204,9 +236,9 @@ mod tests {
     #[test]
     fn test_empty_chain() {
         let text = "{}";
-        let text = "chain[op[ignore 5] op[call function chain[op[ignore 4]]]]";
-        let text = "function(n 4) 4";
-        let text = "5 |function (n) {4}";
+        // let text = "chain[op[ignore 5] op[call function chain[op[ignore 4]]]]";
+        // let text = "function(n 4) 4";
+        // let text = "5 |function (n) {4}";
         
         let read = unwrap_display(read(text));
         assert_eq!(read, empty_chain());
@@ -228,6 +260,11 @@ mod tests {
         let text = "{;function(){}}";
         let read = unwrap_display(read(text));
         assert_eq!(read, chain(vec![ignores(vec![function(), empty_types(), empty_chain()])]));
+    }
+    #[test]
+    fn test_expected_operator() {
+        read("{;").expect_err("should fail but was");
+        read("{;)").expect_err("should fail but was");
     }
 }
 

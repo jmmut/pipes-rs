@@ -12,7 +12,7 @@ use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
 use crate::frontend::sources::lexer::TokenizedSource;
-use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
+use crate::frontend::sources::location::{Location, SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{
     Keyword, LocatedToken, LocatedTokens, Operator, OperatorSpan, Token,
 };
@@ -138,7 +138,9 @@ impl Parser {
                 Token::CloseBracket => self.push_pe(PartialExpression::CloseBracket(span)),
                 Token::OpenParenthesis => self.push_f_pe(construct_children_types, span)?,
                 Token::CloseParenthesis => self.push_pe(PartialExpression::CloseParenthesis(span)),
-                Token::String(string) => self.push_pe(construct_string(string, span)), // _ => return error_expected("anything else", token),
+                Token::String(string) => self.push_pe(construct_string(string, span)),
+                Token::EndOfFile => return Ok(())
+                // _ => return error_expected("anything else", token),
             };
         }
         Ok(())
@@ -360,7 +362,7 @@ fn construct_keyword(
         Keyword::Filter => construct_filter(parser),
         Keyword::Branch => construct_branch(parser),
         Keyword::Something => construct_something(parser),
-        // Keyword::Inspect => construct_inspect(parser),
+        Keyword::Inspect => construct_inspect(parser),
         Keyword::Public => construct_public(parser),
         Keyword::Cast => construct_cast(parser),
         Keyword::Comptime => construct_comptime(parser),
@@ -535,9 +537,9 @@ fn construct_branch(parser: &mut Parser) -> Result<(Expression, Span), AnyError>
 fn construct_something(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     construct_type_chain_chain(parser, Expression::something, "something")
 }
-// fn construct_inspect(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
-//     construct_type_chain(parser, Expression::inspect, "inspect")
-// }
+fn construct_inspect(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
+    construct_type_chain(parser, Expression::inspect, "inspect")
+}
 
 fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     let elem = parser.accumulated.pop_front();
@@ -844,7 +846,7 @@ pub fn expected<T: Display, S: AsRef<str>>(expected: S, actual: Option<T>) -> St
     if let Some(actual) = actual.as_ref() {
         format!("expected {} but was '{}'", expected.as_ref(), actual)
     } else {
-        format!("expected {} but was None", expected.as_ref())
+        format!("missing expected {}", expected.as_ref())
     }
 }
 pub fn expected_span<T: Display, S: AsRef<str>>(
@@ -853,16 +855,28 @@ pub fn expected_span<T: Display, S: AsRef<str>>(
     source: &SourceCode,
     span: Span,
 ) -> String {
+    // if actual.is_none() && span.start == span.end {
+    //     span = Span {start: Location {line: span.start.line(), column: span.start.column() + 1, byte: span.start.byte + 1 }, end: Location{}}
+    // }
     expected(expected_str, actual) + &source.format_span(span)
 }
 #[track_caller]
 pub fn err_expected_span<T: Display, S: AsRef<str>, R>(
     expected_str: S,
-    actual: Option<T>,
+    actual: T,
     source: &SourceCode,
     span: Span,
 ) ->  Result<R, AnyError> {
-    err(expected_span(expected_str, actual, source, span))
+    err(expected_span(expected_str, Some(actual), source, span))
+}
+#[track_caller]
+pub fn err_missing_span<T: Display, S: AsRef<str>, R>(
+    expected_str: S,
+    actual: T,
+    source: &SourceCode,
+    span: Span,
+) ->  Result<R, AnyError> {
+    err(expected_span(expected_str, Some(actual), source, span))
 }
 pub fn expected_span_pe<S: AsRef<str>>(
     expected_str: S,

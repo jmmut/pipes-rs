@@ -71,7 +71,7 @@ impl Display for Composed {
             | Composed::Filter(Filter { iteration_elem, body})
             | Composed::Browse(Browse { iteration_elem, body })
             | Composed::Times(Times {iteration_elem, body})
-            // | Composed::Inspect(Inspect { elem: iteration_elem, body }) 
+            | Composed::Inspect(Inspect { elem: iteration_elem, body }) 
             => {
                 write_types_chain(f, name, iteration_elem, body)
             },

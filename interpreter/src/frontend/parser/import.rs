@@ -186,9 +186,9 @@ span,
             )?;
             track_identifiers_recursive_chain(import_state, nothing)
         }
-        // Expression::Composed(Composed::Inspect(Inspect { elem, body })) => {
-        //     track_identifiers_recursive_scope(import_state, vec![elem].into_iter(), body, span)
-        // }
+        Expression::Composed(Composed::Inspect(Inspect { elem, body })) => {
+            track_identifiers_recursive_scope(import_state, vec![elem].into_iter(), body, span)
+        }
         Expression::Composed(Composed::Cast(cast)) => {
             check_user_defined_type(&mut cast.target_type.type_, import_state, span)
         }

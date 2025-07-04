@@ -34,6 +34,7 @@ pub enum Token {
     CloseBrace,
     OpenParenthesis,
     CloseParenthesis,
+    EndOfFile,
     // Comma,
 }
 
@@ -53,6 +54,7 @@ impl Display for Token {
             Token::CloseBrace => write!(f, "CloseBrace '}}'"),
             Token::OpenParenthesis => write!(f, "OpenParenthesis '('"),
             Token::CloseParenthesis => write!(f, "CloseParenthesis ')'"),
+            Token::EndOfFile => write!(f, "EndOfFile"),
         }
     }
 }
@@ -176,7 +178,7 @@ pub enum Keyword {
     Filter,
     Branch,
     Something,
-    // Inspect,
+    Inspect,
     Public,
     Cast,
     Comptime,
@@ -199,7 +201,7 @@ impl Keyword {
             Keyword::Filter => "filter",
             Keyword::Branch => "branch",
             Keyword::Something => "something",
-            // Keyword::Inspect => "inspect",
+            Keyword::Inspect => "inspect",
             Keyword::Public => "public",
             Keyword::Cast => "cast",
             Keyword::Comptime => "comptime",
