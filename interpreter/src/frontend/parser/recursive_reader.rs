@@ -15,43 +15,19 @@ pub enum NodeType {
     // Keyword(Keyword),
     // OpenBracket,
 }
+#[rustfmt::skip]
 #[derive(Debug)]
 pub enum Node {
-    Number {
-        n: i64,
-        span: Span,
-    },
-    Keyword {
-        keyword: Keyword,
-        span: Span,
-    },
-    String {
-        bytes: Vec<u8>,
-        span: Span,
-    },
-    Identifier {
-        name: String,
-        span: Span,
-    },
-    TypedIdentifier {
-        typed_identifier: TypedIdentifier,
-        span: Span,
-    },
-    Types {
-        subtypes: Nodes,
-        span: Span,
-    },
+    Number {n: i64,span: Span },
+    Keyword {keyword: Keyword,span: Span },
+    String {bytes: Vec<u8>,span: Span },
+    Identifier {name: String,span: Span },
+    TypedIdentifier {typed_identifier: TypedIdentifier,span: Span },
+    Types {subtypes: Nodes,span: Span },
     // Function { parts: Nodes, span: Span},
-    Chain {
-        operations: Nodes,
-        span: Span,
-    },
+    Chain {operations: Nodes,span: Span },
     // List {elems: Nodes, span: Span},
-    Operation {
-        operator: OperatorSpan,
-        operands: Nodes,
-        span: Span,
-    },
+    Operation {operator: OperatorSpan,operands: Nodes,span: Span },
 }
 
 pub type Nodes = Vec<Node>;
@@ -404,6 +380,21 @@ mod tests {
             read,
             chain(vec![ignores(vec![
                 function(),
+                types(vec![TypedIdentifier::new(
+                    "a".to_string(),
+                    builtin_types::I64
+                )]),
+                empty_chain()
+            ])])
+        );
+    }
+    #[test]
+    fn test_nested_types() {
+        let text = "{:tuple(a :i64)}";
+        let read = unwrap_display(read(text));
+        assert_eq!(
+            read,
+            chain(vec![op(Operator::Type, 
                 types(vec![TypedIdentifier::new(
                     "a".to_string(),
                     builtin_types::I64
