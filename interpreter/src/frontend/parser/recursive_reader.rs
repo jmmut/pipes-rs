@@ -18,16 +18,16 @@ pub enum NodeType {
 #[rustfmt::skip]
 #[derive(Debug)]
 pub enum Node {
-    Number {n: i64,span: Span },
-    Keyword {keyword: Keyword,span: Span },
-    String {bytes: Vec<u8>,span: Span },
-    Identifier {name: String,span: Span },
-    TypedIdentifier {typed_identifier: TypedIdentifier,span: Span },
-    Types {subtypes: Nodes,span: Span },
+    Number { n: i64,span: Span },
+    Keyword { keyword: Keyword, span: Span },
+    String { bytes: Vec<u8>, span: Span },
+    Identifier { name: String, span: Span },
+    TypedIdentifier { typed_identifier: TypedIdentifier, span: Span },
+    Types { subtypes: Nodes, span: Span },
     // Function { parts: Nodes, span: Span},
-    Chain {operations: Nodes,span: Span },
+    Chain { operations: Nodes, span: Span },
     // List {elems: Nodes, span: Span},
-    Operation {operator: OperatorSpan,operands: Nodes,span: Span },
+    Operation { operator: OperatorSpan, operands: Nodes, span: Span },
 }
 
 pub type Nodes = Vec<Node>;
@@ -133,7 +133,7 @@ fn read_operation(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyEr
             let LocatedToken { token, .. } = iter.peek().unwrap();
             if let Token::Operator(_) | Token::CloseBrace /*|Token::CloseBracket | Token::CloseParenthesis*/ = token {
                 let span = operation_span(operator, &mut operands);
-                return Ok(Node::Operation { operator, operands, span })
+                return Ok(Node::Operation { operator, operands, span });
             } else {
                 let expr = read_expr(iter, code)?;
                 operands.push(expr);
@@ -201,7 +201,8 @@ fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node
             let _ = iter.next().unwrap(); // consume :
             let LocatedToken { token, span } = iter.next().unwrap();
             if let Token::Identifier(type_) = token {
-                let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
+                let children = maybe_read_children(iter, code)?;
+                let type_ = Type::from(type_, children); // TODO: parse children types
                 Ok(Node::TypedIdentifier {
                     typed_identifier: TypedIdentifier::new(name, type_),
                     span,
@@ -218,7 +219,8 @@ fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node
     } else if let Token::Operator(Operator::Type) = token {
         let LocatedToken { token, span } = iter.next().unwrap();
         if let Token::Identifier(type_) = token {
-            let type_ = Type::from(type_, Vec::new()); // TODO: parse children types
+            let children = maybe_read_children(iter, code)?;
+            let type_ = Type::from(type_, children); // TODO: parse children types
             Ok(Node::TypedIdentifier {
                 typed_identifier: TypedIdentifier::nameless(type_),
                 span,
@@ -234,6 +236,38 @@ fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node
             span,
         )
     }
+}
+
+fn maybe_read_children(
+    iter: &mut TokenIter,
+    code: &SourceCode,
+) -> Result<Vec<TypedIdentifier>, AnyError> {
+    let LocatedToken {
+        token,
+        span: children_span,
+    } = iter.peek().unwrap();
+    let children = if let Token::OpenParenthesis = token {
+        let children_span = *children_span;
+        let _ = iter.next().unwrap();
+        let Node::Types { subtypes, .. } = read_types(iter, code, children_span)? else {
+            panic!()
+        };
+        subtypes
+            .into_iter()
+            .map(|n| {
+                let Node::TypedIdentifier {
+                    typed_identifier, ..
+                } = n
+                else {
+                    panic!()
+                };
+                typed_identifier
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    Ok(children)
 }
 
 impl PartialEq for Node {
@@ -297,6 +331,12 @@ mod tests {
             span: NO_SPAN,
         }
     }
+    fn ident(name: &str) -> Node {
+        Node::Identifier {
+            name: name.to_string(),
+            span: NO_SPAN,
+        }
+    }
     fn ignore(operand: Node) -> Node {
         op(Operator::Ignore, vec![operand])
     }
@@ -309,20 +349,19 @@ mod tests {
             span: NO_SPAN,
         }
     }
+    fn i64(name: &str) -> Node {
+        Node::TypedIdentifier {
+            typed_identifier: TypedIdentifier::new(name.to_string(), builtin_types::I64),
+            span: NO_SPAN,
+        }
+    }
     fn empty_types() -> Node {
         Node::Types {
             subtypes: vec![],
             span: NO_SPAN,
         }
     }
-    fn types(typed_identifiers: TypedIdentifiers) -> Node {
-        let subtypes = typed_identifiers
-            .into_iter()
-            .map(|t| Node::TypedIdentifier {
-                typed_identifier: t,
-                span: NO_SPAN,
-            })
-            .collect();
+    fn types(subtypes: Nodes) -> Node {
         Node::Types {
             subtypes,
             span: NO_SPAN,
@@ -380,27 +419,37 @@ mod tests {
             read,
             chain(vec![ignores(vec![
                 function(),
-                types(vec![TypedIdentifier::new(
-                    "a".to_string(),
-                    builtin_types::I64
-                )]),
+                types(vec![i64("a")]),
                 empty_chain()
             ])])
         );
     }
     #[test]
     fn test_nested_types() {
-        let text = "{:tuple(a :i64)}";
+        let text = "{:tuple(t :tuple(a :i64 b :i64))}";
         let read = unwrap_display(read(text));
         assert_eq!(
             read,
-            chain(vec![op(Operator::Type, 
-                types(vec![TypedIdentifier::new(
-                    "a".to_string(),
-                    builtin_types::I64
-                )]),
-                empty_chain()
-            ])])
+            chain(vec![op(
+                Operator::Type,
+                vec![
+                    ident("tuple"),
+                    types(vec![Node::TypedIdentifier {
+                        typed_identifier: TypedIdentifier::new(
+                            "t".to_string(),
+                            Type::children(
+                                "tuple",
+                                vec![
+                                    TypedIdentifier::new("a".to_string(), builtin_types::I64),
+                                    TypedIdentifier::new("b".to_string(), builtin_types::I64),
+                                ]
+                            )
+                        ),
+                        span: NO_SPAN
+                    }]),
+                    // types(vec![i64("a"), i64("b")]),
+                ]
+            )])
         );
     }
     #[test]
