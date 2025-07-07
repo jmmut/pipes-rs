@@ -43,7 +43,7 @@
 |subrange [8 15]
 |assert/array_eq "my long"
 
-;public function(list :list  to_find)(:or(index :i64 if_not_found :nothing)) {
+;public function(list :list  to_find)(:or(index :i64  if_not_found :nothing)) {
     list |size
     |times_or(i) {
         list #i =?to_find
@@ -56,14 +56,17 @@
 }
 =find
 
+;[{
+    ;"asdfqwer"
+    |find 'z'
+    |assert/eq {}
+}{
+    ;"asdfqwer"
+    |find 'q'
+    |assert/eq 4
+}] |test/count_named "find"
 
-;"asdfqwer"
-|find 'z'
-|assert/eq {}
 
-;"asdfqwer"
-|find 'q'
-|assert/eq 4
 
 ;public function (index_and_value) {
     function(list) {
@@ -237,7 +240,7 @@
     [2 1] |sort |assert/array_eq [1 2]
 } {
     [2 1 2] |sort |assert/array_eq [1 2 2]
-}] |core/count_named_tests "sort"
+}] |test/count_named "sort"
 
 ;public function (as :list  bs :list) (:list(:tuple(first second))) {
     ;0 -1 =i
@@ -260,6 +263,6 @@
 ;[{[1 2 3] |delete 0 |assert/array_eq [2 3]
 } {[1 2 3] |delete 1 |assert/array_eq [1 3]
 } {[1 2 3] |delete 2 |assert/array_eq [1 2]
-}] |core/count_named_tests "delete"
+}] |test/count_named "delete"
 
 ;

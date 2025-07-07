@@ -38,14 +38,14 @@
 
 
 ;public function(list :list) {
-    0 -1 =i;
-    list |size +2 |new_array |replace(e) {
-        i +1 =>i;
-        i =? 0 |branch { '"' } {
-            i =? {list |size +1} |branch { '"' } {
-                list #{i -1}
-            }
-        }
+    ;0 -1 =i
+    ;list |size +1 =last
+    ;list |size +2 |new_array |replace(_) {
+        ;i +1 =>i
+        ;[{i ==0} {i ==last}] |core/or
+        |branch { '"' } { list #{i -1} }
     }
 }
 =quote
+;"asdf" |quote |assert/array_eq "\"asdf\""
+;

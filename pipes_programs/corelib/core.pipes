@@ -1,39 +1,12 @@
 
 
-;public {[27] ++"[31m"} =ANSI_RED
-;public {[27] ++"[91;1m"} =ANSI_BOLD_BRIGHT_RED
-;public {[27] ++"[32m"} =ANSI_GREEN
-;public {[27] ++"[92;1m"} =ANSI_BOLD_BRIGHT_GREEN
-;public {[27] ++"[0m"} =ANSI_CLEAR
-
-;public function(tests name)() {
-    ;name |size =?0 |branch {""} {" ("++ name ")"} =name_paren
-    ;tests |size |to_str =total
-    ;tests |array/count 0 =failed
-    =? 0
-    |branch {
-        ANSI_BOLD_BRIGHT_GREEN ++"All " total " tests passed" name_paren
-    } {
-        ANSI_BOLD_BRIGHT_RED ++{failed |to_str} "/" total " test(s) failed" name_paren
-    }
-    ++ANSI_CLEAR
-    |print
-    ;
-}
-=count_named_tests
-
-;public function(tests)() {
-    tests |count_named_tests ""
-}
-=count_tests
-
 
 ;public function (conditions :list(:i64)) (:i64) {
-    ;1 =all_hold
-    ;conditions |browse(e) {
-        |branch {;} {0 =>all_hold;}
+    |browse_or(e) {
+        |branch {;} {0}
+    } {
+        1
     }
-    ;all_hold
 }
 =and
 
@@ -43,11 +16,11 @@
 ;[0 0 0] |and |assert/eq 0
 
 ;public function (conditions :list(:i64)) (:i64) {
-    ;0 =any_holds
-    ;conditions |browse(e) {
-        |branch {1 =>any_holds;} {;}
+    |browse_or(e) {
+        |branch {1} {;}
+    } {
+        0
     }
-    ;any_holds
 }
 =or
 

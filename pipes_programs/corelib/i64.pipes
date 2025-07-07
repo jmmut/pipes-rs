@@ -36,7 +36,7 @@
 } {;"132asdf" |parse |assert/eq none
 } {;" " |parse |assert/eq none
 } {;"" |parse |assert/eq none
-}] |core/count_named_tests "i64/parse"
+}] |test/count_named "i64/parse"
 
 ;public function (str :list(:i64)  default :i64) (:i64) {
     str |parse |something(n) {n} {default}
