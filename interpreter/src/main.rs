@@ -54,10 +54,10 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
         debug_ast,
     } = args;
     let code_string = SourceCode::new_from_string_or_file(evaluate_string, input_file)?;
-    let mut program = lex_and_parse(code_string)?;
+    let program = lex_and_parse(code_string)?;
 
+    let mut program = rewrite(program)?;
     put_types(&mut program)?;
-    let program = rewrite(program)?;
 
     // two ifs so that --debug-ast and --prettify only prints once, prettified
     if debug_ast || prettify {

@@ -131,8 +131,8 @@ fn assert_code_eq(code: &str, expected_code: &str) {
 fn test_nothing() {
     unwrap_display(lex_and_parse(";"));
     unwrap_display(lex_and_parse("{;}"));
-    // assert_expr_eq("none", Expression::Nothing);
-    assert_expr_eq("none", chain_init(Expression::Nothing, &[]));
+    assert_expr_eq("none", Expression::Nothing);
+    // assert_expr_eq("none", chain_init(Expression::Nothing, &[]));
 }
 
 #[test]
@@ -148,8 +148,8 @@ fn test_nothing_braces() {
 
 #[test]
 fn test_value() {
-    // assert_expr_eq("57", val(57));
-    assert_expr_eq("57", chain_init(val(57), &[]));
+    assert_expr_eq("57", val(57));
+    // assert_expr_eq("57", chain_init(val(57), &[]));
 }
 
 #[test]

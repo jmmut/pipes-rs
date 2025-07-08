@@ -406,7 +406,9 @@ mod tests {
     #[test]
     fn test_empty() {
         let text = "";
-        let _ = read(text).expect_err("");
+        // let _ = read(text).expect_err("");
+        let read = unwrap_display(read(text));
+        assert_eq!(read, empty_chain());
     }
     #[test]
     fn test_empty_chain() {

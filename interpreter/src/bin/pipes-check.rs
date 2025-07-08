@@ -59,10 +59,10 @@ fn interpret<R: Read, W: Write>(args: &Args, read_src: R, print_dst: W) -> Resul
 
     let code_string =
         SourceCode::new_from_string_or_file(evaluate_string.clone(), input_file.clone())?;
-    let mut program = lex_and_parse(code_string)?;
+    let program = lex_and_parse(code_string)?;
 
+    let mut program = rewrite(program)?;
     put_types(&mut program)?;
-    let program = rewrite(program)?;
 
     if !check {
         let result = Runtime::evaluate(program, read_src, print_dst)?;

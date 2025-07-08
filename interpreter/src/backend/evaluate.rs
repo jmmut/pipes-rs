@@ -431,7 +431,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             | Expression::Value(_)
             | Expression::Type(_)
             | Expression::StaticList { .. }
-            | Expression::TypedIdentifiers(_) 
+            | Expression::TypedIdentifiers(_)
             => err(format!(
                 "Can not use expression as a function: {:?}",
                 callable
@@ -1416,7 +1416,8 @@ mod tests {
     //     ";macro(t: types  c :chain) {=comptime {t #0 .name} ;c ;comptime {t #0 .name}}=m_inspect ";
     // const INSPECT: &str =
     //     ";macro(input  t: types  c :chain) {|function t c ;input} =m_inspect";
-    const INSPECT: &str = ";macro(input  t: pnode  c :pnode) {|function t c ;input} =m_inspect";
+    // const INSPECT: &str = ";macro(input  t: pnode  c :pnode) {|function t c ;input} =m_inspect";
+    const INSPECT: &str = ";macro(input  t  c) {|function t c ;input} =m_inspect";
     #[test]
     fn test_inspect() {
         assert_eq!(

@@ -92,9 +92,9 @@ mod tests {
     }
 
     fn test_rewrite(code: &str) -> Program {
-        let mut program = parse(code);
-        unwrap_display(put_types(&mut program));
-        let rewritten = unwrap_display(rewrite(program));
+        let program = parse(code);
+        let mut rewritten = unwrap_display(rewrite(program));
+        unwrap_display(put_types(&mut rewritten));
         rewritten
     }
     fn typed(expression: Expression) -> Expression {

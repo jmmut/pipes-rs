@@ -51,7 +51,7 @@ pub enum PartialExpression {
     Operation(Operation),
     // Operator(Operator),
     // Keyword(Keyword),
-    ChildrenTypes(TypedIdentifiers, Span),
+    // ChildrenTypes(TypedIdentifiers, Span),
     // TypedIdentifier(TypedIdentifier),
 }
 
@@ -64,7 +64,7 @@ impl PartialExpression {
             PartialExpression::CloseBracket(span)
             | PartialExpression::CloseBrace(span)
             | PartialExpression::CloseParenthesis(span)
-            | PartialExpression::ChildrenTypes(_, span) => *span,
+            => *span,
             PartialExpression::Expression(expr_span) => expr_span.span(),
             PartialExpression::Operation(op) => op.content_span(),
         }
@@ -83,9 +83,7 @@ impl Display for PartialExpression {
             PartialExpression::Operation(op) => write!(f, "{}", op),
             // PartialExpression::Operator(op) => write!(f, "{}", op),
             // PartialExpression::Keyword(keyword) => write!(f, "{}", keyword.name()),
-            PartialExpression::ChildrenTypes(types, _) => {
-                write!(f, "{}", typed_identifiers_to_str(types, true))
-            } // PartialExpression::TypedIdentifier(name) => write!(f, "{}", name),
+            // PartialExpression::TypedIdentifier(name) => write!(f, "{}", name),
         }
     }
 }
@@ -234,7 +232,7 @@ impl Parser {
 fn construct_identifier(parser: &mut Parser, identifier: String, mut span: Span) -> ExpressionSpan {
     let maybe_children = parser.accumulated.pop_front();
     let expr = match maybe_children {
-        Some(PartialExpression::ChildrenTypes(children, children_span)) => {
+        Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: children_span, ..})) => {
             span = span.merge(&children_span);
             Expression::Type(Type::from(identifier, children))
         }
@@ -354,7 +352,7 @@ fn get_type_maybe_pop_children(
 ) -> ExpressionSpan {
     let maybe_children = accumulated.pop_front();
     match maybe_children {
-        Some(PartialExpression::ChildrenTypes(children, span)) => {
+        Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span, ..})) => {
             return ExpressionSpan::new_typeless(
                 Expression::Type(Type::from(typename, children)),
                 span,
@@ -398,7 +396,7 @@ fn construct_function(
 ) -> Result<(Expression, Span), AnyError> {
     let mut elem = accumulated.pop_front();
     let (parameters, params_span) =
-        if let Some(PartialExpression::ChildrenTypes(children, params_span)) = elem {
+        if let Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: params_span, ..})) = elem {
             elem = accumulated.pop_front();
             (children, params_span)
         } else {
@@ -529,7 +527,7 @@ fn extract_single_child_type_or(
 ) -> (TypedIdentifier, Span, Option<PartialExpression>) {
     let mut span = NO_SPAN;
     let parameter =
-        if let Some(PartialExpression::ChildrenTypes(mut children, children_span)) = elem {
+        if let Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(mut children), span: children_span, ..})) = elem {
             span = children_span;
             elem = accumulated.pop_front();
             children.truncate(1);
@@ -608,7 +606,7 @@ fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError>
 
 fn construct_cast(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     let elem = parser.accumulated.pop_front();
-    if let Some(PartialExpression::ChildrenTypes(mut children, children_span)) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(mut children), span: children_span, ..})) = elem {
         children.truncate(1);
         let target_type = if let Some(type_) = children.pop() {
             type_
@@ -790,10 +788,9 @@ fn construct_children_types(
                 if let Some(previous_name) = name_opt {
                     types.push(TypedIdentifier::any(previous_name));
                 }
-                return Ok(PartialExpression::ChildrenTypes(
-                    types,
+                return Ok(PartialExpression::Expression(ExpressionSpan::new_typeless(Expression::TypedIdentifiers(types), 
                     open_paren_span.merge(&span),
-                ));
+                )));
             }
             Some(_) | None => {
                 return err_span(
@@ -916,7 +913,7 @@ pub fn expected_span_pe<S: AsRef<str>>(
                 operator: OperatorSpan { span, .. },
                 ..
             })
-            | PartialExpression::ChildrenTypes(_, span) => *span,
+            => *span,
         };
         expected(expected_str, actual) + &source.format_span(span)
     } else {
