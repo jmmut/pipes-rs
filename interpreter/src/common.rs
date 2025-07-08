@@ -19,7 +19,7 @@ pub fn context<T, S: AsRef<str>, E: Into<AnyError>>(
 pub fn err<T, S: AsRef<str>>(error_message: S) -> Result<T, AnyError> {
     // place your breakpoints here
     let caller_location = std::panic::Location::caller();
-    Err(format!("(from {})\n{}", caller_location, error_message.as_ref()).into())
+    Err(format!("\n{}:\n{}", caller_location, error_message.as_ref()).into())
 }
 
 #[track_caller]
@@ -27,7 +27,7 @@ pub fn err_loc<T, S: AsRef<str>>(error_message: S, code: &SourceCode) -> Result<
     // place your breakpoints here
     let caller_location = std::panic::Location::caller();
     Err(format!(
-        "(from {})\n{}{}",
+        "\n{}:\n{}{}",
         caller_location,
         error_message.as_ref(),
         code.format_current_location()
@@ -44,7 +44,7 @@ pub fn err_span<T, S: AsRef<str>>(
     // place your breakpoints here
     let caller_location = std::panic::Location::caller();
     Err(format!(
-        "(from {})\n{}{}",
+        "\n{}:\n{}{}",
         caller_location,
         error_message.as_ref(),
         code.format_span(span)
@@ -60,7 +60,7 @@ pub fn err_since<T, S: AsRef<str>>(
     // place your breakpoints here
     let caller_location = std::panic::Location::caller();
     Err(format!(
-        "(from {})\n{}{}",
+        "\n{}:\n{}{}",
         caller_location,
         error_message.as_ref(),
         code.format_span(code.span_since(start))
