@@ -352,6 +352,7 @@ fn construct_keyword(
     let (expr, content_span) = match keyword {
         Keyword::Nothing => Ok((Expression::Nothing, span)),
         Keyword::Function => construct_function(&mut parser.accumulated),
+        Keyword::Macro => construct_function(&mut parser.accumulated),
         Keyword::Loop => construct_loop(parser),
         Keyword::Browse => construct_browse(parser),
         Keyword::BrowseOr => construct_browse_or(parser),

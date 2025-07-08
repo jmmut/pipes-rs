@@ -168,6 +168,7 @@ impl Display for Operator {
 pub enum Keyword {
     Nothing,
     Function,
+    Macro,
     Loop,
     Browse,
     BrowseOr,
@@ -191,6 +192,7 @@ impl Keyword {
             // value nothing (none) and the type nothing (nothing) are called different
             Keyword::Nothing => "none",
             Keyword::Function => "function",
+            Keyword::Macro => "macro",
             Keyword::Loop => "loop",
             Keyword::Browse => "browse",
             Keyword::BrowseOr => "browse_or",

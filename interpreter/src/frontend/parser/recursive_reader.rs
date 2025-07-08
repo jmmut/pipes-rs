@@ -187,23 +187,22 @@ fn operation_span(operator: OperatorSpan, operands: &Vec<Node>) -> Span {
 }
 
 fn read_expr(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyError> {
-    match iter.next().unwrap() {
-        LocatedToken { token, span } => match token {
-            Token::Number(n) => Ok(Node::Number { n, span }),
-            Token::Keyword(keyword) => Ok(Node::Keyword { keyword, span }),
-            Token::Identifier(name) => Ok(Node::Identifier { name, span }),
-            Token::String(bytes) => Ok(Node::String { bytes, span }),
-            Token::OpenBrace => read_chain_ops(iter, code, span),
-            Token::OpenBracket => {
-                unimplemented!()
-            }
-            Token::OpenParenthesis => read_types(iter, code, span),
-            Token::Operator(_)
-            | Token::CloseBrace
-            | Token::CloseBracket
-            | Token::CloseParenthesis
-            | Token::EndOfFile => err_expected_span("expression", token, code, span),
-        },
+    let LocatedToken { token, span } = iter.next().unwrap();
+    match token {
+        Token::Number(n) => Ok(Node::Number { n, span }),
+        Token::Keyword(keyword) => Ok(Node::Keyword { keyword, span }),
+        Token::Identifier(name) => Ok(Node::Identifier { name, span }),
+        Token::String(bytes) => Ok(Node::String { bytes, span }),
+        Token::OpenBrace => read_chain_ops(iter, code, span),
+        Token::OpenBracket => {
+            unimplemented!()
+        }
+        Token::OpenParenthesis => read_types(iter, code, span),
+        Token::Operator(_)
+        | Token::CloseBrace
+        | Token::CloseBracket
+        | Token::CloseParenthesis
+        | Token::EndOfFile => err_expected_span("expression", token, code, span),
     }
 }
 
