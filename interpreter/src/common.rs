@@ -23,6 +23,13 @@ pub fn err<T, S: AsRef<str>>(error_message: S) -> Result<T, AnyError> {
 }
 
 #[track_caller]
+pub fn bug<T, S: AsRef<str>>(error_message: S) -> Result<T, AnyError> {
+    // place your breakpoints here
+    let caller_location = std::panic::Location::caller();
+    Err(format!("\n{}:\nBug: {}", caller_location, error_message.as_ref()).into())
+}
+
+#[track_caller]
 pub fn err_loc<T, S: AsRef<str>>(error_message: S, code: &SourceCode) -> Result<T, AnyError> {
     // place your breakpoints here
     let caller_location = std::panic::Location::caller();

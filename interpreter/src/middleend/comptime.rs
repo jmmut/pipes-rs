@@ -1,10 +1,12 @@
 use crate::backend::Runtime;
-use crate::common::{context, AnyError};
+use crate::common::{bug, context, err, err_span, AnyError};
 use crate::frontend::expression::{Chain, Composed, Comptime, Expression, ExpressionSpan};
 use crate::frontend::program::{Identifiers, Program};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::builtin_types;
 use std::io::{stdin, stdout, Stdin, Stdout};
+use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
+use crate::frontend::sources::token::Operator;
 
 pub fn rewrite(program: Program) -> Result<Program, AnyError> {
     let (main, identifiers, sources) = program.take();
@@ -70,8 +72,21 @@ impl Rewriter {
 
     fn rewrite_chain(&mut self, chain: &mut Chain) -> Result<(), AnyError> {
         for operation in &mut chain.operations {
-            for operand in &mut operation.operands {
-                self.rewrite_expression_span(operand)?
+            if operation.operator.operator == Operator::MacroCall {
+                if let Some(ExpressionSpan { syntactic_type: Expression::Identifier(macro_name), span, .. }) = operation.operands.first() {
+                    if let Some(macro_expr) = self.identifiers.get(macro_name) {
+
+                    } else {
+                        return err_span(format!("Bug: Could not find macro definition '{}'", macro_name), self.sources.get_main(), *span);
+                    }
+                } else {
+                    TODO: this fails because m_inspect(n) is parsed as a type, not as identifier + typed_identifiers
+                    return bug(expected_span("macro identifier", operation.operands.first(), self.sources.get_main(), operation.operator.span));
+                }
+            } else {
+                for operand in &mut operation.operands {
+                    self.rewrite_expression_span(operand)?
+                }
             }
         }
         Ok(())

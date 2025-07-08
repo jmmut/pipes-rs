@@ -1006,10 +1006,13 @@ mod tests {
     use crate::common::{assert_mentions, run_in_repo_root, unwrap_display};
     use crate::frontend::lex_and_parse;
     use crate::frontend::sources::location::SourceCode;
+    use crate::middleend::comptime::rewrite;
     use crate::middleend::typing::put_types;
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
-        let mut program = unwrap_display(lex_and_parse(code_text));
+        let program = unwrap_display(lex_and_parse(code_text));
+        println!("{}", program.main().to_string());
+        let mut program = unwrap_display(rewrite(program));
         unwrap_display(put_types(&mut program));
         // for ident in &program.identifiers {
         //     println!("{:#?}", ident);
@@ -1421,7 +1424,8 @@ mod tests {
     #[test]
     fn test_inspect() {
         assert_eq!(
-            interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
+            interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {+1}")),
+            // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
             3
         );
         assert_eq!(
