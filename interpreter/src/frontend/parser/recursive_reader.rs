@@ -69,20 +69,12 @@ pub fn read_toplevel(
         let (chain_res, mut iter) = if let Token::OpenBrace = token {
             let mut iter = tokens.into_iter().peekable();
             (read_chain(&mut iter, &source_code)?, iter)
-        } else if let Token::Operator(_) = token {
-            let last = tokens.pop().unwrap();
-            tokens.push(LocatedToken { token: Token::CloseBrace, span: last.span });
-            tokens.push(last);
-            let mut iter = tokens.into_iter().peekable();
-            (read_chain_ops(&mut iter, &source_code, span_copy)?, iter)
         } else {
-            tokens.insert(0, LocatedToken { token: Token::Operator(Operator::Ignore), span: span_copy });
             let last = tokens.pop().unwrap();
             tokens.push(LocatedToken { token: Token::CloseBrace, span: last.span });
             tokens.push(last);
             let mut iter = tokens.into_iter().peekable();
             (read_chain_ops(&mut iter, &source_code, span_copy)?, iter)
-            // err_span("expected a chain", &source_code, *span)?
         };
 
         let LocatedToken { token, span } = iter.next().unwrap();
@@ -124,7 +116,9 @@ fn read_chain_ops(
     let mut operations = Vec::new();
     let LocatedToken{token, span} = iter.peek().unwrap();
     if let Token::Operator(_) = token {
-        // operator explicit, handle later in loop
+        // operator explicit: handle later in loop
+    } else if let Token::CloseBrace = token {
+        // empty chain: avoid an empty Ignore
     } else {
         let operator = OperatorSpan::new(Operator::Ignore, *span);
         let operands = read_operands(iter, code)?;

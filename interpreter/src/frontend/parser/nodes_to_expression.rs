@@ -27,8 +27,8 @@ fn parse_recursive(node: Node, code: &SourceCode) -> Result<ExpressionSpan, AnyE
     let (expression, span) = match node {
         Node::Number { n, span } => { (Expression::Value(n), span) }
         Node::Chain { operations, span } => { construct_chain(operations, span, code)? }
+        Node::Keyword { keyword, span } => {construct_keyword(keyword, span)?}
         _ => unimplemented!()
-        // Node::Keyword { keyword, span } => {construct_keyword(keyword, span)?}
         // Node::String { .. } => {}
         // Node::Identifier { .. } => {}
         // Node::TypedIdentifier { .. } => {}
@@ -53,14 +53,14 @@ fn construct_chain(nodes: Nodes, span: Span, code: &SourceCode) -> Result<(Expre
     }
     Ok((Expression::chain(operations), span))
 }
-/*
+
 fn construct_keyword(
     keyword: Keyword,
     span: Span,
 ) -> Result<(Expression, Span), AnyError> {
     let (expr, content_span) = match keyword {
-        Keyword::Nothing => Ok((Expression::Nothing, span)),
-        Keyword::Function => construct_function(),
+        Keyword::Nothing => Ok::<(Expression, Span), AnyError>((Expression::Nothing, span)),
+        // Keyword::Function => construct_function(),
         _ => unimplemented!()
         // Keyword::Loop => construct_loop(parser),
         // Keyword::Browse => construct_browse(parser),
@@ -79,8 +79,8 @@ fn construct_keyword(
     }?;
     Ok((expr, span.merge(&content_span)))
 }
-fn construct_function() -> _ {
-    todo!()
-}
+// fn construct_function() -> _ {
+//     todo!()
+// }
 
- */
+ 
