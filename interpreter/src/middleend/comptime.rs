@@ -61,6 +61,9 @@ impl Rewriter {
                 *expression_span = new_expr_span;
             }
             Expression::Composed(_) => {}
+            Expression::TypedIdentifiers(tis) => {
+                unimplemented!()
+            }
         }
         Ok(())
     }

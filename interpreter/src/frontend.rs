@@ -26,7 +26,7 @@ pub mod tests;
 
 pub fn lex_and_parse<S: Into<SourceCode>>(code_text: S) -> Result<Program, AnyError> {
     let expression =
-        if false {
+        if true {
             let tokens = lex(code_text);
             parse_tokens(tokens?)
         } else {

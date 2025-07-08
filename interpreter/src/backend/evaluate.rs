@@ -430,7 +430,9 @@ impl<R: Read, W: Write> Runtime<R, W> {
             Expression::Nothing
             | Expression::Value(_)
             | Expression::Type(_)
-            | Expression::StaticList { .. } => err(format!(
+            | Expression::StaticList { .. }
+            | Expression::TypedIdentifiers(_) 
+            => err(format!(
                 "Can not use expression as a function: {:?}",
                 callable
             ))?,

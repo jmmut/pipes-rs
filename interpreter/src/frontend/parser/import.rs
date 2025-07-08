@@ -4,11 +4,7 @@ use std::path::PathBuf;
 use strum::IntoEnumIterator;
 
 use crate::common::{context, err, AnyError};
-use crate::frontend::expression::{
-    Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan, Filter,
-    Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypeName,
-    TypedIdentifier,
-};
+use crate::frontend::expression::{Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan, Filter, Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypeName, TypedIdentifier};
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::sources::lexer::lex;
@@ -194,6 +190,12 @@ span,
         }
         Expression::Composed(Composed::Comptime(Comptime { body })) => {
             track_identifiers_recursive_chain(import_state, body)
+        }
+        Expression::TypedIdentifiers(tis) => {
+            for ti in tis {
+                track_identifiers_recursive_type(&mut ti.type_, import_state, span)?
+            }
+            Ok(())
         }
     }
 }

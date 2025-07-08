@@ -5,7 +5,7 @@ use crate::frontend::expression::{
     Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypeName,
     TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::sources::token::{Keyword, OperatorSpan};
+use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan};
 use crate::middleend::intrinsics::builtin_types;
 
 impl Display for ExpressionSpan {
@@ -54,6 +54,9 @@ impl Display for Expression {
                 )
             }
             Expression::Composed(composed) => write!(f, "{}", composed),
+            Expression::TypedIdentifiers(tis) => {
+                write!(f, "{}", typed_identifiers_to_str(tis, true))
+            },
         }
     }
 }

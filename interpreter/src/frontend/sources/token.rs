@@ -145,7 +145,7 @@ impl Display for Operator {
             Operator::Modulo => write!(f, "{}", MODULO as char),
             Operator::Ignore => write!(f, "{}", IGNORE as char),
             Operator::Call => write!(f, "{}", CALL as char),
-            Operator::MacroCall => write!(f, "{}", CALL as char),
+            Operator::MacroCall => write!(f, "{}", MACRO_CALL),
             Operator::Get => write!(f, "{}", GET as char),
             Operator::Type => write!(f, "{}", TYPE as char),
             Operator::Assignment => write!(f, "{}", ASSIGNMENT as char),

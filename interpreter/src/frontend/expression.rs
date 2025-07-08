@@ -66,6 +66,7 @@ pub enum Expression {
     Value(i64),
     Identifier(String),
     Type(Type),
+    TypedIdentifiers(TypedIdentifiers),
     // Operator {
     //     operator: Operator,
     // },
@@ -77,6 +78,7 @@ pub enum Expression {
     StaticList { elements: Expressions },
     Function(Function),
     Composed(Composed),
+    // MacroCall(MacroCall),
 }
 
 impl Expression {
@@ -87,6 +89,20 @@ impl Expression {
         self
     }
 }
+// 
+// #[derive(PartialEq, Debug, Clone)]
+// pub struct MacroCall {
+//     pub name: String,
+//     pub nodes: Nodes,
+// }
+// 
+// #[derive(PartialEq, Debug, Clone)]
+// pub enum Node {
+//     Expression(ExpressionSpan),
+//     // TypedIdentifier(TypedIdentifier),
+//     TypedIdentifiers(TypedIdentifiers),
+// }
+// pub type Nodes = Vec<Node>;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Composed {

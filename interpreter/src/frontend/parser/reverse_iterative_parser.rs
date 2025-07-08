@@ -300,6 +300,28 @@ fn construct_transformation(
             let actual = accumulated.front();
             err(expected("some callable expression", actual))?
         }
+    } else if Operator::MacroCall == raw_operator {
+        let mut operands = Vec::new();
+        while let Some(PartialExpression::Expression(expr)) = elem_operand {
+            elem_operand = accumulated.pop_front();
+            operands.push(expr);
+        }
+        if let Some(elem) = elem_operand {
+            accumulated.push_front(elem);
+        }
+        if operands.len() > 0 {
+            let last_expr_span = operands.last().unwrap().span;
+            Operation::several_no_sem_type(
+                OperatorSpan {
+                    operator: raw_operator,
+                    span: span.merge(&last_expr_span),
+                },
+                operands,
+            )
+        } else {
+            let actual = accumulated.front();
+            err(expected("some callable expression", actual))?
+        }
     } else {
         if let Some(PartialExpression::Expression(operand)) = elem_operand {
             Operation::single_no_sem_type(operator, operand)
