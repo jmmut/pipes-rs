@@ -129,8 +129,8 @@ fn assert_code_eq(code: &str, expected_code: &str) {
 
 #[test]
 fn test_nothing() {
-    lex_and_parse(";").expect("should parse (maybe doesn't evaluate)");
-    lex_and_parse("{;}").expect("should parse (maybe doesn't evaluate)");
+    unwrap_display(lex_and_parse(";"));
+    unwrap_display(lex_and_parse("{;}"));
     assert_expr_eq("none", Expression::Nothing);
 }
 
@@ -138,11 +138,11 @@ fn test_nothing() {
 fn test_nothing_braces() {
     assert_expr_eq("", Expression::empty_chain());
     assert_expr_eq("{}", Expression::empty_chain());
-    lex_and_parse("[{}]").expect("should parse (maybe doesn't evaluate)");
-    lex_and_parse("[5 {}]").expect("should parse (maybe doesn't evaluate)");
-    lex_and_parse("{[]}").expect("should parse (maybe doesn't evaluate)");
-    lex_and_parse("{[5]}").expect("should parse (maybe doesn't evaluate)");
-    lex_and_parse("[]#{}").expect("should parse (maybe doesn't evaluate)");
+    unwrap_display(lex_and_parse("[{}]"));
+    unwrap_display(lex_and_parse("[5 {}]"));
+    unwrap_display(lex_and_parse("{[]}"));
+    unwrap_display(lex_and_parse("{[5]}"));
+    unwrap_display(lex_and_parse("[]#{}"));
 }
 
 #[test]
@@ -160,9 +160,9 @@ fn test_extra_brace() {
 
 #[test]
 fn test_correct_braces() {
-    lex_and_parse("5").expect("should work");
-    lex_and_parse("{5}").expect("should work");
-    lex_and_parse("{{5}}").expect("should work");
+    unwrap_display(lex_and_parse("5"));
+    unwrap_display(lex_and_parse("{5}"));
+    unwrap_display(lex_and_parse("{{5}}"));
 }
 
 #[test]

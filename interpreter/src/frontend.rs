@@ -7,9 +7,10 @@ use crate::common::unwrap_display;
 use crate::frontend::expression::Type;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
 use crate::frontend::parser::root::get_project_root;
-use crate::frontend::parser::{parse_tokens, reverse_iterative_parser};
+use crate::frontend::parser::{nodes_to_expression, parse_tokens, reverse_iterative_parser};
 use crate::frontend::program::Program;
 use crate::AnyError;
+use crate::frontend::sources::lexer::lex_with_eof;
 
 pub mod expression;
 pub mod lexer;
@@ -24,8 +25,14 @@ pub mod tests;
 //mod benchmarks;
 
 pub fn lex_and_parse<S: Into<SourceCode>>(code_text: S) -> Result<Program, AnyError> {
-    let tokens = lex(code_text);
-    let expression = parse_tokens(tokens?);
+    let expression =
+        if false {
+            let tokens = lex(code_text);
+            parse_tokens(tokens?)
+        } else {
+            let tokens = lex_with_eof(code_text);
+            nodes_to_expression::parse_tokens(tokens?)
+        };
     expression
 }
 

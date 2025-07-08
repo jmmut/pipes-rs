@@ -1410,19 +1410,22 @@ mod tests {
         assert_eq!(interpret("1 |branch{3}{} |something(n) {n} {5}"), 3);
         assert_eq!(interpret("1 |branch{3}{} |something(n) {} {5}"), 3);
     }
+    // const INSPECT_: &str =
+    //     ";macro(t: types  c :chain) {=comptime {t #0 .name} ;c ;comptime {t #0 .name}}=m_inspect ";
     // const INSPECT: &str =
-    //     ";macro(t: types  c :chain) {=comptime {t #0 .name} ;c ;comptime {t #0 .name}}=inspect ";
-    // #[test]
-    // fn test_inspect() {
-    //     assert_eq!(
-    //         interpret(format!("{}{}", INSPECT, ";3 |`inspect(n) {n+1}")),
-    //         3
-    //     );
-    //     assert_eq!(
-    //         interpret_io("3 |inspect(n) {+1 |to_str |print}", ""),
-    //         (3, "4\n".to_string())
-    //     );
-    // }
+    //     ";macro(input  t: types  c :chain) {|function t c ;input} =m_inspect";
+    const INSPECT: &str = ";macro(input  t: pnode  c :pnode) {|function t c ;input} =m_inspect";
+    #[test]
+    fn test_inspect() {
+        assert_eq!(
+            interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
+            3
+        );
+        assert_eq!(
+            interpret_io("3 |m_inspect(n) {+1 |to_str |print}", ""),
+            (3, "4\n".to_string())
+        );
+    }
 
     #[test]
     fn test_field_access() {

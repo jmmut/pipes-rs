@@ -9,6 +9,7 @@ use crate::frontend::expression::{
     Operations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::parser::import::import;
+use crate::frontend::parser::recursive_reader::read_toplevel;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
 use crate::frontend::sources::lexer::TokenizedSource;
