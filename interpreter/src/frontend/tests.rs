@@ -374,12 +374,12 @@ fn test_no_empty_cast() {
 
 #[test]
 fn test_struct() {
-    unwrap_display(lex_and_parse("tuple(x :i64  y :i64) =Coord"));
+    unwrap_display(lex_and_parse("public tuple(x :i64  y :i64) =Coord"));
     unwrap_display(lex_and_parse(
-        "tuple(x :i64  y :i64) =Coord ; function (c :Coord) { c }",
+        "public tuple(x :i64  y :i64) =Coord ; function (c :Coord) { c }",
     ));
     unwrap_display(lex_and_parse(
-        "tuple(x :i64  y :i64) =Coord ; [3 5] |function (c :Coord) { c }",
+        "public tuple(x :i64  y :i64) =Coord ; [3 5] |function (c :Coord) { c }",
     ));
 }
 

@@ -1489,7 +1489,12 @@ mod tests {
     }
     #[test]
     fn test_forbid_non_public_structs() {
-        assert_types_wrong("tuple(x :i64  y :i64) =Coord");
+        let parsed = lex_and_parse("tuple(x :i64  y :i64) =Coord");
+        let result = match parsed {
+            Ok(parsed) => check_types(&parsed),
+            Err(parsed) => Err(parsed),
+        };
+        result.expect_err("should fail");
     }
     #[test]
     fn test_reusing_structs_cast() {

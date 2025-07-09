@@ -80,7 +80,6 @@ impl Rewriter {
                         return err_span(format!("Bug: Could not find macro definition '{}'", macro_name), self.sources.get_main(), *span);
                     }
                 } else {
-                    TODO: this fails because m_inspect(n) is parsed as a type, not as identifier + typed_identifiers
                     return bug(expected_span("macro identifier", operation.operands.first(), self.sources.get_main(), operation.operator.span));
                 }
             } else {

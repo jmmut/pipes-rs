@@ -1420,7 +1420,7 @@ mod tests {
     // const INSPECT: &str =
     //     ";macro(input  t: types  c :chain) {|function t c ;input} =m_inspect";
     // const INSPECT: &str = ";macro(input  t: pnode  c :pnode) {|function t c ;input} =m_inspect";
-    const INSPECT: &str = ";macro(input  t  c) {|function t c ;input} =m_inspect";
+    const INSPECT: &str = ";public macro(input  t  c) {|function t c ;input} =m_inspect";
     #[test]
     fn test_inspect() {
         assert_eq!(

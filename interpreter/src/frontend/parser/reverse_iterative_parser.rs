@@ -232,10 +232,10 @@ impl Parser {
 fn construct_identifier(parser: &mut Parser, identifier: String, mut span: Span) -> ExpressionSpan {
     let maybe_children = parser.accumulated.pop_front();
     let expr = match maybe_children {
-        Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: children_span, ..})) => {
-            span = span.merge(&children_span);
-            Expression::Type(Type::from(identifier, children))
-        }
+        // Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: children_span, ..})) => {
+        //     span = span.merge(&children_span);
+        //     Expression::Type(Type::from(identifier, children))
+        // }
         Some(not_children) => {
             parser.accumulated.push_front(not_children);
             Expression::Identifier(identifier)
@@ -564,8 +564,17 @@ fn construct_inspect(parser: &mut Parser) -> Result<(Expression, Span), AnyError
 
 fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     let elem = parser.accumulated.pop_front();
-    if let Some(PartialExpression::Expression(expr)) = elem {
-        let elem = parser.accumulated.pop_front();
+    if let Some(PartialExpression::Expression(mut expr)) = elem {
+
+        let mut elem = parser.accumulated.pop_front();
+        if let ExpressionSpan {syntactic_type: Expression::Identifier(name), span, ..} = expr {
+            if let Some(PartialExpression::Expression(ExpressionSpan { syntactic_type: Expression::TypedIdentifiers(tis), span: tis_span, .. })) = elem {
+                expr = ExpressionSpan::new_typeless(Expression::Type(Type::children(name, tis)), span.merge(&tis_span));
+                elem = parser.accumulated.pop_front();
+            } else {
+                expr = ExpressionSpan::new_typeless(Expression::Identifier(name), span);
+            }
+        }
         if let Some(PartialExpression::Operation(Operation {
             operator:
                 OperatorSpan {
@@ -832,9 +841,8 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         let error_message = format!("unfinished code: {:?}", accumulated);
         let start_span = accumulated.iter().next().unwrap().span();
         let end_span = accumulated.iter().last().unwrap().span();
-        let span = start_span.merge(&end_span);
-        accumulated.push_back(PartialExpression::CloseBrace(NO_SPAN));
-        let expr = construct_chain(accumulated, &parser.source, span)?;
+        accumulated.push_back(PartialExpression::CloseBrace(end_span));
+        let expr = construct_chain(accumulated, &parser.source, start_span)?;
         if !accumulated.is_empty() {
             return err(error_message);
         } else {
