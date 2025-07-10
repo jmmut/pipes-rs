@@ -1254,7 +1254,7 @@ mod tests {
     #[test]
     fn test_loop_3_times() {
         let (result, print_output) = interpret_io(
-            "0 =i;{}|loop {i +1 =>i |core/inspect(x) {x |to_str |print} =? 3 |branch {i}{}} :i64",
+            "0 =i;{}|loop {i +1 =>i |`core/inspect (x) {|to_str |print} =? 3 |branch {i}{}} :i64",
             "",
         );
         assert_eq!(result, 3);
@@ -1424,7 +1424,7 @@ mod tests {
     // const INSPECT: &str =
     //     ";macro(input  t: types  c :chain) {|function t c ;input} =m_inspect";
     // const INSPECT: &str = ";macro(input  t: pnode  c :pnode) {|function t c ;input} =m_inspect";
-    const INSPECT: &str = ";public function(input  t  c) {|function[t c] ;input} =m_inspect";
+    const INSPECT: &str = ";public macro(input  t  c) {|function[t c] ;input} =m_inspect";
     #[test]
     fn test_inspect() {
         assert_eq!(

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
-use crate::common::{context, err, err_span, maybe_format_span, AnyError};
+use crate::common::{bug, bug_span, context, err, err_span, maybe_format_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     is_macro, Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan,
@@ -556,7 +556,11 @@ impl<'a> Typer<'a> {
                 Ok(Operation::single(operator, typed_operand, type_))
             }
             Operator::Call => self.get_call_type(input, operands, operator.span),
-            Operator::MacroCall => unimplemented!(),
+            Operator::MacroCall => bug_span(
+                "macro calls should not reach the typing stage. Macro call",
+                self.sources.get_main(),
+                operator.span,
+            ),
             Operator::Get => {
                 let array = list_any();
                 let unified_input = self.is_castable_to(input, &array, operator)?;

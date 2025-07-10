@@ -59,6 +59,22 @@ pub fn err_span<T, S: AsRef<str>>(
     .into())
 }
 #[track_caller]
+pub fn bug_span<T, S: AsRef<str>>(
+    error_message: S,
+    code: &SourceCode,
+    span: Span,
+) -> Result<T, AnyError> {
+    // place your breakpoints here
+    let caller_location = std::panic::Location::caller();
+    Err(format!(
+        "\n{}:\nBug: {}{}",
+        caller_location,
+        error_message.as_ref(),
+        code.format_span(span)
+    )
+    .into())
+}
+#[track_caller]
 pub fn err_since<T, S: AsRef<str>>(
     error_message: S,
     code: &SourceCode,

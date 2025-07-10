@@ -39,4 +39,10 @@
 }
 =inspect
 
+;{
+    ;10 =var
+    ;3 |`inspect (_) {+1 =>var} |assert/eq 3
+    ;var |assert/eq 4
+}
+
 ;
