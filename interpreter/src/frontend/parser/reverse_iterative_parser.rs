@@ -3,13 +3,11 @@ use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
 use crate::common::{context, err, err_span, AnyError};
-use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     take_single, Abstract, Branch, Cast, Chain, Composed, Comptime, Expression, ExpressionSpan,
     Operation, Operations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::parser::import::import;
-use crate::frontend::parser::recursive_reader::read_toplevel;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
 use crate::frontend::sources::lexer::TokenizedSource;
@@ -228,7 +226,7 @@ impl Parser {
     }
 }
 
-fn construct_identifier(parser: &mut Parser, identifier: String, mut span: Span) -> ExpressionSpan {
+fn construct_identifier(parser: &mut Parser, identifier: String, span: Span) -> ExpressionSpan {
     let maybe_children = parser.accumulated.pop_front();
     let expr = match maybe_children {
         // Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: children_span, ..})) => {

@@ -1,17 +1,16 @@
 use crate::backend::Runtime;
 use crate::common::{bug, context, err, err_span, AnyError};
 use crate::frontend::expression::{
-    Abstract, Abstracts, Chain, Composed, Comptime, Expression, ExpressionSpan, Function,
-    Operation, TypedIdentifier, TypedIdentifiers,
+    Abstract, Chain, Composed, Comptime, Expression, ExpressionSpan, Function, TypedIdentifier,
+    TypedIdentifiers,
 };
 use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
 use crate::frontend::program::{Identifiers, Program};
 use crate::frontend::sources::location::{Span, NO_SPAN};
-use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan};
+use crate::frontend::sources::token::{Keyword, Operator};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::builtin_types;
 use std::io::{stdin, stdout, Stdin, Stdout};
-use std::ops::Deref;
 
 pub fn rewrite(program: Program) -> Result<Program, AnyError> {
     let (main, identifiers, sources) = program.take();
@@ -196,7 +195,7 @@ impl Rewriter {
                 nodes,
             } => {
                 if name == Keyword::Function.name() {
-                    let (body, body_span) = self.get_chain(abstract_span, nodes.pop())?;
+                    let (body, _body_span) = self.get_chain(abstract_span, nodes.pop())?;
                     let any = TypedIdentifier::nameless_any();
                     let (params, returned) = if let Some(node) = nodes.pop() {
                         let (params, _params_span) = self.get_tis(abstract_span, node)?;
@@ -337,7 +336,7 @@ fn replace(param: &TypedIdentifier, value: &ExpressionSpan, operand: &mut Expres
 
 fn replace_in_abstract(param: &TypedIdentifier, value: &ExpressionSpan, abstract_: &mut Abstract) {
     match abstract_ {
-        Abstract::Abstract { name, span, nodes } => {
+        Abstract::Abstract { nodes, .. } => {
             for node in nodes {
                 replace_in_abstract(param, value, node);
             }

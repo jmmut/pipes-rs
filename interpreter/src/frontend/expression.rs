@@ -105,7 +105,7 @@ pub type Abstracts = Vec<Abstract>;
 impl Display for Abstract {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Abstract::Abstract { name, span, nodes } => {
+            Abstract::Abstract { name, nodes, .. } => {
                 write!(f, "{}", name)?;
                 write!(f, "[")?;
                 for elem in nodes {

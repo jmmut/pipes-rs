@@ -1,7 +1,6 @@
 use crate::common::{context, err_span, AnyError};
-use crate::frontend::expression::{Chain, Expression, ExpressionSpan, Operation};
+use crate::frontend::expression::{Expression, ExpressionSpan, Operation};
 use crate::frontend::parser::recursive_reader::{read_toplevel, Node, Nodes};
-use crate::frontend::parser::reverse_iterative_parser::Parser;
 use crate::frontend::program::{Identifiers, Program};
 use crate::frontend::sources::lexer::TokenizedSource;
 use crate::frontend::sources::location::{SourceCode, Span};
@@ -49,9 +48,7 @@ fn construct_chain(
     let mut operations = Vec::new();
     for node in nodes {
         if let Node::Operation {
-            operator,
-            operands,
-            span,
+            operator, operands, ..
         } = node
         {
             let mut operand_exprs = Vec::new();

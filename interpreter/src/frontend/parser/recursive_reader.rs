@@ -347,7 +347,6 @@ impl PartialEq for Node {
 mod tests {
     use super::*;
     use crate::common::unwrap_display;
-    use crate::frontend::expression::TypedIdentifiers;
     use crate::frontend::sources::location::NO_SPAN;
     use crate::middleend::intrinsics::builtin_types;
 

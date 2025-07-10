@@ -5,7 +5,7 @@ use crate::frontend::expression::{
     Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type, TypeName,
     TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan};
+use crate::frontend::sources::token::{Keyword, OperatorSpan};
 use crate::middleend::intrinsics::builtin_types;
 
 impl Display for ExpressionSpan {
