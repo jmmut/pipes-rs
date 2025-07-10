@@ -634,6 +634,7 @@ pub struct Function {
     pub parameters: TypedIdentifiers,
     pub returned: TypedIdentifier,
     pub body: Chain,
+    pub is_macro: bool,
 }
 impl Function {
     pub fn new(parameters: TypedIdentifiers, returned: TypedIdentifier, body: Chain) -> Self {
@@ -641,6 +642,15 @@ impl Function {
             parameters,
             returned,
             body,
+            is_macro: false,
+        }
+    }
+    pub fn new_macro(parameters: TypedIdentifiers, returned: TypedIdentifier, body: Chain) -> Self {
+        Self {
+            parameters,
+            returned,
+            body,
+            is_macro: true,
         }
     }
     pub fn any_return(parameters: TypedIdentifiers, body: Chain) -> Self {
@@ -648,6 +658,7 @@ impl Function {
             parameters,
             returned: TypedIdentifier::nameless_any(),
             body,
+            is_macro: false,
         }
     }
 }

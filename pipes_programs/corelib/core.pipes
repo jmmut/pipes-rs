@@ -33,7 +33,10 @@
 //
 //}
 
-
-
+;public macro(input types chain) {
+    |function[types chain]
+    ;input
+}
+=inspect
 
 ;

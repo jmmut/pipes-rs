@@ -392,6 +392,7 @@ impl<'a> Typer<'a> {
             parameters,
             body,
             returned,
+            ..
         } = function;
         let (updated_parameters, typed_chain) =
             self.check_types_scope_with_input(input_type.clone(), parameters.clone(), body, span)?;
@@ -637,12 +638,23 @@ impl<'a> Typer<'a> {
             Expression::Composed(composed) => {
                 self.add_types_composed(input_type, composed, operator_span, callable.span)
             }
+            Expression::Abstract(_) => {
+                err_span(
+                    format!(
+                        "Abstract syntax can only appear inside a macro (not a function), and has to be called with MacroCall '{}', not regular Call '{}'. Abstract syntax",
+                        Operator::MacroCall.to_string(),
+                        Operator::Call.to_string(),
+                    ),
+                    self.get_current_source(),
+                    span,
+                )
+            }
             Expression::Nothing
             | Expression::Value(_)
             | Expression::Type(_)
             | Expression::StaticList { .. }
             | Expression::TypedIdentifiers(_)
-            | Expression::Abstract(_) => {
+            => {
                 let type_str = if let Ok(callable_type) = self.add_types(&callable) {
                     format!(" :{}", callable_type)
                 } else {

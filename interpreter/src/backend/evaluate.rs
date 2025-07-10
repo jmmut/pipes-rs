@@ -1252,7 +1252,7 @@ mod tests {
     #[test]
     fn test_loop_3_times() {
         let (result, print_output) = interpret_io(
-            "0 =i;{}|loop {i +1 =>i |inspect(x) {x |to_str |print} =? 3 |branch {i}{}} :i64",
+            "0 =i;{}|loop {i +1 =>i |core/inspect(x) {x |to_str |print} =? 3 |branch {i}{}} :i64",
             "",
         );
         assert_eq!(result, 3);
@@ -1429,6 +1429,10 @@ mod tests {
             // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {+1}")),
             interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {+1}")),
             // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
+            3
+        );
+        assert_eq!(
+            interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
             3
         );
         assert_eq!(

@@ -13,7 +13,6 @@ use crate::frontend::sources::lexer::lex_with_eof;
 use crate::AnyError;
 
 pub mod expression;
-pub mod lexer;
 pub mod parser;
 pub mod program;
 

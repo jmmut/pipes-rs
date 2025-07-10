@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::{
     take_single, Abstract, Branch, Cast, Chain, Composed, Comptime, Expression, ExpressionSpan,
-    Operation, Operations, Type, TypedIdentifier, TypedIdentifiers,
+    Function, Operation, Operations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::root::{get_project_root, qualify};
@@ -372,7 +372,7 @@ fn construct_keyword(
 ) -> Result<(Expression, Span), AnyError> {
     let (expr, content_span) = match keyword {
         Keyword::Nothing => Ok((Expression::Nothing, span)),
-        Keyword::Function => construct_macro(&mut parser.accumulated),
+        Keyword::Function => construct_function(&mut parser.accumulated),
         Keyword::Macro => construct_macro(&mut parser.accumulated),
         Keyword::Loop => construct_loop(parser),
         Keyword::Browse => construct_browse(parser),
@@ -391,43 +391,8 @@ fn construct_keyword(
     }?;
     Ok((expr, span.merge(&content_span)))
 }
-//
-// fn construct_function(
-//     accumulated: &mut VecDeque<PartialExpression>,
-// ) -> Result<(Expression, Span), AnyError> {
-//     let mut elem = accumulated.pop_front();
-//     let (parameters, params_span) =
-//         if let Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: params_span, ..})) = elem {
-//             elem = accumulated.pop_front();
-//             (children, params_span)
-//         } else {
-//             (Vec::new(), NO_SPAN)
-//         };
-//
-//     let (returned, return_span, elem) = extract_single_child_type_or(
-//         accumulated,
-//         elem,
-//         TypedIdentifier::nameless(builtin_types::ANY),
-//     );
-//
-//     match chain(elem) {
-//         Ok((body, chain_span)) => Ok((
-//             Expression::function(parameters, returned, body),
-//             params_span.merge(&chain_span),
-//         )),
-//         Err(elem) => {
-//             if let Some(elem) = elem {
-//                 accumulated.push_front(elem);
-//             }
-//             Ok((
-//                 Expression::Type(Type::function(parameters, returned)),
-//                 params_span.merge(&return_span),
-//             ))
-//         }
-//     }
-// }
 
-fn construct_macro(
+fn construct_function(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<(Expression, Span), AnyError> {
     let mut elem = accumulated.pop_front();
@@ -482,6 +447,23 @@ fn construct_macro(
     }
 }
 
+fn construct_macro(
+    accumulated: &mut VecDeque<PartialExpression>,
+) -> Result<(Expression, Span), AnyError> {
+    let (mut function, span) = construct_function(accumulated)?;
+    match function {
+        Expression::Function(Function {
+            parameters,
+            returned,
+            body,
+            ..
+        }) => Ok((
+            Expression::Function(Function::new_macro(parameters, returned, body)),
+            span,
+        )),
+        _ => Ok((function, span)),
+    }
+}
 fn chain(
     partial_expr: Option<PartialExpression>,
 ) -> Result<(Chain, Span), Option<PartialExpression>> {

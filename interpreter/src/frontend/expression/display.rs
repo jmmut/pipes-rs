@@ -41,13 +41,18 @@ impl Display for Expression {
                 parameters,
                 returned,
                 body,
+                is_macro,
             }) => {
                 let returneds = vec![returned.clone()];
                 let force_param_parens = returned.type_ != builtin_types::NOTHING;
                 write!(
                     f,
                     "{}{}{} {}",
-                    Keyword::Function.name(),
+                    if *is_macro {
+                        Keyword::Function.name()
+                    } else {
+                        Keyword::Macro.name()
+                    },
                     typed_identifiers_to_str(&parameters, force_param_parens),
                     typed_identifiers_to_str(&returneds, false),
                     body,

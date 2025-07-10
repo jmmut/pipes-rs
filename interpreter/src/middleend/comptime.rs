@@ -150,6 +150,29 @@ impl Rewriter {
                     ));
                 }
             } else {
+                if operation.operator.operator == Operator::Call {
+                    if let Some(ExpressionSpan {
+                        syntactic_type: Expression::Identifier(callable_name),
+                        span,
+                        ..
+                    }) = operation.operands.first()
+                    {
+                        let func = self.identifiers.get(callable_name);
+                        if let Some(ExpressionSpan {
+                            syntactic_type: Expression::Function(function),
+                            ..
+                        }) = func
+                        {
+                            if function.is_macro {
+                                return err_span(
+                                    format!("MacroCall '{}' should be used when calling macro '{}' (instead of regular Calls '{}')", Operator::MacroCall, callable_name, Operator::Call),
+                                    self.sources.get_main(),
+                                    operation.operator.span,
+                                );
+                            }
+                        }
+                    }
+                }
                 for operand in &mut operation.operands {
                     self.rewrite_expression_span(operand)?
                 }

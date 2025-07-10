@@ -203,7 +203,7 @@ impl Keyword {
             Keyword::Filter => "filter",
             Keyword::Branch => "branch",
             Keyword::Something => "something",
-            Keyword::Inspect => "inspect",
+            Keyword::Inspect => "inspect_intrinsic",
             Keyword::Public => "public",
             Keyword::Cast => "cast",
             Keyword::Comptime => "comptime",

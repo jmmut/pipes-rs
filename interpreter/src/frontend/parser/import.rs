@@ -107,6 +107,7 @@ fn track_identifiers_recursive(
             parameters,
             returned,
             body,
+            ..
         }) => {
             track_identifiers_recursive_scope(import_state, parameters.iter_mut(), body, span)?;
             check_user_defined_type(&mut returned.type_, import_state, span)
