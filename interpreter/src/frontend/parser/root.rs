@@ -16,12 +16,15 @@ pub fn get_project_root(
         current_file_abs = current_file_abs.canonicalize()?;
         let mut current_file_abs_copy = current_file_abs.clone();
         let mut root_opt = None;
-        while current_file_abs.pop() {
+        loop {
             current_file_abs.push(PIPES_ROOT_FILENAME);
             let exists = current_file_abs.exists();
             current_file_abs.pop();
             if exists {
                 root_opt = Some(current_file_abs);
+                break;
+            }
+            if !current_file_abs.pop() {
                 break;
             }
         }
