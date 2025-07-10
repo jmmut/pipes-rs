@@ -450,7 +450,7 @@ fn construct_function(
 fn construct_macro(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<(Expression, Span), AnyError> {
-    let (mut function, span) = construct_function(accumulated)?;
+    let (function, span) = construct_function(accumulated)?;
     match function {
         Expression::Function(Function {
             parameters,

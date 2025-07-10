@@ -6,7 +6,7 @@ use crate::frontend::expression::{
 };
 use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
 use crate::frontend::program::{Identifiers, Program};
-use crate::frontend::sources::location::{Span, NO_SPAN};
+use crate::frontend::sources::location::Span;
 use crate::frontend::sources::token::{Keyword, Operator};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::builtin_types;
@@ -22,7 +22,6 @@ pub fn rewrite(program: Program) -> Result<Program, AnyError> {
         runtime,
         identifiers,
         sources,
-        macros_to_delete: Vec::new(),
     };
     context("Comptime evaluation", rewriter.rewrite_contextless(main))
 }
@@ -31,24 +30,11 @@ struct Rewriter {
     runtime: Runtime<Stdin, Stdout>,
     pub identifiers: Identifiers,
     pub sources: Sources,
-    macros_to_delete: Vec<String>,
 }
 impl Rewriter {
     fn rewrite_contextless(mut self, mut main: ExpressionSpan) -> Result<Program, AnyError> {
         self.rewrite_expression_span(&mut main)?;
-        self.delete_macros(&mut main);
         Ok(Program::new_from(main, self.identifiers, self.sources))
-    }
-
-    fn delete_macros(&mut self, expr: &mut ExpressionSpan) {
-        for to_delete in &self.macros_to_delete {
-            self.identifiers.remove(to_delete);
-            replace(
-                &TypedIdentifier::any(to_delete.clone()),
-                &ExpressionSpan::new_typeless(Expression::Nothing, NO_SPAN),
-                expr,
-            )
-        }
     }
 
     fn rewrite_expression_span(
@@ -97,7 +83,6 @@ impl Rewriter {
                 }) = operation.operands.first()
                 {
                     if let Some(macro_expr) = self.identifiers.get(macro_name) {
-                        self.macros_to_delete.push(macro_name.clone());
                         if let ExpressionSpan {
                             syntactic_type: Expression::Function(macro_func),
                             span,
@@ -107,7 +92,6 @@ impl Rewriter {
                             let macro_operands = std::mem::take(&mut operation.operands);
                             let mut body = macro_func.body.clone();
 
-                            // println!("before replace {}", body);
                             for i in 1..macro_func.parameters.len() {
                                 replace_in_chain(
                                     &macro_func.parameters[i],
@@ -115,16 +99,13 @@ impl Rewriter {
                                     &mut body,
                                 );
                             }
-                            // println!("before remove abstract {}", body);
                             self.remove_abstracts_in_chain(&mut body)?;
-                            // println!("after remove abstract {}", body);
                             operation.operator.operator = Operator::Call;
                             let params = vec![macro_func.parameters[0].clone()];
                             let returned = TypedIdentifier::nameless_any();
                             let function = Function::new(params, returned, body);
                             let func_expr =
                                 ExpressionSpan::new_typeless(Expression::Function(function), *span);
-                            // println!("{}", func_expr);
                             operation.operands = vec![func_expr];
                         } else {
                             return bug(expected_span(
@@ -153,7 +134,6 @@ impl Rewriter {
                 if operation.operator.operator == Operator::Call {
                     if let Some(ExpressionSpan {
                         syntactic_type: Expression::Identifier(callable_name),
-                        span,
                         ..
                     }) = operation.operands.first()
                     {

@@ -10,6 +10,7 @@ use crate::frontend::program::Program;
 use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{Comparison, Operator, FIELD};
 use crate::frontend::sources::Sources;
+use crate::middleend::comptime::rewrite;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 use crate::middleend::typing::expand::{Expand, TypeView};
 use crate::middleend::typing::put_some_types;
@@ -729,10 +730,11 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
     fn evaluate_eval(&mut self, argument: i64) -> Result<GenericValue, AnyError> {
         let code = Self::pipes_str_to_rust_str(self.get_list(argument)?)?;
-        let mut program = lex_and_parse_with_identifiers(
+        let program = lex_and_parse_with_identifiers(
             code,
             HashSet::from_iter(self.identifier_expressions.keys().cloned()),
         )?;
+        let mut program = rewrite(program)?;
         put_some_types(&mut program, &self.identifier_expressions)?;
         let (main, new_identifiers, _sources) = program.take();
         self.setup_constants(new_identifiers)?;

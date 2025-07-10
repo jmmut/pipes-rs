@@ -662,6 +662,18 @@ impl Function {
         }
     }
 }
+pub fn is_macro(expr: &ExpressionSpan) -> bool {
+    if let ExpressionSpan {
+        syntactic_type: Expression::Function(function),
+        ..
+    } = expr
+    {
+        function.is_macro
+    } else {
+        false
+    }
+}
+
 #[derive(PartialEq, Debug, Clone, Eq, Hash)]
 pub struct TypedIdentifier {
     pub name: String,

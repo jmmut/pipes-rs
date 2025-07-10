@@ -4,9 +4,9 @@ use strum::IntoEnumIterator;
 use crate::common::{context, err, err_span, maybe_format_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan, Expressions,
-    Filter, Function, Inspect, Loop, Map, Operation, Replace, Something, Times, TimesOr, Type,
-    TypedIdentifier, TypedIdentifiers,
+    is_macro, Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan,
+    Expressions, Filter, Function, Inspect, Loop, Map, Operation, Replace, Something, Times,
+    TimesOr, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::program::{Identifiers, Program};
 use crate::frontend::sources::location::{SourceCode, Span};
@@ -143,7 +143,10 @@ impl<'a> Typer<'a> {
         &mut self,
         identifiers: &HashMap<String, ExpressionSpan>,
     ) -> Result<(), AnyError> {
-        let mut identifiers_vec = identifiers.iter().collect::<Vec<_>>();
+        let mut identifiers_vec = identifiers
+            .iter()
+            .filter(|(_n, e)| !is_macro(e))
+            .collect::<Vec<_>>();
         loop {
             let mut failed = Vec::new();
             let identifiers_count_previous = identifiers_vec.len();
@@ -160,7 +163,7 @@ impl<'a> Typer<'a> {
                         self.new_typed_identifiers.insert(name.clone(), expr_span);
                     }
                     Err(e) => {
-                        errors.push(e);
+                        errors.push((name, e));
                         failed.push((name, identifier_expression));
                     }
                 }
@@ -175,7 +178,10 @@ impl<'a> Typer<'a> {
                 } else {
                     "Some constants have incorrect types. (Are there cyclic dependencies?)"
                 };
-                let mut error_messages = errors.iter().map(|e| e.to_string()).collect::<Vec<_>>();
+                let mut error_messages = errors
+                    .iter()
+                    .map(|(name, e)| format!("\n    {}\n{}", name, e))
+                    .collect::<Vec<_>>();
                 error_messages.sort(); // ensure same ordering across iterations of pipes-check
                 let joined_error_messages = error_messages.join("\n");
                 return err(format!("{}: {}", error_intro, joined_error_messages));
