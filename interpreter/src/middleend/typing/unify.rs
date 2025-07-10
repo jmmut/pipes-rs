@@ -8,6 +8,10 @@ use crate::middleend::intrinsics::BuiltinType;
 /// In summary, the Any type can be casted implicitly to any type, and this function
 /// can be used to infer types. For example, the types `function(:i64) (:any)` and
 /// `function(:any) (:i64)` are compatible, and this function would return `function(:i64) (:i64)`.
+/// Order is significant: this function returns a specialization of "second" where any "first" will work.
+/// This is similar to "second" being an interface that "first" implements. In other words,
+/// if this function returns some type, you can pass a "first" to a function taking a "second"
+/// and it will behave as expected.
 pub fn unify(first: &Type, second: &Type) -> Option<Type> {
     let first_name = first.name();
     let second_name = second.name();
@@ -43,7 +47,9 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
 }
 
 fn try_or(first: &Type, second: &Type) -> Option<Type> {
-    if first.name() == BuiltinType::Or.name() && second.name() == BuiltinType::Or.name() {
+    let first_is_or = first.name() == BuiltinType::Or.name();
+    let second_is_or = second.name() == BuiltinType::Or.name();
+    if first_is_or && second_is_or {
         if let (Type::Nested { children: or_1, .. }, Type::Nested { children: or_2, .. }) =
             (first, second)
         {
@@ -57,6 +63,27 @@ fn try_or(first: &Type, second: &Type) -> Option<Type> {
         } else {
             panic!("Found a :or without inner types. Not sure if this should be allowed");
         }
+    } else {
+        if first_is_or {
+            if let Some(unified) = children_unify_to(first, second) {
+                return unified;
+            }
+        } else if second_is_or {
+            if let Some(unified) = children_unify_to(second, first) {
+                return unified;
+            }
+        }
+    }
+    None
+}
+
+fn children_unify_to(nested: &Type, simple: &Type) -> Option<Option<Type>> {
+    if let Type::Nested { children, .. } = nested {
+        if let Some(unified) = all_unify_to(&children, simple.clone()) {
+            return Some(Some(unified.type_));
+        }
+    } else {
+        panic!("Found a :or without inner types. Not sure if this should be allowed");
     }
     None
 }
@@ -187,7 +214,7 @@ pub fn unify_typed_identifier(
 ) -> Option<TypedIdentifier> {
     if let Some(type_) = unify(&first.type_, &second.type_) {
         let name = unify_name(&first.name, &second.name);
-        Some(TypedIdentifier { name, type_: type_ })
+        Some(TypedIdentifier { name, type_ })
     } else {
         None
     }
@@ -255,14 +282,11 @@ mod tests {
         let unified = unify(&Type::nothing(), &Type::nothing());
         assert_eq!(unified, Some(Type::nothing()));
 
-        let unified = unify(&Type::simple("i64".to_string()), &builtin_types::I64);
+        let unified = unify(&Type::simple("i64"), &builtin_types::I64);
         assert_eq!(unified, Some(builtin_types::I64));
 
-        let unified = unify(
-            &Type::simple("custom".to_string()),
-            &Type::simple("custom".to_string()),
-        );
-        assert_eq!(unified, Some(Type::simple("custom".to_string())));
+        let unified = unify(&Type::simple("custom"), &Type::simple("custom"));
+        assert_eq!(unified, Some(Type::simple("custom")));
     }
 
     #[test]
@@ -439,6 +463,11 @@ mod tests {
         assert_unifies_to(i64_or_nothing, i64_or_nothing, i64_or_nothing);
         assert_unifies_to(i64_or_nothing, "or(:nothing :i64)", i64_or_nothing);
         assert_unifies_to("or(:nothing :i64)", i64_or_nothing, i64_or_nothing);
+    }
+    #[test]
+    fn test_simplify_or() {
+        let tuple_or_array = "or(:tuple(:i64) :array(:any))";
+        assert_unifies_to(tuple_or_array, "list", "list(:i64)");
     }
 
     #[test]
