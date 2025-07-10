@@ -432,7 +432,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             | Expression::Type(_)
             | Expression::StaticList { .. }
             | Expression::TypedIdentifiers(_)
-            => err(format!(
+            | Expression::Abstract(_) => err(format!(
                 "Can not use expression as a function: {:?}",
                 callable
             ))?,
@@ -1011,8 +1011,9 @@ mod tests {
 
     fn interpret<S: Into<SourceCode>>(code_text: S) -> GenericValue {
         let program = unwrap_display(lex_and_parse(code_text));
-        println!("{}", program.main().to_string());
+        // println!("{}", program.main().to_string());
         let mut program = unwrap_display(rewrite(program));
+        // println!("{}", program.main());
         unwrap_display(put_types(&mut program));
         // for ident in &program.identifiers {
         //     println!("{:#?}", ident);
@@ -1029,7 +1030,8 @@ mod tests {
     fn interpret_io<S: Into<SourceCode>>(code_text: S, read_input: &str) -> (GenericValue, String) {
         let read_input = read_input.bytes().collect::<Vec<u8>>();
         let mut print_output = Vec::<u8>::new();
-        let mut program = unwrap_display(lex_and_parse(code_text));
+        let program = unwrap_display(lex_and_parse(code_text));
+        let mut program = unwrap_display(rewrite(program));
         unwrap_display(put_types(&mut program));
         let result = Runtime::evaluate(program, read_input.as_slice(), &mut print_output);
         (
@@ -1420,19 +1422,61 @@ mod tests {
     // const INSPECT: &str =
     //     ";macro(input  t: types  c :chain) {|function t c ;input} =m_inspect";
     // const INSPECT: &str = ";macro(input  t: pnode  c :pnode) {|function t c ;input} =m_inspect";
-    const INSPECT: &str = ";public macro(input  t  c) {|function t c ;input} =m_inspect";
+    const INSPECT: &str = ";public function(input  t  c) {|function[t c] ;input} =m_inspect";
     #[test]
     fn test_inspect() {
         assert_eq!(
+            // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {+1}")),
             interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {+1}")),
             // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
             3
         );
         assert_eq!(
-            interpret_io("3 |m_inspect(n) {+1 |to_str |print}", ""),
+            interpret_io(
+                format!("{}{}", INSPECT, ";3 |`m_inspect (n) {+1 |to_str |print}"),
+                ""
+            ),
             (3, "4\n".to_string())
         );
     }
+    const INSPECT_2: &str = ";function(input f) {|f ;input} =m_inspect_2";
+    #[test]
+    fn test_inspect_2() {
+        assert_eq!(
+            interpret(format!(
+                "{}{}",
+                INSPECT_2, ";3 |m_inspect_2 function (n) {n+1}"
+            )),
+            // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
+            3
+        );
+        assert_eq!(
+            interpret_io(
+                format!(
+                    "{}{}",
+                    INSPECT_2, ";3 |m_inspect_2 function (_) {+1 |to_str |print}"
+                ),
+                ""
+            ),
+            (3, "4\n".to_string())
+        );
+    }
+    // function x {x}
+    // fn {}
+    // fun {}
+
+    // (a :i64 b :i64)(r :function r2 :i64) {...}
+    // ([a :i64 b :i64][r :function r2 :i64] {...})
+    // fn (a :i64 b :i64)(r :function r2 :i64) {...}
+    // fn [a :i64, b :i64][r :function, r2 :i64] {...}
+    // function[a b][i64 i64][r r2][function i64] {...}
+    // function[a b](i64 i64)[r r2](function i64) {...}
+    // function(a :i64 b :i64)(r :function r2 :i64) {...}
+    // function[a :i64 b :i64][r :function r2 :i64] {...}
+    // function[a :i64, b :i64][r :function, r2 :i64] {...}
+    // (function(a :i64 b :i64)(r :function r2 :i64) {...})
+    // (function a :i64 b :i64 -> r :function r2 :i64 {...})
+    // function[{a i64} {b i64}][{r function} {r2 i64}] {...}
 
     #[test]
     fn test_field_access() {

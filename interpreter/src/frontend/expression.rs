@@ -2,6 +2,7 @@ use crate::common::{err, AnyError};
 use crate::frontend::sources::location::{Span, NO_SPAN};
 use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan};
 use crate::middleend::intrinsics::{builtin_types, is_builtin_type, BuiltinType};
+use std::fmt::{Display, Formatter};
 
 pub mod display;
 
@@ -78,6 +79,7 @@ pub enum Expression {
     StaticList { elements: Expressions },
     Function(Function),
     Composed(Composed),
+    Abstract(Abstract),
     // MacroCall(MacroCall),
 }
 
@@ -89,13 +91,38 @@ impl Expression {
         self
     }
 }
-// 
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum Abstract {
+    Abstract {
+        name: String,
+        span: Span,
+        nodes: Abstracts,
+    },
+    Expression(Box<ExpressionSpan>),
+}
+pub type Abstracts = Vec<Abstract>;
+impl Display for Abstract {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Abstract::Abstract { name, span, nodes } => {
+                write!(f, "{}", name)?;
+                write!(f, "[")?;
+                for elem in nodes {
+                    write!(f, " {}", elem)?;
+                }
+                write!(f, " ]")
+            }
+            Abstract::Expression(e) => write!(f, "{}", e),
+        }
+    }
+}
 // #[derive(PartialEq, Debug, Clone)]
 // pub struct MacroCall {
 //     pub name: String,
 //     pub nodes: Nodes,
 // }
-// 
+//
 // #[derive(PartialEq, Debug, Clone)]
 // pub enum Node {
 //     Expression(ExpressionSpan),
@@ -139,6 +166,41 @@ impl Composed {
         }
     }
     pub fn chains(&self) -> Vec<&Chain> {
+        match self {
+            Composed::Loop(Loop { body })
+            | Composed::Browse(Browse { body, .. })
+            | Composed::Times(Times { body, .. })
+            | Composed::Replace(Replace { body, .. })
+            | Composed::Map(Map { body, .. })
+            | Composed::Filter(Filter { body, .. })
+            | Composed::Inspect(Inspect { body, .. })
+            | Composed::Comptime(Comptime { body }) => {
+                vec![body]
+            }
+            Composed::BrowseOr(BrowseOr {
+                body: a,
+                otherwise: b,
+                ..
+            })
+            | Composed::TimesOr(TimesOr {
+                body: a,
+                otherwise: b,
+                ..
+            })
+            | Composed::Branch(Branch { yes: a, no: b })
+            | Composed::Something(Something {
+                something: a,
+                nothing: b,
+                ..
+            }) => {
+                vec![a, b]
+            }
+            Composed::Cast(Cast { .. }) => {
+                vec![]
+            }
+        }
+    }
+    pub fn chains_mut(&mut self) -> Vec<&mut Chain> {
         match self {
             Composed::Loop(Loop { body })
             | Composed::Browse(Browse { body, .. })

@@ -34,7 +34,9 @@ fn find_in_expr<'a>(
         Expression::Nothing
         | Expression::Value(_)
         | Expression::Identifier(_)
-        | Expression::Type(_) => {}
+        | Expression::Type(_)
+        | Expression::TypedIdentifiers(_)
+        | Expression::Abstract(_) => {}
         Expression::Chain(chain) => {
             find_in_chain(chain, &expr_span, location, &mut highest_start_expr)
         }

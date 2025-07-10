@@ -73,10 +73,12 @@ fn syn_type_kind(expression: &ExpressionSpan) -> &'static str {
         Expression::Value(_) => "Value",
         Expression::Identifier(_) => "Identifier",
         Expression::Type(_) => "Type",
+        Expression::TypedIdentifiers(_) => "TypedIdentifiers",
         Expression::Chain(_) => "Chain",
         Expression::StaticList { .. } => "StaticList",
         Expression::Function(_) => "Function",
         Expression::Composed(_) => "Composed",
+        Expression::Abstract(_) => "Abstract",
     }
 }
 fn format_hover_description(expression: &ExpressionSpan) -> String {

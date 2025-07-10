@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
-    take_single, Branch, Cast, Chain, Composed, Comptime, Expression, ExpressionSpan, Operation,
-    Operations, Type, TypedIdentifier, TypedIdentifiers,
+    take_single, Abstract, Branch, Cast, Chain, Composed, Comptime, Expression, ExpressionSpan,
+    Operation, Operations, Type, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::parser::import::import;
 use crate::frontend::parser::recursive_reader::read_toplevel;
@@ -63,8 +63,7 @@ impl PartialExpression {
         match self {
             PartialExpression::CloseBracket(span)
             | PartialExpression::CloseBrace(span)
-            | PartialExpression::CloseParenthesis(span)
-            => *span,
+            | PartialExpression::CloseParenthesis(span) => *span,
             PartialExpression::Expression(expr_span) => expr_span.span(),
             PartialExpression::Operation(op) => op.content_span(),
         }
@@ -352,7 +351,11 @@ fn get_type_maybe_pop_children(
 ) -> ExpressionSpan {
     let maybe_children = accumulated.pop_front();
     match maybe_children {
-        Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span, ..})) => {
+        Some(PartialExpression::Expression(ExpressionSpan {
+            syntactic_type: Expression::TypedIdentifiers(children),
+            span,
+            ..
+        })) => {
             return ExpressionSpan::new_typeless(
                 Expression::Type(Type::from(typename, children)),
                 span,
@@ -371,8 +374,8 @@ fn construct_keyword(
 ) -> Result<(Expression, Span), AnyError> {
     let (expr, content_span) = match keyword {
         Keyword::Nothing => Ok((Expression::Nothing, span)),
-        Keyword::Function => construct_function(&mut parser.accumulated),
-        Keyword::Macro => construct_function(&mut parser.accumulated),
+        Keyword::Function => construct_macro(&mut parser.accumulated),
+        Keyword::Macro => construct_macro(&mut parser.accumulated),
         Keyword::Loop => construct_loop(parser),
         Keyword::Browse => construct_browse(parser),
         Keyword::BrowseOr => construct_browse_or(parser),
@@ -390,18 +393,73 @@ fn construct_keyword(
     }?;
     Ok((expr, span.merge(&content_span)))
 }
+//
+// fn construct_function(
+//     accumulated: &mut VecDeque<PartialExpression>,
+// ) -> Result<(Expression, Span), AnyError> {
+//     let mut elem = accumulated.pop_front();
+//     let (parameters, params_span) =
+//         if let Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: params_span, ..})) = elem {
+//             elem = accumulated.pop_front();
+//             (children, params_span)
+//         } else {
+//             (Vec::new(), NO_SPAN)
+//         };
+//
+//     let (returned, return_span, elem) = extract_single_child_type_or(
+//         accumulated,
+//         elem,
+//         TypedIdentifier::nameless(builtin_types::ANY),
+//     );
+//
+//     match chain(elem) {
+//         Ok((body, chain_span)) => Ok((
+//             Expression::function(parameters, returned, body),
+//             params_span.merge(&chain_span),
+//         )),
+//         Err(elem) => {
+//             if let Some(elem) = elem {
+//                 accumulated.push_front(elem);
+//             }
+//             Ok((
+//                 Expression::Type(Type::function(parameters, returned)),
+//                 params_span.merge(&return_span),
+//             ))
+//         }
+//     }
+// }
 
-fn construct_function(
+fn construct_macro(
     accumulated: &mut VecDeque<PartialExpression>,
 ) -> Result<(Expression, Span), AnyError> {
     let mut elem = accumulated.pop_front();
-    let (parameters, params_span) =
-        if let Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: params_span, ..})) = elem {
-            elem = accumulated.pop_front();
-            (children, params_span)
-        } else {
-            (Vec::new(), NO_SPAN)
+    let (parameters, params_span) = if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::TypedIdentifiers(children),
+        span: params_span,
+        ..
+    })) = elem
+    {
+        elem = accumulated.pop_front();
+        (children, params_span)
+    } else if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::StaticList { elements },
+        span,
+        ..
+    })) = elem
+    {
+        let nodes = elements
+            .into_iter()
+            .map(|e| Abstract::Expression(Box::new(e)))
+            .collect();
+        let abstract_ = Abstract::Abstract {
+            name: Keyword::Function.name().to_string(),
+            span,
+            nodes,
         };
+        return Ok((Expression::Abstract(abstract_), span));
+    } else {
+        (Vec::new(), NO_SPAN)
+    };
 
     let (returned, return_span, elem) = extract_single_child_type_or(
         accumulated,
@@ -526,19 +584,23 @@ fn extract_single_child_type_or(
     default: TypedIdentifier,
 ) -> (TypedIdentifier, Span, Option<PartialExpression>) {
     let mut span = NO_SPAN;
-    let parameter =
-        if let Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(mut children), span: children_span, ..})) = elem {
-            span = children_span;
-            elem = accumulated.pop_front();
-            children.truncate(1);
-            if let Some(type_) = children.pop() {
-                type_
-            } else {
-                default
-            }
+    let parameter = if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::TypedIdentifiers(mut children),
+        span: children_span,
+        ..
+    })) = elem
+    {
+        span = children_span;
+        elem = accumulated.pop_front();
+        children.truncate(1);
+        if let Some(type_) = children.pop() {
+            type_
         } else {
             default
-        };
+        }
+    } else {
+        default
+    };
     (parameter, span, elem)
 }
 
@@ -565,11 +627,23 @@ fn construct_inspect(parser: &mut Parser) -> Result<(Expression, Span), AnyError
 fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     let elem = parser.accumulated.pop_front();
     if let Some(PartialExpression::Expression(mut expr)) = elem {
-
         let mut elem = parser.accumulated.pop_front();
-        if let ExpressionSpan {syntactic_type: Expression::Identifier(name), span, ..} = expr {
-            if let Some(PartialExpression::Expression(ExpressionSpan { syntactic_type: Expression::TypedIdentifiers(tis), span: tis_span, .. })) = elem {
-                expr = ExpressionSpan::new_typeless(Expression::Type(Type::children(name, tis)), span.merge(&tis_span));
+        if let ExpressionSpan {
+            syntactic_type: Expression::Identifier(name),
+            span,
+            ..
+        } = expr
+        {
+            if let Some(PartialExpression::Expression(ExpressionSpan {
+                syntactic_type: Expression::TypedIdentifiers(tis),
+                span: tis_span,
+                ..
+            })) = elem
+            {
+                expr = ExpressionSpan::new_typeless(
+                    Expression::Type(Type::children(name, tis)),
+                    span.merge(&tis_span),
+                );
                 elem = parser.accumulated.pop_front();
             } else {
                 expr = ExpressionSpan::new_typeless(Expression::Identifier(name), span);
@@ -615,7 +689,12 @@ fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError>
 
 fn construct_cast(parser: &mut Parser) -> Result<(Expression, Span), AnyError> {
     let elem = parser.accumulated.pop_front();
-    if let Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(mut children), span: children_span, ..})) = elem {
+    if let Some(PartialExpression::Expression(ExpressionSpan {
+        syntactic_type: Expression::TypedIdentifiers(mut children),
+        span: children_span,
+        ..
+    })) = elem
+    {
         children.truncate(1);
         let target_type = if let Some(type_) = children.pop() {
             type_
@@ -797,7 +876,8 @@ fn construct_children_types(
                 if let Some(previous_name) = name_opt {
                     types.push(TypedIdentifier::any(previous_name));
                 }
-                return Ok(PartialExpression::Expression(ExpressionSpan::new_typeless(Expression::TypedIdentifiers(types), 
+                return Ok(PartialExpression::Expression(ExpressionSpan::new_typeless(
+                    Expression::TypedIdentifiers(types),
                     open_paren_span.merge(&span),
                 )));
             }
@@ -920,8 +1000,7 @@ pub fn expected_span_pe<S: AsRef<str>>(
             | PartialExpression::Operation(Operation {
                 operator: OperatorSpan { span, .. },
                 ..
-            })
-            => *span,
+            }) => *span,
         };
         expected(expected_str, actual) + &source.format_span(span)
     } else {

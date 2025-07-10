@@ -276,7 +276,8 @@ impl<'a> Typer<'a> {
             Expression::Composed(_) => {
                 unimplemented!()
             }
-            Expression::TypedIdentifiers(tis) => unimplemented!(),
+            Expression::TypedIdentifiers(_) => unimplemented!(),
+            Expression::Abstract(_) => Ok(expression_span.clone()),
         }
     }
 
@@ -641,7 +642,7 @@ impl<'a> Typer<'a> {
             | Expression::Type(_)
             | Expression::StaticList { .. }
             | Expression::TypedIdentifiers(_)
-            => {
+            | Expression::Abstract(_) => {
                 let type_str = if let Ok(callable_type) = self.add_types(&callable) {
                     format!(" :{}", callable_type)
                 } else {

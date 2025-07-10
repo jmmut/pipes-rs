@@ -56,7 +56,8 @@ impl Display for Expression {
             Expression::Composed(composed) => write!(f, "{}", composed),
             Expression::TypedIdentifiers(tis) => {
                 write!(f, "{}", typed_identifiers_to_str(tis, true))
-            },
+            }
+            Expression::Abstract(abstract_) => write!(f, "{}", abstract_),
         }
     }
 }

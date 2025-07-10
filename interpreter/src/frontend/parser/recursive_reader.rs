@@ -64,14 +64,17 @@ pub fn read_toplevel(
         err("no tokens found")
     } else {
         // let mut iter = tokens.into_iter().peekable();
-        let LocatedToken {token, span} = &tokens.first().as_ref().unwrap();
+        let LocatedToken { token, span } = &tokens.first().as_ref().unwrap();
         let span_copy = *span;
         let (chain_res, mut iter) = if let Token::OpenBrace = token {
             let mut iter = tokens.into_iter().peekable();
             (read_chain(&mut iter, &source_code)?, iter)
         } else {
             let last = tokens.pop().unwrap();
-            tokens.push(LocatedToken { token: Token::CloseBrace, span: last.span });
+            tokens.push(LocatedToken {
+                token: Token::CloseBrace,
+                span: last.span,
+            });
             tokens.push(last);
             let mut iter = tokens.into_iter().peekable();
             (read_chain_ops(&mut iter, &source_code, span_copy)?, iter)
@@ -114,7 +117,7 @@ fn read_chain_ops(
     open_span: Span,
 ) -> Result<Node, AnyError> {
     let mut operations = Vec::new();
-    let LocatedToken{token, span} = iter.peek().unwrap();
+    let LocatedToken { token, span } = iter.peek().unwrap();
     if let Token::Operator(_) = token {
         // operator explicit: handle later in loop
     } else if let Token::CloseBrace = token {
@@ -123,7 +126,11 @@ fn read_chain_ops(
         let operator = OperatorSpan::new(Operator::Ignore, *span);
         let operands = read_operands(iter, code)?;
         let span = operation_span(operator, &operands);
-        operations.push(Node::Operation { operator, operands, span });
+        operations.push(Node::Operation {
+            operator,
+            operands,
+            span,
+        });
     }
     loop {
         let LocatedToken { token, span } = iter.peek().unwrap();
@@ -154,7 +161,11 @@ fn read_operation(iter: &mut TokenIter, code: &SourceCode) -> Result<Node, AnyEr
         let operator = OperatorSpan { operator, span };
         let operands = read_operands(iter, code)?;
         let span = operation_span(operator, &operands);
-        Ok(Node::Operation { operator, operands, span })
+        Ok(Node::Operation {
+            operator,
+            operands,
+            span,
+        })
     } else {
         err_expected_span(
             "operation (an operator and a list of operands)",
@@ -340,7 +351,7 @@ mod tests {
     use crate::frontend::sources::location::NO_SPAN;
     use crate::middleend::intrinsics::builtin_types;
 
-    fn read(text :&str) -> Result<Node, AnyError> {
+    fn read(text: &str) -> Result<Node, AnyError> {
         Ok(read_from_str(text)?.1)
     }
 

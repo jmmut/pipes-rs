@@ -1,12 +1,17 @@
 use crate::backend::Runtime;
 use crate::common::{bug, context, err, err_span, AnyError};
-use crate::frontend::expression::{Chain, Composed, Comptime, Expression, ExpressionSpan};
+use crate::frontend::expression::{
+    Abstract, Abstracts, Chain, Composed, Comptime, Expression, ExpressionSpan, Function,
+    Operation, TypedIdentifier, TypedIdentifiers,
+};
+use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
 use crate::frontend::program::{Identifiers, Program};
+use crate::frontend::sources::location::{Span, NO_SPAN};
+use crate::frontend::sources::token::{Keyword, Operator, OperatorSpan};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::builtin_types;
 use std::io::{stdin, stdout, Stdin, Stdout};
-use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
-use crate::frontend::sources::token::Operator;
+use std::ops::Deref;
 
 pub fn rewrite(program: Program) -> Result<Program, AnyError> {
     let (main, identifiers, sources) = program.take();
@@ -18,6 +23,7 @@ pub fn rewrite(program: Program) -> Result<Program, AnyError> {
         runtime,
         identifiers,
         sources,
+        macros_to_delete: Vec::new(),
     };
     context("Comptime evaluation", rewriter.rewrite_contextless(main))
 }
@@ -26,11 +32,24 @@ struct Rewriter {
     runtime: Runtime<Stdin, Stdout>,
     pub identifiers: Identifiers,
     pub sources: Sources,
+    macros_to_delete: Vec<String>,
 }
 impl Rewriter {
     fn rewrite_contextless(mut self, mut main: ExpressionSpan) -> Result<Program, AnyError> {
         self.rewrite_expression_span(&mut main)?;
+        self.delete_macros(&mut main);
         Ok(Program::new_from(main, self.identifiers, self.sources))
+    }
+
+    fn delete_macros(&mut self, expr: &mut ExpressionSpan) {
+        for to_delete in &self.macros_to_delete {
+            self.identifiers.remove(to_delete);
+            replace(
+                &TypedIdentifier::any(to_delete.clone()),
+                &ExpressionSpan::new_typeless(Expression::Nothing, NO_SPAN),
+                expr,
+            )
+        }
     }
 
     fn rewrite_expression_span(
@@ -63,9 +82,8 @@ impl Rewriter {
                 *expression_span = new_expr_span;
             }
             Expression::Composed(_) => {}
-            Expression::TypedIdentifiers(tis) => {
-                unimplemented!()
-            }
+            Expression::TypedIdentifiers(_) => unimplemented!(),
+            Expression::Abstract(_) => unimplemented!(),
         }
         Ok(())
     }
@@ -73,14 +91,64 @@ impl Rewriter {
     fn rewrite_chain(&mut self, chain: &mut Chain) -> Result<(), AnyError> {
         for operation in &mut chain.operations {
             if operation.operator.operator == Operator::MacroCall {
-                if let Some(ExpressionSpan { syntactic_type: Expression::Identifier(macro_name), span, .. }) = operation.operands.first() {
+                if let Some(ExpressionSpan {
+                    syntactic_type: Expression::Identifier(macro_name),
+                    span,
+                    ..
+                }) = operation.operands.first()
+                {
                     if let Some(macro_expr) = self.identifiers.get(macro_name) {
+                        self.macros_to_delete.push(macro_name.clone());
+                        if let ExpressionSpan {
+                            syntactic_type: Expression::Function(macro_func),
+                            span,
+                            ..
+                        } = macro_expr
+                        {
+                            let macro_operands = std::mem::take(&mut operation.operands);
+                            let mut body = macro_func.body.clone();
 
+                            // println!("before replace {}", body);
+                            for i in 1..macro_func.parameters.len() {
+                                replace_in_chain(
+                                    &macro_func.parameters[i],
+                                    &macro_operands[i],
+                                    &mut body,
+                                );
+                            }
+                            // println!("before remove abstract {}", body);
+                            self.remove_abstracts_in_chain(&mut body)?;
+                            // println!("after remove abstract {}", body);
+                            operation.operator.operator = Operator::Call;
+                            let params = vec![macro_func.parameters[0].clone()];
+                            let returned = TypedIdentifier::nameless_any();
+                            let function = Function::new(params, returned, body);
+                            let func_expr =
+                                ExpressionSpan::new_typeless(Expression::Function(function), *span);
+                            // println!("{}", func_expr);
+                            operation.operands = vec![func_expr];
+                        } else {
+                            return bug(expected_span(
+                                "macro function-like definition",
+                                Some(macro_expr),
+                                self.sources.get_main(),
+                                operation.operator.span,
+                            ));
+                        }
                     } else {
-                        return err_span(format!("Bug: Could not find macro definition '{}'", macro_name), self.sources.get_main(), *span);
+                        return err_span(
+                            format!("Bug: Could not find macro definition '{}'", macro_name),
+                            self.sources.get_main(),
+                            *span,
+                        );
                     }
                 } else {
-                    return bug(expected_span("macro identifier", operation.operands.first(), self.sources.get_main(), operation.operator.span));
+                    return bug(expected_span(
+                        "macro identifier",
+                        operation.operands.first(),
+                        self.sources.get_main(),
+                        operation.operator.span,
+                    ));
                 }
             } else {
                 for operand in &mut operation.operands {
@@ -90,7 +158,194 @@ impl Rewriter {
         }
         Ok(())
     }
+
+    fn remove_abstracts(&self, expr: &mut ExpressionSpan) -> Result<(), AnyError> {
+        match expr.syn_type_mut() {
+            Expression::Nothing => {}
+            Expression::Value(_) => {}
+            Expression::Identifier(_) => {}
+            Expression::Type(_) => {}
+            Expression::TypedIdentifiers(_) => {}
+            Expression::Chain(chain) => self.remove_abstracts_in_chain(chain)?,
+            Expression::StaticList { elements } => {
+                for elem in elements {
+                    self.remove_abstracts(elem)?
+                }
+            }
+            Expression::Function(function) => self.remove_abstracts_in_chain(&mut function.body)?,
+            Expression::Composed(composed) => {
+                for chain in composed.chains_mut() {
+                    self.remove_abstracts_in_chain(chain)?
+                }
+            }
+            Expression::Abstract(abstract_) => {
+                *expr = self.remove_abstract_in_abstract(abstract_)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn remove_abstract_in_abstract(
+        &self,
+        abstract_: &mut Abstract,
+    ) -> Result<ExpressionSpan, AnyError> {
+        match abstract_ {
+            Abstract::Abstract {
+                name,
+                span: abstract_span,
+                nodes,
+            } => {
+                if name == Keyword::Function.name() {
+                    let (body, body_span) = self.get_chain(abstract_span, nodes.pop())?;
+                    let any = TypedIdentifier::nameless_any();
+                    let (params, returned) = if let Some(node) = nodes.pop() {
+                        let (params, _params_span) = self.get_tis(abstract_span, node)?;
+                        let returned = if let Some(node) = nodes.pop() {
+                            let (tis, _returned_span) = self.get_tis(abstract_span, node)?;
+                            tis.into_iter()
+                                .next()
+                                .unwrap_or(TypedIdentifier::nameless_any())
+                        } else {
+                            any.clone()
+                        };
+                        (params, returned)
+                    } else {
+                        (vec![any.clone()], any)
+                    };
+                    Ok(ExpressionSpan::new_typeless(
+                        Expression::Function(Function::new(params, returned, body)),
+                        *abstract_span,
+                    ))
+                } else {
+                    todo!()
+                }
+            }
+            Abstract::Expression(inner) => Ok(*inner.clone()),
+        }
+    }
+
+    fn get_chain(
+        &self,
+        abstract_span: &mut Span,
+        node: Option<Abstract>,
+    ) -> Result<(Chain, Span), AnyError> {
+        if let Some(Abstract::Expression(boxed_expr)) = node {
+            if let ExpressionSpan {
+                syntactic_type: Expression::Chain(chain),
+                span,
+                ..
+            } = *boxed_expr
+            {
+                Ok((chain, span))
+            } else {
+                err_expected_span(
+                    "abstract chain",
+                    boxed_expr,
+                    self.sources.get_main(),
+                    *abstract_span,
+                )
+            }
+        } else {
+            err(expected_span(
+                "abstract chain as last Function node",
+                node,
+                self.sources.get_main(),
+                *abstract_span,
+            ))
+        }
+    }
+    fn get_tis(
+        &self,
+        abstract_span: &mut Span,
+        node: Abstract,
+    ) -> Result<(TypedIdentifiers, Span), AnyError> {
+        if let Abstract::Expression(boxed_expr) = node {
+            if let ExpressionSpan {
+                syntactic_type: Expression::TypedIdentifiers(tis),
+                span,
+                ..
+            } = *boxed_expr
+            {
+                Ok((tis, span))
+            } else {
+                err_expected_span(
+                    "abstract types",
+                    boxed_expr,
+                    self.sources.get_main(),
+                    *abstract_span,
+                )
+            }
+        } else {
+            err_expected_span(
+                "abstract types",
+                node,
+                self.sources.get_main(),
+                *abstract_span,
+            )
+        }
+    }
+
+    fn remove_abstracts_in_chain(&self, chain: &mut Chain) -> Result<(), AnyError> {
+        for operation in &mut chain.operations {
+            for operand in &mut operation.operands {
+                self.remove_abstracts(operand)?
+            }
+        }
+        Ok(())
+    }
 }
+
+fn replace_in_chain(param: &TypedIdentifier, value: &ExpressionSpan, chain: &mut Chain) {
+    // println!("replacing {} with {}", param, value);
+    for operation in &mut chain.operations {
+        for operand in &mut operation.operands {
+            replace(param, value, operand);
+        }
+    }
+}
+
+fn replace(param: &TypedIdentifier, value: &ExpressionSpan, operand: &mut ExpressionSpan) {
+    match operand.syn_type_mut() {
+        Expression::Nothing => {}
+        Expression::Value(_) => {}
+        Expression::Identifier(name) => {
+            if *name == param.name {
+                *operand = value.clone();
+            }
+        }
+        Expression::Type(_) => {}
+        Expression::TypedIdentifiers(_) => {}
+        Expression::Chain(chain) => {
+            replace_in_chain(param, value, chain);
+        }
+        Expression::StaticList { elements } => {
+            for elem in elements {
+                replace(param, value, elem);
+            }
+        }
+        Expression::Function(function) => replace_in_chain(param, value, &mut function.body),
+        Expression::Composed(composed) => {
+            for body in composed.chains_mut() {
+                replace_in_chain(param, value, body);
+            }
+        }
+        Expression::Abstract(abstract_) => {
+            replace_in_abstract(param, value, abstract_);
+        }
+    }
+}
+
+fn replace_in_abstract(param: &TypedIdentifier, value: &ExpressionSpan, abstract_: &mut Abstract) {
+    match abstract_ {
+        Abstract::Abstract { name, span, nodes } => {
+            for node in nodes {
+                replace_in_abstract(param, value, node);
+            }
+        }
+        Abstract::Expression(expr) => replace(param, value, expr),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
