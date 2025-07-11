@@ -371,7 +371,7 @@ fn find_source_code(
     Ok((root, relative_path_to_import, source_code))
 }
 
-fn get_relative_path_to_import(identifier: &str) -> PathBuf {
+pub fn get_relative_path_to_import(identifier: &str) -> PathBuf {
     let mut namespace_parts = identifier
         .split('/')
         .map(|s| s.to_string())

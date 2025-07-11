@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
-use crate::common::{bug, bug_span, context, err, err_span, maybe_format_span, AnyError};
+use crate::common::{bug_span, context, err, err_span, maybe_format_span, AnyError};
 use crate::frontend::expression::display::typed_identifiers_to_str;
 use crate::frontend::expression::{
     is_macro, Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan,
@@ -127,7 +127,7 @@ impl<'a> Typer<'a> {
             .get_main()
             .file
             .as_ref()
-            .map(|p| format!("{}", p.to_string_lossy()));
+            .map(|p| p.to_string_lossy().to_string());
         Ok((typer, program.main()))
     }
 
@@ -228,21 +228,26 @@ impl<'a> Typer<'a> {
         }
     }
 
-    fn get_identifier_type(&self, name: &String) -> Result<Type, AnyError> {
+    fn get_identifier_type(&self, name: &String, span: Span) -> Result<Type, AnyError> {
         if let Some(types) = self.identifier_types.get(name) {
             if let Some(last) = types.last() {
                 Ok(last.clone())
             } else {
-                err(format!(
-                    "Bug: Identifier '{}' is not bound to any value",
-                    name
-                ))
+                bug_span(
+                    format!("Identifier '{}' is not bound to any value", name),
+                    self.get_current_source(),
+                    span,
+                )
             }
         } else {
-            err(format!(
-                "Bug: Undefined identifier '{}'. This should have been detected by earlier stages.",
-                name
-            ))
+            bug_span(
+                format!(
+                    "Undefined identifier '{}'. This should have been detected by earlier stages.",
+                    name
+                ),
+                self.get_current_source(),
+                span,
+            )
         }
     }
 }
@@ -294,7 +299,7 @@ impl<'a> Typer<'a> {
     ) -> Result<ExpressionSpan, AnyError> {
         Ok(ExpressionSpan::new(
             Expression::Identifier(name.clone()),
-            self.get_identifier_type(name)?,
+            self.get_identifier_type(name, span)?,
             span,
         ))
     }
@@ -556,6 +561,11 @@ impl<'a> Typer<'a> {
                 Ok(Operation::single(operator, typed_operand, type_))
             }
             Operator::Call => self.get_call_type(input, operands, operator.span),
+            // Operator::MacroCall => Ok(Operation::several(
+            //     operator,
+            //     operands.clone(),
+            //     builtin_types::ANY,
+            // )),
             Operator::MacroCall => bug_span(
                 "macro calls should not reach the typing stage. Macro call",
                 self.sources.get_main(),
@@ -633,7 +643,7 @@ impl<'a> Typer<'a> {
         let mut callable = operands.get(0).unwrap().clone();
         match &callable.syntactic_type {
             Expression::Identifier(name) => {
-                callable.semantic_type = self.get_identifier_type(name)?;
+                callable.semantic_type = self.get_identifier_type(name, callable.span)?;
                 self.check_type_callable(input_type, callable, &operands[1..], operator_span)
             }
             Expression::Chain(chain) => {

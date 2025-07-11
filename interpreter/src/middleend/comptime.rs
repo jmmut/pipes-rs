@@ -1,12 +1,12 @@
 use crate::backend::Runtime;
 use crate::common::{bug, context, err, err_span, AnyError};
 use crate::frontend::expression::{
-    Abstract, Chain, Composed, Comptime, Expression, ExpressionSpan, Function, TypedIdentifier,
-    TypedIdentifiers,
+    is_macro, Abstract, Chain, Composed, Comptime, Expression, ExpressionSpan, Function,
+    TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
 use crate::frontend::program::{Identifiers, Program};
-use crate::frontend::sources::location::Span;
+use crate::frontend::sources::location::{Span, NO_SPAN};
 use crate::frontend::sources::token::{Keyword, Operator};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::builtin_types;
@@ -34,7 +34,27 @@ struct Rewriter {
 impl Rewriter {
     fn rewrite_contextless(mut self, mut main: ExpressionSpan) -> Result<Program, AnyError> {
         self.rewrite_expression_span(&mut main)?;
+        self.delete_macros(&mut main);
         Ok(Program::new_from(main, self.identifiers, self.sources))
+    }
+
+    fn delete_macros(&mut self, main: &mut ExpressionSpan) {
+        let mut to_delete = Vec::new();
+        for (identifier, expr) in &self.identifiers {
+            if is_macro(expr) {
+                to_delete.push(identifier.clone());
+            }
+        }
+
+        for to_delete in to_delete {
+            self.identifiers.remove(&to_delete);
+
+            replace(
+                &TypedIdentifier::any(to_delete.clone()),
+                &ExpressionSpan::new_typeless(Expression::Nothing, NO_SPAN),
+                main,
+            )
+        }
     }
 
     fn rewrite_expression_span(
@@ -66,7 +86,11 @@ impl Rewriter {
                     ExpressionSpan::new(new_expression, builtin_types::I64, expression_span.span);
                 *expression_span = new_expr_span;
             }
-            Expression::Composed(_) => {}
+            Expression::Composed(composed) => {
+                for chain in composed.chains_mut() {
+                    self.rewrite_chain(chain)?;
+                }
+            }
             Expression::TypedIdentifiers(_) => unimplemented!(),
             Expression::Abstract(_) => unimplemented!(),
         }

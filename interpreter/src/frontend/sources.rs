@@ -1,7 +1,7 @@
+use crate::frontend::parser::import::get_relative_path_to_import;
+use crate::frontend::sources::location::SourceCode;
 use std::collections::hash_map::Keys;
 use std::collections::HashMap;
-
-use crate::frontend::sources::location::SourceCode;
 
 pub mod lexer;
 pub mod location;
@@ -39,6 +39,12 @@ impl Sources {
     }
     pub fn get(&self, path: &str) -> Option<&SourceCode> {
         self.other_sources.get(path)
+    }
+    pub fn get_from_qualified(&self, qualified_identifier: &str) -> Option<&SourceCode> {
+        let path = get_relative_path_to_import(qualified_identifier);
+        self.other_sources
+            .get(&path.to_string_lossy().to_string())
+            .or(Some(&self.main_source))
     }
     pub fn get_main(&self) -> &SourceCode {
         &self.main_source

@@ -313,6 +313,13 @@ impl SourceCode {
             "".to_string()
         };
         let (start_start, start_end) = self.get_current_line_indexes(start.byte);
+        if start_end > self.text.len() {
+            return format!(
+                " at (Bug: mismatched source code span ({}) and source code file ({:?}))",
+                Span { start, end },
+                self.file
+            );
+        }
         let line = &self.text[start_start..start_end];
         let (end_start, end_end) = self.get_current_line_indexes(end.byte);
         if start_start == end_start && start_end == end_end {
