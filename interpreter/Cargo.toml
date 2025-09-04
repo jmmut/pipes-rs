@@ -11,7 +11,7 @@ crate-type = ["rlib", "cdylib"]  # TODO: why this?
 
 [dependencies]
 clap = {version = "=4.4.7", features = ["derive"]} # for CLI parsing
-wasm-bindgen = "=0.2.89" # for targeting WebAssembly
-strum = "=0.26.1" # QoL iterating enums
+wasm-bindgen = { version = "=0.2.89", features = ["std"], default-features = false } # for targeting WebAssembly
+strum = { version = "=0.26.1", default-features = false } # QoL iterating enums
 strum_macros = "=0.26.1" # QoL iterating enums
-libc = "=0.2.152" # for preventing error messages when piping output (in bash)
+libc = { version = "=0.2.152", default-features = false } # for preventing error messages when piping output (in bash)
