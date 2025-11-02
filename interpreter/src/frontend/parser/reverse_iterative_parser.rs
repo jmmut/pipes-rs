@@ -4,10 +4,11 @@ use std::path::PathBuf;
 
 use crate::common::{context, err, err_span, AnyError};
 use crate::frontend::expression::{
-    take_single, Abstract, Branch, Cast, Chain, Composed, Comptime, Expression, ExpressionSpan,
-    Function, Operation, Operations, Type, TypedIdentifier, TypedIdentifiers,
+    is_macro, take_single, Abstract, Branch, Cast, Chain, Composed, Comptime, Expression,
+    ExpressionSpan, Function, Operation, Operations, Type, TypedIdentifier, TypedIdentifiers,
 };
-use crate::frontend::parser::import::import;
+use crate::frontend::parser::import::{import, import_inner};
+use crate::frontend::parser::macros::expand_macros;
 use crate::frontend::parser::root::{get_project_root, qualify};
 use crate::frontend::program::{IncompleteProgram, Program};
 use crate::frontend::sources::lexer::TokenizedSource;
@@ -26,7 +27,18 @@ pub fn parse_type(tokens: TokenizedSource) -> Result<Type, AnyError> {
 }
 
 pub fn parse_tokens_cached(tokens: LocatedTokens, ast: Parser) -> Result<Program, AnyError> {
-    Ok(parse_tokens_cached_inner(tokens, ast)?.into())
+    let complete_program = parse_tokens_cached_inner(tokens, ast)?.into();
+    Ok(complete_program)
+    // let mut with_expanded_macros = expand_macros(complete_program)?;
+    // let (imported, other_sources) = import_inner(
+    //     &mut with_expanded_macros.main,
+    //     with_expanded_macros.sources.get_main(),
+    //
+    // )?;
+    //
+    // with_expanded_macros.identifiers.extend(imported);
+    // with_expanded_macros.sources.add(other_sources);
+    // Ok(with_expanded_macros)
 }
 
 pub fn parse_tokens_cached_inner(
@@ -643,13 +655,7 @@ fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError>
                 } else {
                     name
                 };
-                let is_macro = if let Expression::Function(Function { is_macro: true, .. }) =
-                    expr.syn_type()
-                {
-                    true
-                } else {
-                    false
-                };
+                let is_macro = is_macro(&expr);
                 parser.exported.insert(qualified.clone(), expr);
                 if is_macro {
                     Ok((Expression::Nothing, span)) // macro references should not reach typing
@@ -883,16 +889,41 @@ pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
 
 fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {
     let mut main = auto_complete_main(&mut parser)?;
-
-    let (imported, other_sources) = import(&mut main, &mut parser)?;
+    let (imported, mut other_sources_outer) = import(&mut main, &mut parser)?;
     parser.exported.extend(imported);
-
-    Ok(IncompleteProgram {
-        main,
-        exported: parser.exported,
-        available: parser.available,
-        sources: Sources::new(parser.source, other_sources),
-    })
+    loop {
+        let program = Program {
+            main,
+            identifiers: parser.exported,
+            sources: Sources::new(parser.source, other_sources_outer),
+        };
+        let mut expanded = expand_macros(program)?;
+        let (imported, other_sources) = import_inner(
+            &mut expanded.main,
+            expanded.sources.get_main(),
+            parser.root.clone(),
+            &mut expanded.identifiers,
+            &parser.available,
+        )?;
+        expanded.sources.add(other_sources);
+        if imported.len() == 0 {
+            return Ok(IncompleteProgram {
+                main: expanded.main,
+                exported: expanded.identifiers,
+                available: parser.available,
+                sources: expanded.sources,
+            });
+        }
+        main = expanded.main;
+        expanded.identifiers.extend(imported);
+        parser.exported = expanded.identifiers;
+        let Sources {
+            main_source,
+            other_sources,
+        } = expanded.sources;
+        parser.source = main_source;
+        other_sources_outer = other_sources;
+    }
 }
 
 fn auto_complete_main(parser: &mut Parser) -> Result<ExpressionSpan, AnyError> {

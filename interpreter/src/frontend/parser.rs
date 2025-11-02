@@ -11,5 +11,6 @@ pub mod reverse_iterative_parser;
 pub mod import;
 // #[cfg(test)]
 // pub mod recursive_parser;
+mod macros;
 pub mod nodes_to_expression;
 pub mod root;

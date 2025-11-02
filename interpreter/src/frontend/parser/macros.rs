@@ -1,37 +1,31 @@
-use crate::backend::Runtime;
 use crate::common::{bug, context, err, err_span, AnyError};
 use crate::frontend::expression::{
-    Abstract, Chain, Composed, Comptime, Expression, ExpressionSpan, Function, TypedIdentifier,
-    TypedIdentifiers,
+    Abstract, Chain, Expression, ExpressionSpan, Function, TypedIdentifier, TypedIdentifiers,
 };
 use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
 use crate::frontend::program::{Identifiers, Program};
 use crate::frontend::sources::location::Span;
 use crate::frontend::sources::token::{Keyword, Operator};
 use crate::frontend::sources::Sources;
-use crate::middleend::intrinsics::builtin_types;
-use std::io::{stdin, stdout, Stdin, Stdout};
 
-pub fn rewrite(program: Program) -> Result<Program, AnyError> {
-    let (main, identifiers, sources) = program.take();
-    let runtime = context(
-        "Comptime evaluation setup",
-        Runtime::new(stdin(), stdout(), identifiers.clone(), sources.clone()),
-    )?;
-    let rewriter = Rewriter {
-        runtime,
+pub fn expand_macros(program: Program) -> Result<Program, AnyError> {
+    let Program {
+        main,
+        identifiers,
+        sources,
+    } = program;
+    let rewriter = MacroExpander {
         identifiers,
         sources,
     };
-    context("Comptime evaluation", rewriter.rewrite_contextless(main))
+    context("Macro expansion", rewriter.rewrite_contextless(main))
 }
 
-struct Rewriter {
-    runtime: Runtime<Stdin, Stdout>,
+struct MacroExpander {
     pub identifiers: Identifiers,
     pub sources: Sources,
 }
-impl Rewriter {
+impl MacroExpander {
     fn rewrite_contextless(mut self, mut main: ExpressionSpan) -> Result<Program, AnyError> {
         self.rewrite_expression_span(&mut main)?;
         Ok(Program::new_from(main, self.identifiers, self.sources))
@@ -48,24 +42,7 @@ impl Rewriter {
             Expression::Type(_) => {}
             Expression::Chain(chain) => self.rewrite_chain(chain)?,
             Expression::StaticList { .. } => {}
-            Expression::Function(_) => {}
-            Expression::Composed(Composed::Comptime(comptime)) => {
-                let mut taken = Comptime {
-                    body: Chain::empty(),
-                };
-                std::mem::swap(&mut taken, comptime);
-                let mut composed_expr_span = ExpressionSpan::new(
-                    Expression::Chain(taken.body),
-                    expression_span.sem_type().clone(),
-                    expression_span.span,
-                );
-                self.rewrite_expression_span(&mut composed_expr_span)?;
-                let value = self.runtime.evaluate_recursive(&composed_expr_span)?; // TODO: take identifiers that might have been created
-                let new_expression = Expression::Value(value); // TODO: this might be a function pointer or other things
-                let new_expr_span =
-                    ExpressionSpan::new(new_expression, builtin_types::I64, expression_span.span);
-                *expression_span = new_expr_span;
-            }
+            Expression::Function(_) => {} // TODO: doesn't this body need rewrite too?
             Expression::Composed(composed) => {
                 for chain in composed.chains_mut() {
                     self.rewrite_chain(chain)?;
@@ -354,42 +331,35 @@ fn replace_in_abstract(param: &TypedIdentifier, value: &ExpressionSpan, abstract
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::common::unwrap_display;
-    use crate::frontend::expression::Expression;
-    use crate::frontend::lex_and_parse;
-    use crate::frontend::program::Program;
-    use crate::frontend::tests::{assert_exprs_eq, chain_init, val};
-    use crate::middleend::typing::{add_types, put_types};
-
-    fn parse(code: &str) -> Program {
-        unwrap_display(lex_and_parse(code))
-    }
-
-    fn test_rewrite(code: &str) -> Program {
-        let program = parse(code);
-        let mut rewritten = unwrap_display(rewrite(program));
-        unwrap_display(put_types(&mut rewritten));
-        rewritten
-    }
-    fn typed(expression: Expression) -> Expression {
-        let program = Program::new_raw(expression);
-        unwrap_display(add_types(&program)).main.syntactic_type
-    }
-
-    #[test]
-    fn test_basic() {
-        let program = test_rewrite("comptime { 5 +2 }");
-        assert_eq!(program.main.syntactic_type, Expression::Value(7));
-    }
-    #[test]
-    fn test_basic_nested() {
-        let program = test_rewrite("{;comptime { 5 +2 }}");
-        assert_exprs_eq(program.main.syntactic_type, typed(chain_init(val(7), &[])));
-    }
-    #[test]
-    fn test_nested_comptime() {
-        let program = test_rewrite("{;comptime {5 +{1 +comptime {2 +4}}}}");
-        assert_exprs_eq(program.main.syntactic_type, typed(chain_init(val(12), &[])));
-    }
+    //
+    // fn parse(code: &str) -> Program {
+    //     unwrap_display(lex_and_parse(code))
+    // }
+    //
+    // fn test_rewrite(code: &str) -> Program {
+    //     let program = parse(code);
+    //     let mut rewritten = unwrap_display(rewrite(program));
+    //     unwrap_display(put_types(&mut rewritten));
+    //     rewritten
+    // }
+    // fn typed(expression: Expression) -> Expression {
+    //     let program = Program::new_raw(expression);
+    //     unwrap_display(add_types(&program)).main.syntactic_type
+    // }
+    //
+    // #[test]
+    // fn test_basic() {
+    //     let program = test_rewrite("comptime { 5 +2 }");
+    //     assert_eq!(program.main.syntactic_type, Expression::Value(7));
+    // }
+    // #[test]
+    // fn test_basic_nested() {
+    //     let program = test_rewrite("{;comptime { 5 +2 }}");
+    //     assert_exprs_eq(program.main.syntactic_type, typed(chain_init(val(7), &[])));
+    // }
+    // #[test]
+    // fn test_nested_comptime() {
+    //     let program = test_rewrite("{;comptime {5 +{1 +comptime {2 +4}}}}");
+    //     assert_exprs_eq(program.main.syntactic_type, typed(chain_init(val(12), &[])));
+    // }
 }

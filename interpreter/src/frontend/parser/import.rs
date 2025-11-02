@@ -25,19 +25,33 @@ pub fn import(
     main: &mut ExpressionSpan,
     parser: &mut Parser,
 ) -> Result<(HashMap<String, ExpressionSpan>, HashMap<String, SourceCode>), AnyError> {
-    let context_str = if let Some(path) = parser.source.file.as_ref() {
+    let source = &mut parser.source;
+    let root = parser.root.clone();
+    let exported_parser = &mut parser.exported;
+    let available_parser = &parser.available;
+
+    import_inner(main, source, root, exported_parser, available_parser)
+}
+pub fn import_inner(
+    main: &mut ExpressionSpan,
+    source: &SourceCode,
+    root: Option<PathBuf>,
+    exported_parser: &mut HashMap<String, ExpressionSpan>,
+    available_parser: &HashSet<String>,
+) -> Result<(HashMap<String, ExpressionSpan>, HashMap<String, SourceCode>), AnyError> {
+    let context_str = if let Some(path) = source.file.as_ref() {
         format!("Import dependencies for {}", path.to_string_lossy())
     } else {
         "Import".to_string()
     };
-    let mut tmp_source_code = SourceCode::new_fileless("".to_string());
-    std::mem::swap(&mut tmp_source_code, &mut parser.source);
-    let mut import_state = ImportState::new(tmp_source_code, parser.root.clone());
-    import_state.available = parser.exported.keys().cloned().collect();
+    // let mut tmp_source_code = SourceCode::new_fileless("".to_string());
+    // std::mem::swap(&mut tmp_source_code, source);
+    let mut import_state = ImportState::new(source, root);
+    import_state.available = exported_parser.keys().cloned().collect();
     import_state
         .available
-        .extend(parser.available.iter().cloned());
-    for (_name, public_exported) in &mut parser.exported {
+        .extend(available_parser.iter().cloned());
+    for (_name, public_exported) in exported_parser {
         let _ = context(
             context_str.clone(),
             track_identifiers_recursive(public_exported, &mut import_state), // TODO: why this?
@@ -47,31 +61,31 @@ pub fn import(
         context_str.clone(),
         track_identifiers_recursive(main, &mut import_state),
     )?;
-    parser.source = import_state.source;
+    // *source = import_state.source;
     // println!("after importing: {:#?}", import_state.imported);
     Ok((import_state.imported, import_state.other_sources))
 }
 
-struct ImportState {
+struct ImportState<'a> {
     parameter_stack: Vec<String>,
     intrinsic_names: Vec<String>,
     assignments: Vec<String>,
     imported: HashMap<String, ExpressionSpan>,
     available: HashSet<String>,
     project_root: Option<PathBuf>,
-    source: SourceCode,
+    source: &'a SourceCode,
     other_sources: HashMap<String, SourceCode>,
 }
 
-impl ImportState {
-    pub fn new(source: SourceCode, root: Option<PathBuf>) -> Self {
+impl<'a> ImportState<'a> {
+    pub fn new(source: &'a SourceCode, root: Option<PathBuf>) -> Self {
         Self::new_with_identifiers(source, root, HashMap::new())
     }
     fn new_with_identifiers(
-        source: SourceCode,
+        source: &'a SourceCode,
         project_root: Option<PathBuf>,
         imported: HashMap<String, ExpressionSpan>,
-    ) -> Self {
+    ) -> ImportState<'a> {
         Self {
             parameter_stack: Vec::new(),
             intrinsic_names: intrinsics::Intrinsic::iter()

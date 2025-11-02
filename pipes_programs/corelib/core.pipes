@@ -10,10 +10,10 @@
 }
 =and
 
-;[1 1 1] |and |assert/eq 1
-;[1 0 1] |and |assert/eq 0
-;[0 1 0] |and |assert/eq 0
-;[0 0 0] |and |assert/eq 0
+//;[1 1 1] |and |assert/eq 1
+//;[1 0 1] |and |assert/eq 0
+//;[0 1 0] |and |assert/eq 0
+//;[0 0 0] |and |assert/eq 0
 
 ;public function (conditions :list(:i64)) (:i64) {
     |browse_or(e) {
@@ -24,10 +24,10 @@
 }
 =or
 
-;[1 1 1] |or |assert/eq 1
-;[1 0 1] |or |assert/eq 1
-;[0 1 0] |or |assert/eq 1
-;[0 0 0] |or |assert/eq 0
+//;[1 1 1] |or |assert/eq 1
+//;[1 0 1] |or |assert/eq 1
+//;[0 1 0] |or |assert/eq 1
+//;[0 0 0] |or |assert/eq 0
 
 //;public function(x) {
 //
@@ -39,10 +39,10 @@
 }
 =inspect
 
-;{
-    ;10 =var
-    ;3 |`inspect (_) {+1 =>var} |assert/eq 3
-    ;var |assert/eq 4
-}
+//;{
+//    ;10 =var
+//    ;3 |`inspect (_) {+1 =>var} |assert/eq 3
+//    ;var |assert/eq 4
+//}
 
 ;

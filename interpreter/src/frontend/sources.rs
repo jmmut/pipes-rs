@@ -9,8 +9,8 @@ pub mod token;
 
 #[derive(Debug, Clone)]
 pub struct Sources {
-    main_source: SourceCode,
-    other_sources: HashMap<String, SourceCode>,
+    pub main_source: SourceCode,
+    pub other_sources: HashMap<String, SourceCode>,
 }
 
 impl Default for Sources {
@@ -37,6 +37,10 @@ impl Sources {
             .insert(name_for_main_source, self.main_source);
         self.other_sources.into_iter()
     }
+    pub fn add(&mut self, other_sources: HashMap<String, SourceCode>) {
+        self.other_sources.extend(other_sources.into_iter());
+    }
+
     pub fn get(&self, path: &str) -> Option<&SourceCode> {
         self.other_sources.get(path)
     }
