@@ -121,7 +121,7 @@ impl Parser {
                     self.accumulated.push_front(pe);
                 }
                 Token::Identifier(ident) => {
-                    let expression_span = construct_identifier(self, ident, span);
+                    let expression_span = construct_identifier(ident, span);
                     self.push_es(expression_span);
                 }
                 Token::Keyword(keyword) => {
@@ -226,19 +226,8 @@ impl Parser {
     }
 }
 
-fn construct_identifier(parser: &mut Parser, identifier: String, span: Span) -> ExpressionSpan {
-    let maybe_children = parser.accumulated.pop_front();
-    let expr = match maybe_children {
-        // Some(PartialExpression::Expression(ExpressionSpan {syntactic_type: Expression::TypedIdentifiers(children), span: children_span, ..})) => {
-        //     span = span.merge(&children_span);
-        //     Expression::Type(Type::from(identifier, children))
-        // }
-        Some(not_children) => {
-            parser.accumulated.push_front(not_children);
-            Expression::Identifier(identifier)
-        }
-        None => Expression::Identifier(identifier),
-    };
+fn construct_identifier(identifier: String, span: Span) -> ExpressionSpan {
+    let expr = Expression::Identifier(identifier);
     ExpressionSpan::new_typeless(expr, span)
 }
 

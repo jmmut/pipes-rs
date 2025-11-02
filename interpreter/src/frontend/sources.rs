@@ -49,7 +49,7 @@ impl Sources {
     pub fn get_main(&self) -> &SourceCode {
         &self.main_source
     }
-    pub fn keys(&self) -> Keys<String, SourceCode> {
+    pub fn keys(&self) -> Keys<'_, String, SourceCode> {
         self.other_sources.keys()
     }
 }

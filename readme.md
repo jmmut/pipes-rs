@@ -24,7 +24,7 @@ Project organization
 - [x] be able to split code in different files
 - [x] ...and be able to import identifiers
 - [x] ...with minimal project definition
-- [ ] ...in a way that is compatible with LSP
+- [/] ...in a way that is compatible with LSP
 
 Typechecking:
 - [x] semantic types (`:t` meaning "the previous expression is of type t")
@@ -40,7 +40,7 @@ Tooling
 - [x] check and run continuously (see pipes-check or the web playground)
 - [/] print code location in error messages
 - [/] debugger breakpoints
-- [ ] Language Server Protocol
+- [/] Language Server Protocol
 
 
 ## Syntax
