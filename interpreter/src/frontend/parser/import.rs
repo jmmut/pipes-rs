@@ -493,28 +493,26 @@ fn track_identifiers_recursive_chain(
         operator, operands, ..
     } in &mut chain.operations
     {
-        for operand in operands {
-            if let (
-                OperatorSpan {
-                    operator: Operator::Assignment,
-                    ..
-                },
-                Expression::Identifier(name),
-            ) = (&operator, operand.syn_type().clone())
-            {
-                identifiers_defined_in_this_chain.push(name.clone());
-                import_state.assignments.push(name)
-            }
-            if let (
-                OperatorSpan {
-                    operator: Operator::Field,
-                    ..
-                },
-                Expression::Identifier(_name),
-            ) = (&operator, operand.syn_type().clone())
-            { // field access should not be imported
-            } else {
-                track_identifiers_recursive(operand, import_state)?;
+        if operator.operator == Operator::MacroCall {
+            track_identifiers_recursive(operands.first_mut().unwrap(), import_state)?;
+            // the rest of the args should not be imported
+        } else if operator.operator == Operator::Field {
+            // field access should not be imported
+        } else {
+            for operand in operands {
+                if let (
+                    OperatorSpan {
+                        operator: Operator::Assignment,
+                        ..
+                    },
+                    Expression::Identifier(name),
+                ) = (&operator, operand.syn_type().clone())
+                {
+                    identifiers_defined_in_this_chain.push(name.clone());
+                    import_state.assignments.push(name)
+                } else {
+                    track_identifiers_recursive(operand, import_state)?;
+                }
             }
         }
     }

@@ -1032,9 +1032,14 @@ mod tests {
     fn interpret_io<S: Into<SourceCode>>(code_text: S, read_input: &str) -> (GenericValue, String) {
         let read_input = read_input.bytes().collect::<Vec<u8>>();
         let mut print_output = Vec::<u8>::new();
-        let program = unwrap_display(lex_and_parse(code_text));
+        let code = code_text.into();
+        // println!("before lex/parse: {}", code.text);
+        let program = unwrap_display(lex_and_parse(code));
+        // println!("after lex/parse: {}", program.main);
         let mut program = unwrap_display(rewrite(program));
+        // println!("after rewrite: {}", program.main);
         unwrap_display(put_types(&mut program));
+        // println!("after typing: {}", program.main);
         let result = Runtime::evaluate(program, read_input.as_slice(), &mut print_output);
         (
             unwrap_display(result),
@@ -1427,46 +1432,28 @@ mod tests {
     const INSPECT: &str = ";public macro(input  t  c) {|function[t c] ;input} =m_inspect";
     #[test]
     fn test_inspect() {
-        assert_eq!(
-            // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {+1}")),
-            interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {+1}")),
-            // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
-            3
-        );
-        // TODO: proper identifier binding between the types and the chain
-        // assert_eq!(
-        //     interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
-        //     3
-        // );
-        assert_eq!(
-            interpret_io(
-                format!("{}{}", INSPECT, ";3 |`m_inspect (n) {+1 |to_str |print}"),
-                ""
-            ),
-            (3, "4\n".to_string())
-        );
+        // using n inside the chain to check param binding
+        // using abs to check imports. this fails because all imports need to happen before rewriting
+        let code = ";0 -3 |`m_inspect (n) {n +1 |i64/abs |to_str |print}";
+        let full_code = format!("{}{}", INSPECT, code);
+        assert_eq!(interpret_io(full_code, ""), (-3, "2\n".to_string()));
     }
-    const INSPECT_2: &str = ";function(input f) {|f ;input} =m_inspect_2";
+
     #[test]
-    fn test_inspect_2() {
-        assert_eq!(
-            interpret(format!(
-                "{}{}",
-                INSPECT_2, ";3 |m_inspect_2 function (n) {n+1}"
-            )),
-            // interpret(format!("{}{}", INSPECT, ";3 |`m_inspect(n) {n+1}")),
-            3
-        );
-        assert_eq!(
-            interpret_io(
-                format!(
-                    "{}{}",
-                    INSPECT_2, ";3 |m_inspect_2 function (_) {+1 |to_str |print}"
-                ),
-                ""
-            ),
-            (3, "4\n".to_string())
-        );
+    fn test_inspect_inner_shadow() {
+        // using a parameter t from the macro inside the body should put the number, not put the types
+        let code = ";3 |`m_inspect (t) {t +1 |to_str |print}";
+        let full_code = format!("{}{}", INSPECT, code);
+        assert_eq!(interpret_io(full_code, ""), (3, "4\n".to_string()));
+    }
+
+    const INSPECT_FUNCTION: &str = ";function(input f) {|f ;input} =m_inspect_2";
+    #[test]
+    fn test_inspect_with_function() {
+        // using a function instead of a macro to compare. A macro should be more convenient.
+        let code = ";3 |m_inspect_2 function (n) {n+1 |to_str |print}";
+        let full_code = format!("{}{}", INSPECT_FUNCTION, code);
+        assert_eq!(interpret_io(full_code, ""), (3, "4\n".to_string()));
     }
     // function x {x}
     // fn {}

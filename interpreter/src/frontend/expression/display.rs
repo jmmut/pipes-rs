@@ -49,9 +49,9 @@ impl Display for Expression {
                     f,
                     "{}{}{} {}",
                     if *is_macro {
-                        Keyword::Function.name()
-                    } else {
                         Keyword::Macro.name()
+                    } else {
+                        Keyword::Function.name()
                     },
                     typed_identifiers_to_str(&parameters, force_param_parens),
                     typed_identifiers_to_str(&returneds, false),
