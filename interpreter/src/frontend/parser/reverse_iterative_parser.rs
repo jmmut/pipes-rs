@@ -643,8 +643,19 @@ fn construct_public(parser: &mut Parser) -> Result<(Expression, Span), AnyError>
                 } else {
                     name
                 };
+                let is_macro = if let Expression::Function(Function { is_macro: true, .. }) =
+                    expr.syn_type()
+                {
+                    true
+                } else {
+                    false
+                };
                 parser.exported.insert(qualified.clone(), expr);
-                Ok((Expression::Identifier(qualified), span))
+                if is_macro {
+                    Ok((Expression::Nothing, span)) // macro references should not reach typing
+                } else {
+                    Ok((Expression::Identifier(qualified), span))
+                }
             } else {
                 error_expected("identifier after 'public <expression> ='", operand)
             }
@@ -871,33 +882,7 @@ pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
 }
 
 fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {
-    let accumulated = &mut parser.accumulated;
-    let mut main = if accumulated.len() <= 1 {
-        match accumulated.pop_front() {
-            Some(PartialExpression::Expression(e)) => e,
-            Some(PartialExpression::Operation(o)) => {
-                let span = o.content_span();
-                let expr = ExpressionSpan::new_typeless(Expression::chain(vec![o]), span);
-                expr
-            }
-            None => ExpressionSpan::new_spanless(Expression::empty_chain()),
-            Some(v) => {
-                accumulated.push_front(v);
-                return err(format!("unfinished code: {:?}", accumulated));
-            }
-        }
-    } else {
-        let error_message = format!("unfinished code: {:?}", accumulated);
-        let start_span = accumulated.iter().next().unwrap().span();
-        let end_span = accumulated.iter().last().unwrap().span();
-        accumulated.push_back(PartialExpression::CloseBrace(end_span));
-        let expr = construct_chain(accumulated, &parser.source, start_span)?;
-        if !accumulated.is_empty() {
-            return err(error_message);
-        } else {
-            expr
-        }
-    };
+    let mut main = auto_complete_main(&mut parser)?;
 
     let (imported, other_sources) = import(&mut main, &mut parser)?;
     parser.exported.extend(imported);
@@ -908,6 +893,36 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         available: parser.available,
         sources: Sources::new(parser.source, other_sources),
     })
+}
+
+fn auto_complete_main(parser: &mut Parser) -> Result<ExpressionSpan, AnyError> {
+    let accumulated = &mut parser.accumulated;
+    if accumulated.len() <= 1 {
+        match accumulated.pop_front() {
+            Some(PartialExpression::Expression(e)) => Ok(e),
+            Some(PartialExpression::Operation(o)) => {
+                let span = o.content_span();
+                let expr = ExpressionSpan::new_typeless(Expression::chain(vec![o]), span);
+                Ok(expr)
+            }
+            None => Ok(ExpressionSpan::new_spanless(Expression::empty_chain())),
+            Some(v) => {
+                accumulated.push_front(v);
+                err(format!("unfinished code: {:?}", accumulated))
+            }
+        }
+    } else {
+        let error_message = format!("unfinished code: {:?}", accumulated);
+        let start_span = accumulated.iter().next().unwrap().span();
+        let end_span = accumulated.iter().last().unwrap().span();
+        accumulated.push_back(PartialExpression::CloseBrace(end_span));
+        let expr = construct_chain(accumulated, &parser.source, start_span)?;
+        if !accumulated.is_empty() {
+            err(error_message)
+        } else {
+            Ok(expr)
+        }
+    }
 }
 
 pub fn error_expected<T: Display, R, S: AsRef<str>>(
