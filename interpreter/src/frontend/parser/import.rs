@@ -11,6 +11,7 @@ use crate::frontend::expression::{
 };
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached_inner, Parser};
 use crate::frontend::parser::root::{get_project_root, qualify};
+use crate::frontend::program::Identifiers;
 use crate::frontend::sources::lexer::lex;
 use crate::frontend::sources::location::{SourceCode, Span};
 use crate::frontend::sources::token::{Operator, OperatorSpan};
@@ -20,11 +21,10 @@ use crate::middleend::intrinsics::is_builtin_type;
 const CORELIB_PATH: &'static str = ".local/share/pipes/core/";
 const PIPES_EXTENSION: &'static str = "pipes";
 
-/// Adds imported identifiers to the parser.identifiers parameter
 pub fn import(
     main: &mut ExpressionSpan,
     parser: &mut Parser,
-) -> Result<(HashMap<String, ExpressionSpan>, HashMap<String, SourceCode>), AnyError> {
+) -> Result<(Identifiers, Identifiers, HashMap<String, SourceCode>), AnyError> {
     let source = &mut parser.source;
     let root = parser.root.clone();
     let exported_parser = &mut parser.exported;
@@ -36,9 +36,9 @@ pub fn import_inner(
     main: &mut ExpressionSpan,
     source: &SourceCode,
     root: Option<PathBuf>,
-    exported_parser: &mut HashMap<String, ExpressionSpan>,
-    available_parser: &HashSet<String>,
-) -> Result<(HashMap<String, ExpressionSpan>, HashMap<String, SourceCode>), AnyError> {
+    exported_parser: &mut Identifiers,
+    available_parser: &Identifiers,
+) -> Result<(Identifiers, Identifiers, HashMap<String, SourceCode>), AnyError> {
     let context_str = if let Some(path) = source.file.as_ref() {
         format!("Import dependencies for {}", path.to_string_lossy())
     } else {
@@ -47,31 +47,35 @@ pub fn import_inner(
     // let mut tmp_source_code = SourceCode::new_fileless("".to_string());
     // std::mem::swap(&mut tmp_source_code, source);
     let mut import_state = ImportState::new(source, root);
-    import_state.available = exported_parser.keys().cloned().collect();
-    import_state
-        .available
-        .extend(available_parser.iter().cloned());
-    for (_name, public_exported) in exported_parser {
+    import_state.available = available_parser.clone(); // TODO: optimize
+    import_state.available.extend(exported_parser.clone()); // TODO: optimize
+    for (_name, public_exported) in exported_parser.iter_mut() {
         let _ = context(
             context_str.clone(),
-            track_identifiers_recursive(public_exported, &mut import_state), // TODO: why this?
+            // need to qualify identifiers that are exported by the same file
+            track_identifiers_recursive(public_exported, &mut import_state),
         )?;
     }
+    import_state.available.extend(exported_parser.clone()); // TODO: optimize. need to insert again because identifiers inside the exported might have been qualified
     let _ = context(
         context_str.clone(),
         track_identifiers_recursive(main, &mut import_state),
     )?;
     // *source = import_state.source;
     // println!("after importing: {:#?}", import_state.imported);
-    Ok((import_state.imported, import_state.other_sources))
+    Ok((
+        import_state.imported,
+        import_state.available,
+        import_state.other_sources,
+    ))
 }
 
 struct ImportState<'a> {
     parameter_stack: Vec<String>,
     intrinsic_names: Vec<String>,
     assignments: Vec<String>,
-    imported: HashMap<String, ExpressionSpan>,
-    available: HashSet<String>,
+    imported: Identifiers,
+    available: Identifiers,
     project_root: Option<PathBuf>,
     source: &'a SourceCode,
     other_sources: HashMap<String, SourceCode>,
@@ -93,7 +97,7 @@ impl<'a> ImportState<'a> {
                 .collect(),
             assignments: Vec::new(),
             imported,
-            available: HashSet::new(),
+            available: HashMap::new(),
             project_root,
             source,
             other_sources: HashMap::new(),
@@ -262,11 +266,11 @@ fn check_identifier(
             .count();
         if assignment_nested_count == 0
             && !import_state.imported.contains_key(identifier)
-            && !import_state.available.contains(identifier)
+            && !import_state.available.contains_key(identifier)
         {
             import_identifier(identifier, import_state, span)?;
             if !import_state.imported.contains_key(identifier)
-                && !import_state.available.contains(identifier)
+                && !import_state.available.contains_key(identifier)
             {
                 err_undefined_identifier(identifier, import_state, span)
             } else {
@@ -323,7 +327,7 @@ fn import_identifier(
                     if let Ok(diff) = local_root.strip_prefix(global_root) {
                         *identifier = diff.to_string_lossy().to_string() + "/" + identifier;
                         if import_state.imported.contains_key(identifier)
-                            || import_state.available.contains(identifier)
+                            || import_state.available.contains_key(identifier)
                         {
                             return Ok(());
                         }
@@ -331,7 +335,7 @@ fn import_identifier(
                 }
             }
             let tokens = lex(source_code)?;
-            let mut available: HashSet<String> = import_state.imported.keys().cloned().collect();
+            let mut available = import_state.imported.clone();
             available.extend(import_state.available.clone());
             let parser = Parser::new_with_available(
                 tokens.source_code,
@@ -462,7 +466,7 @@ fn err_undefined_identifier_from_expected<T>(
 ) -> Result<T, AnyError> {
     let mut imported = import_state.imported.keys().collect::<Vec<_>>();
     imported.sort_unstable();
-    let mut available = import_state.available.iter().collect::<Vec<_>>();
+    let mut available = import_state.available.keys().collect::<Vec<_>>();
     available.sort_unstable();
     err(format!(
         "Undefined identifier '{}'{}{}\nProject root: {:?}\nAvailable identifiers:\n  Parameters: {:?}\n  Intrinsics: {:?}\n  \

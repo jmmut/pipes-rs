@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
 use crate::common::{bug_span, context, err, err_span, maybe_format_span, AnyError};
-use crate::frontend::expression::display::typed_identifiers_to_str;
+use crate::frontend::expression::display::{indent, typed_identifiers_to_str};
 use crate::frontend::expression::{
     is_macro, Branch, Browse, BrowseOr, Chain, Composed, Comptime, Expression, ExpressionSpan,
     Expressions, Filter, Function, Inspect, Loop, Map, Operation, Replace, Something, Times,
@@ -160,6 +160,7 @@ impl<'a> Typer<'a> {
                         self.bind_identifier_type(name.clone(), expr_span.sem_type().clone());
                         self.typed_identifiers
                             .insert(name.clone(), expr_span.clone());
+                        println!("added {}:\n{}", name, indent(&format!("{}", expr_span)));
                         self.new_typed_identifiers.insert(name.clone(), expr_span);
                     }
                     Err(e) => {
@@ -178,6 +179,10 @@ impl<'a> Typer<'a> {
                 } else {
                     "Some constants have incorrect types. (Are there cyclic dependencies?)"
                 };
+                for (name, expr) in &failed {
+                    let expr_str = format!("{}", expr);
+                    println!("{}:\n{}", name, indent(&expr_str));
+                }
                 let mut error_messages = errors
                     .iter()
                     .map(|(name, e)| format!("\n    {}\n{}", name, e))
@@ -1249,6 +1254,28 @@ fn get_source<'a>(sources: &'a Sources, current_source: &Option<String>) -> &'a 
                 return &sources.get_main();
             }
         }
+        let mut shorter_path = source_path.clone();
+        loop {
+            if let Some(index) = shorter_path.find("/") {
+                shorter_path = shorter_path[(index + 1)..].to_string();
+                let message = format!("Warning: attempted to print source code '{}' but we didn't store it. Found a less qualified file '{}' which might be incorrect. Available: {:?}", source_path, shorter_path, sources.keys());
+                if let Some(source) = sources.get(&shorter_path) {
+                    println!("{}", message);
+                    return source;
+                } else if let Some(source) = &sources.get_main().file {
+                    if source.to_string_lossy() == shorter_path {
+                        println!("{}", message);
+                        return &sources.get_main();
+                    }
+                }
+            } else {
+                println!("Bug: attempted to print source code '{}' but we didn't store it. Assuming it's the main source file. Available: {:?}", source_path, sources.keys());
+                return &sources.get_main();
+            }
+        }
+        // TODO: this can happen when there are multiple project_root.toml. It's convenient to
+        // use a shorter qualified name to a sibling file, but we should store sources with
+        // the most qualified path possible. Otherwise dependencies might collide.
         println!("Bug: attempted to print source code '{}' but we didn't store it. Assuming it's the main source file. Available: {:?}", source_path, sources.keys());
         &sources.get_main()
     } else {
@@ -1556,7 +1583,7 @@ mod tests {
     fn test_identifier() {
         let func = lex_and_parse("function(x :i64) {x+1}").unwrap();
         let identifiers = HashMap::from([("increment".to_string(), func.take().0)]);
-        let lib: HashSet<String> = identifiers.keys().cloned().collect();
+        let lib = identifiers.clone();
         let mut main = lex_and_parse_with_identifiers("4 |increment", lib.clone()).unwrap();
         main.identifiers = identifiers.clone();
 

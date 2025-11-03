@@ -730,10 +730,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
 
     fn evaluate_eval(&mut self, argument: i64) -> Result<GenericValue, AnyError> {
         let code = Self::pipes_str_to_rust_str(self.get_list(argument)?)?;
-        let program = lex_and_parse_with_identifiers(
-            code,
-            HashSet::from_iter(self.identifier_expressions.keys().cloned()),
-        )?;
+        let program = lex_and_parse_with_identifiers(code, self.identifier_expressions.clone())?;
         let mut program = rewrite(program)?;
         put_some_types(&mut program, &self.identifier_expressions)?;
         let (main, new_identifiers, _sources) = program.take();

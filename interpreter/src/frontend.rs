@@ -8,7 +8,7 @@ use crate::frontend::expression::Type;
 use crate::frontend::parser::reverse_iterative_parser::{parse_tokens_cached, Parser};
 use crate::frontend::parser::root::get_project_root;
 use crate::frontend::parser::{nodes_to_expression, parse_tokens, reverse_iterative_parser};
-use crate::frontend::program::Program;
+use crate::frontend::program::{Identifiers, Program};
 use crate::frontend::sources::lexer::lex_with_eof;
 use crate::AnyError;
 
@@ -36,7 +36,7 @@ pub fn lex_and_parse<S: Into<SourceCode>>(code_text: S) -> Result<Program, AnyEr
 
 pub fn lex_and_parse_with_identifiers<S: Into<SourceCode>>(
     code_text: S,
-    identifiers: HashSet<String>,
+    identifiers: Identifiers,
 ) -> Result<Program, AnyError> {
     let tokens = lex(code_text)?;
     let root = get_project_root(&None, &Some(PathBuf::from("./")));

@@ -52,7 +52,7 @@ impl From<IncompleteProgram> for Program {
 #[derive(Debug, Clone)]
 pub struct IncompleteProgram {
     pub main: ExpressionSpan,
-    pub exported: HashMap<String, ExpressionSpan>,
-    pub available: HashSet<String>,
+    pub exported: Identifiers,
+    pub available: Identifiers,
     pub sources: Sources,
 }

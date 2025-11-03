@@ -10,7 +10,7 @@ use crate::frontend::expression::{
 use crate::frontend::parser::import::{import, import_inner};
 use crate::frontend::parser::macros::expand_macros;
 use crate::frontend::parser::root::{get_project_root, qualify};
-use crate::frontend::program::{IncompleteProgram, Program};
+use crate::frontend::program::{Identifiers, IncompleteProgram, Program};
 use crate::frontend::sources::lexer::TokenizedSource;
 use crate::frontend::sources::location::{SourceCode, Span, NO_SPAN};
 use crate::frontend::sources::token::{
@@ -100,7 +100,7 @@ impl Display for PartialExpression {
 pub struct Parser {
     pub accumulated: VecDeque<PartialExpression>,
     pub exported: HashMap<String, ExpressionSpan>,
-    pub available: HashSet<String>,
+    pub available: HashMap<String, ExpressionSpan>,
     pub root: Option<PathBuf>,
     pub source: SourceCode,
 }
@@ -108,11 +108,11 @@ pub struct Parser {
 impl Parser {
     pub fn new(source: SourceCode) -> Self {
         let root = get_project_root(&None, &source.file);
-        Self::new_with_available(source, HashSet::new(), root.ok()) // TODO: .ok() loses error message
+        Self::new_with_available(source, HashMap::new(), root.ok()) // TODO: .ok() loses error message
     }
     pub fn new_with_available(
         source: SourceCode,
-        available: HashSet<String>,
+        available: HashMap<String, ExpressionSpan>,
         root: Option<PathBuf>,
     ) -> Self {
         Self {
@@ -889,34 +889,38 @@ pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
 
 fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {
     let mut main = auto_complete_main(&mut parser)?;
-    let (imported, mut other_sources_outer) = import(&mut main, &mut parser)?;
-    parser.exported.extend(imported);
+    println!("finishing parsing {:?}", parser.source.file);
+    let (imported_outer, mut available_outer, mut other_sources_outer) =
+        import(&mut main, &mut parser)?;
+    available_outer.extend(imported_outer);
     loop {
         let program = Program {
             main,
-            identifiers: parser.exported,
+            identifiers: available_outer,
             sources: Sources::new(parser.source, other_sources_outer),
         };
         let mut expanded = expand_macros(program)?;
-        let (imported, other_sources) = import_inner(
+        let mut exported = Identifiers::new();
+        let (imported, mut available, other_sources) = import_inner(
             &mut expanded.main,
             expanded.sources.get_main(),
             parser.root.clone(),
-            &mut expanded.identifiers,
-            &parser.available,
+            &mut exported,
+            &expanded.identifiers,
         )?;
         expanded.sources.add(other_sources);
         if imported.len() == 0 {
+            println!("> finished parsing {:?}", expanded.sources.get_main().file);
             return Ok(IncompleteProgram {
                 main: expanded.main,
                 exported: expanded.identifiers,
-                available: parser.available,
+                available,
                 sources: expanded.sources,
             });
         }
         main = expanded.main;
-        expanded.identifiers.extend(imported);
-        parser.exported = expanded.identifiers;
+        available.extend(imported);
+        available_outer = available;
         let Sources {
             main_source,
             other_sources,

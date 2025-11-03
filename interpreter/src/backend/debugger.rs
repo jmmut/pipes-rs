@@ -49,7 +49,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
                     } else {
                         match lex_and_parse_with_identifiers(
                             command,
-                            self.identifiers.keys().cloned().collect(),
+                            self.identifier_expressions.clone(),
                         ) {
                             Ok(program) => {
                                 // eprintln!("parsed ok");

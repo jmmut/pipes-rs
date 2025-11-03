@@ -3,4 +3,4 @@
 // See pipes_programs/corelib/.
 // To be able to use them you have to run ./install_corelib.sh first.
 
-[1 2 3 1 2 1] |array/count 1
+[1 2 3 1 1 2 1] |array/count 1

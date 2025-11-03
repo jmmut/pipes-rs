@@ -253,9 +253,32 @@ impl Display for TypedIdentifier {
     }
 }
 
+pub fn indent(s: &str) -> String {
+    let mut deep = 0;
+    let indent_size = 4;
+    let mut buffer = String::new();
+    for b in s.chars() {
+        if b == '}' {
+            deep -= 1;
+            buffer.push('\n');
+            buffer += &" ".repeat(indent_size * deep);
+        }
+        buffer.push(b);
+        if b == '{' {
+            deep += 1;
+            buffer.push('\n');
+            buffer += &" ".repeat(indent_size * deep);
+        } else if b == '\n' {
+            buffer += &" ".repeat(indent_size * deep);
+        }
+    }
+    buffer
+}
+
 #[cfg(test)]
 mod tests {
     use crate::common::unwrap_display;
+    use crate::frontend::expression::display::indent;
     use crate::frontend::{lex_and_parse, parse_type};
 
     #[test]
@@ -292,5 +315,20 @@ mod tests {
         let parsed = unwrap_display(lex_and_parse(code));
         let displayed = format!("{}", parsed.main());
         assert_eq!(displayed, format!("{{;{}}}", code));
+    }
+    #[test]
+    fn test_indent() {
+        let initial = "function {4 |branch {a} {b}}";
+        let indented = indent(initial);
+        assert_eq!(
+            indented,
+            r#"function {
+    4 |branch {
+        a
+    } {
+        b
+    }
+}"#
+        )
     }
 }
