@@ -1,6 +1,5 @@
 use sources::lexer::lex;
 use sources::location::SourceCode;
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::common::unwrap_display;

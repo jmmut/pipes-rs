@@ -14,7 +14,7 @@ use crate::middleend::comptime::rewrite;
 use crate::middleend::intrinsics::{builtin_types, Intrinsic};
 use crate::middleend::typing::expand::{Expand, TypeView};
 use crate::middleend::typing::put_some_types;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::io::{Read, Write};
 use std::rc::Rc;
 use strum::IntoEnumIterator;

@@ -160,7 +160,7 @@ impl<'a> Typer<'a> {
                         self.bind_identifier_type(name.clone(), expr_span.sem_type().clone());
                         self.typed_identifiers
                             .insert(name.clone(), expr_span.clone());
-                        println!("added {}:\n{}", name, indent(&format!("{}", expr_span)));
+                        // println!("added {}:\n{}", name, indent(&format!("{}", expr_span)));
                         self.new_typed_identifiers.insert(name.clone(), expr_span);
                     }
                     Err(e) => {
@@ -1259,15 +1259,18 @@ fn get_source<'a>(sources: &'a Sources, current_source: &Option<String>) -> &'a 
         }
         let mut shorter_path = source_path.clone();
         loop {
+            // TODO: this can happen when there are multiple project_root.toml. It's convenient to
+            // use a shorter qualified name to a sibling file, but we should store sources with
+            // the most qualified path possible. Otherwise dependencies might collide.
             if let Some(index) = shorter_path.find("/") {
                 shorter_path = shorter_path[(index + 1)..].to_string();
-                let message = format!("Warning: attempted to print source code '{}' but we didn't store it. Found a less qualified file '{}' which might be incorrect. Available: {:?}", source_path, shorter_path, sources.keys());
+                let _message = format!("Warning: attempted to print source code '{}' but we didn't store it. Found a less qualified file '{}' which might be incorrect. Available: {:?}", source_path, shorter_path, sources.keys());
                 if let Some(source) = sources.get(&shorter_path) {
-                    // println!("{}", message);
+                    // println!("{}", _message);
                     return source;
                 } else if let Some(source) = &sources.get_main().file {
                     if source.to_string_lossy() == shorter_path {
-                        // println!("{}", message);
+                        // println!("{}", _message);
                         return &sources.get_main();
                     }
                 }
@@ -1276,11 +1279,6 @@ fn get_source<'a>(sources: &'a Sources, current_source: &Option<String>) -> &'a 
                 return &sources.get_main();
             }
         }
-        // TODO: this can happen when there are multiple project_root.toml. It's convenient to
-        // use a shorter qualified name to a sibling file, but we should store sources with
-        // the most qualified path possible. Otherwise dependencies might collide.
-        println!("Bug: attempted to print source code '{}' but we didn't store it. Assuming it's the main source file. Available: {:?}", source_path, sources.keys());
-        &sources.get_main()
     } else {
         &sources.get_main()
     }
@@ -1399,7 +1397,6 @@ mod tests {
     use crate::backend::Runtime;
     use crate::common::unwrap_display;
     use crate::frontend::{lex_and_parse, lex_and_parse_with_identifiers, parse_type};
-    use std::collections::HashSet;
     use std::path::PathBuf;
 
     fn parse(code: &str) -> Program {

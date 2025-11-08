@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
@@ -889,29 +889,14 @@ pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
 
 fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {
     let mut main = auto_complete_main(&mut parser)?;
-    println!("finishing parsing {:?}", parser.source.file);
+    // println!("finishing parsing {:?}", parser.source.file);
     let (imported_outer, available_outer, mut other_sources_outer) =
         import(&mut main, &mut parser)?;
-    let func = "pipes_programs/corelib/assert/array_eq_printer";
-    let imported_set = imported_outer.keys().collect::<HashSet<_>>();
-    let available_set = available_outer.keys().collect::<HashSet<_>>();
-    if imported_set.difference(&available_set).count() > 0 {
-        println!("imported has elements that available doesn't have");
-    }
-    if available_set.difference(&imported_set).count() > 0 {
-        println!("available has elements that imported doesn't have");
-    }
-    if available_outer.contains_key(func) || imported_outer.contains_key(func) {
-        let s = format!(
-            "after importing for {:?}\nin available {:?}\nin imported {:?}",
-            parser.source.file,
-            available_outer.get(func).map(|e| e.to_string()),
-            imported_outer.get(func).map(|e| e.to_string()),
-        );
-        println!("{}", s);
-    }
+
+    // the order is important: available has all identifiers replaces, while imported hasn't
     let mut identifiers = imported_outer;
-    identifiers.extend(available_outer);
+    identifiers.extend(available_outer); // so let things in available overwrite imported
+
     loop {
         let program = Program {
             main,
@@ -929,7 +914,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         )?;
         expanded.sources.add(other_sources);
         if imported.len() == 0 {
-            println!("> finished parsing {:?}", expanded.sources.get_main().file);
+            // println!("> finished parsing {:?}", expanded.sources.get_main().file);
             return Ok(IncompleteProgram {
                 main: expanded.main,
                 exported: expanded.identifiers,

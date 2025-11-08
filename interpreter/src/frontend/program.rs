@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::frontend::expression::{Expression, ExpressionSpan};
 use crate::frontend::sources::Sources;
