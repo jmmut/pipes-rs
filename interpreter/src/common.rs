@@ -1,5 +1,6 @@
 use crate::frontend::sources::location::{Location, SourceCode, Span};
 
+use crate::frontend::expression::ExpressionSpan;
 #[cfg(test)]
 use std::path::PathBuf;
 
@@ -153,4 +154,27 @@ pub fn run_in_repo_root<R>(f: impl Fn() -> R) -> Result<R, AnyError> {
 /// > Reverse parser: expected operand after operator but was '|to_str'
 pub fn unwrap_display<T>(res: Result<T, AnyError>) -> T {
     res.unwrap_or_else(|e| panic!("{}", e))
+}
+
+/// Useful until debuggers can evaluate exprSpan.to_string()
+/// Note you'll need to use this fully qualified like pipes_rs::common::expr_to_string(program.main())
+#[cfg(test)]
+#[inline(never)]
+pub fn expr_to_string(expr: &ExpressionSpan) -> String {
+    expr.to_string()
+}
+#[cfg(test)]
+#[inline(never)]
+pub fn print_expr(expr: &ExpressionSpan) {
+    println!("{}", expr_to_string(expr));
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::expression::Expression;
+
+    #[test]
+    fn avoid_removal_of_definitions() {
+        print_expr(&ExpressionSpan::new_spanless(Expression::Nothing))
+    }
 }

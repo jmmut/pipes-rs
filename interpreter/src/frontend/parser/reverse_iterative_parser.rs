@@ -890,13 +890,32 @@ pub fn construct_string(string: Vec<u8>, span: Span) -> PartialExpression {
 fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError> {
     let mut main = auto_complete_main(&mut parser)?;
     println!("finishing parsing {:?}", parser.source.file);
-    let (imported_outer, mut available_outer, mut other_sources_outer) =
+    let (imported_outer, available_outer, mut other_sources_outer) =
         import(&mut main, &mut parser)?;
-    available_outer.extend(imported_outer);
+    let func = "pipes_programs/corelib/assert/array_eq_printer";
+    let imported_set = imported_outer.keys().collect::<HashSet<_>>();
+    let available_set = available_outer.keys().collect::<HashSet<_>>();
+    if imported_set.difference(&available_set).count() > 0 {
+        println!("imported has elements that available doesn't have");
+    }
+    if available_set.difference(&imported_set).count() > 0 {
+        println!("available has elements that imported doesn't have");
+    }
+    if available_outer.contains_key(func) || imported_outer.contains_key(func) {
+        let s = format!(
+            "after importing for {:?}\nin available {:?}\nin imported {:?}",
+            parser.source.file,
+            available_outer.get(func).map(|e| e.to_string()),
+            imported_outer.get(func).map(|e| e.to_string()),
+        );
+        println!("{}", s);
+    }
+    let mut identifiers = imported_outer;
+    identifiers.extend(available_outer);
     loop {
         let program = Program {
             main,
-            identifiers: available_outer,
+            identifiers,
             sources: Sources::new(parser.source, other_sources_outer),
         };
         let mut expanded = expand_macros(program)?;
@@ -920,7 +939,7 @@ fn finish_construction(mut parser: Parser) -> Result<IncompleteProgram, AnyError
         }
         main = expanded.main;
         available.extend(imported);
-        available_outer = available;
+        identifiers = available;
         let Sources {
             main_source,
             other_sources,

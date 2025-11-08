@@ -1397,7 +1397,7 @@ mod tests {
             SourceCode::new(main_path).unwrap()
         })
         .unwrap();
-        assert_eq!(interpret(code), 3);
+        assert_eq!(interpret(code), 4);
     }
     #[test]
     fn test_evaluate_import_fileless() {
@@ -1435,7 +1435,6 @@ mod tests {
         let full_code = format!("{}{}", INSPECT, code);
         assert_eq!(interpret_io(full_code, ""), (-3, "2\n".to_string()));
     }
-
     #[test]
     fn test_inspect_inner_shadow() {
         // using a parameter t from the macro inside the body should put the number, not put the types

@@ -175,17 +175,20 @@ impl<'a> Typer<'a> {
             }
             if failed.len() == identifiers_count_previous {
                 let error_intro = if failed.len() == 1 {
-                    "A constant has an incorrect type"
+                    "A constant has an incorrect type".to_string()
                 } else {
-                    "Some constants have incorrect types. (Are there cyclic dependencies?)"
+                    format!(
+                        "{} constants have incorrect types. (Are there cyclic dependencies?)",
+                        failed.len()
+                    )
                 };
                 for (name, expr) in &failed {
                     let expr_str = format!("{}", expr);
-                    println!("{}:\n{}", name, indent(&expr_str));
+                    println!("ERROR in expr {}:\n{}", name, indent(&expr_str));
                 }
                 let mut error_messages = errors
                     .iter()
-                    .map(|(name, e)| format!("\n    {}\n{}", name, e))
+                    .map(|(name, e)| format!("\nERROR message for {}:\n{}", name, e))
                     .collect::<Vec<_>>();
                 error_messages.sort(); // ensure same ordering across iterations of pipes-check
                 let joined_error_messages = error_messages.join("\n");
@@ -1260,11 +1263,11 @@ fn get_source<'a>(sources: &'a Sources, current_source: &Option<String>) -> &'a 
                 shorter_path = shorter_path[(index + 1)..].to_string();
                 let message = format!("Warning: attempted to print source code '{}' but we didn't store it. Found a less qualified file '{}' which might be incorrect. Available: {:?}", source_path, shorter_path, sources.keys());
                 if let Some(source) = sources.get(&shorter_path) {
-                    println!("{}", message);
+                    // println!("{}", message);
                     return source;
                 } else if let Some(source) = &sources.get_main().file {
                     if source.to_string_lossy() == shorter_path {
-                        println!("{}", message);
+                        // println!("{}", message);
                         return &sources.get_main();
                     }
                 }
