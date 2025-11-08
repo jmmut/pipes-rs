@@ -1442,6 +1442,13 @@ mod tests {
         let full_code = format!("{}{}", INSPECT, code);
         assert_eq!(interpret_io(full_code, ""), (3, "4\n".to_string()));
     }
+    #[test]
+    fn test_inspect_hygienic() {
+        // using a variable from the macro with a collision outside should use the outside value
+        let code = ";4 =input ;10 |`m_inspect (x) {input |to_str |print}";
+        let full_code = format!("{}{}", INSPECT, code);
+        assert_eq!(interpret_io(full_code, ""), (10, "4\n".to_string()));
+    }
 
     const INSPECT_FUNCTION: &str = ";function(input f) {|f ;input} =m_inspect_2";
     #[test]
