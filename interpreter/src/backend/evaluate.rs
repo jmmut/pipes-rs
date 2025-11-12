@@ -1450,6 +1450,16 @@ mod tests {
         assert_eq!(interpret_io(full_code, ""), (10, "4\n".to_string()));
     }
 
+    const INSPECT_ASSIGN: &str =
+        ";public macro(:any  t  c) {=input |function[t c] ;input} =m_inspect";
+    #[test]
+    fn test_inspect_hygienic_assignments() {
+        // using a variable from the macro with a collision outside should use the outside value
+        let code = ";4 =input ;10 |`m_inspect (x) {input |to_str |print}";
+        let full_code = format!("{}{}", INSPECT_ASSIGN, code);
+        assert_eq!(interpret_io(full_code, ""), (10, "4\n".to_string()));
+    }
+
     const INSPECT_FUNCTION: &str = ";function(input f) {|f ;input} =m_inspect_2";
     #[test]
     fn test_inspect_with_function() {

@@ -1,6 +1,7 @@
 use crate::common::{bug, context, err, err_span, AnyError};
 use crate::frontend::expression::{
-    Abstract, Chain, Expression, ExpressionSpan, Function, TypedIdentifier, TypedIdentifiers,
+    Abstract, Chain, Expression, ExpressionSpan, Function, Operation, TypedIdentifier,
+    TypedIdentifiers,
 };
 use crate::frontend::parser::reverse_iterative_parser::{err_expected_span, expected_span};
 use crate::frontend::program::{Identifiers, Program};
@@ -17,6 +18,7 @@ pub fn expand_macros(program: Program) -> Result<Program, AnyError> {
     let rewriter = MacroExpander {
         identifiers,
         sources,
+        macro_count: 0,
     };
     context("Macro expansion", rewriter.rewrite_contextless(main))
 }
@@ -24,6 +26,7 @@ pub fn expand_macros(program: Program) -> Result<Program, AnyError> {
 struct MacroExpander {
     pub identifiers: Identifiers,
     pub sources: Sources,
+    pub macro_count: usize,
 }
 impl MacroExpander {
     fn rewrite_contextless(mut self, mut main: ExpressionSpan) -> Result<Program, AnyError> {
@@ -42,7 +45,7 @@ impl MacroExpander {
             Expression::Type(_) => {}
             Expression::Chain(chain) => self.rewrite_chain(chain)?,
             Expression::StaticList { .. } => {}
-            Expression::Function(_) => {} // TODO: doesn't this body need rewrite too?
+            Expression::Function(f) => self.rewrite_chain(&mut f.body)?,
             Expression::Composed(composed) => {
                 for chain in composed.chains_mut() {
                     self.rewrite_chain(chain)?;
@@ -57,37 +60,10 @@ impl MacroExpander {
     fn rewrite_chain(&mut self, chain: &mut Chain) -> Result<(), AnyError> {
         for operation in &mut chain.operations {
             if operation.operator.operator == Operator::MacroCall {
-                if let Some(ExpressionSpan {
-                    syntactic_type: Expression::Identifier(macro_name),
-                    span,
-                    ..
-                }) = operation.operands.first()
-                {
+                if let Some((macro_name, span)) = extract_identifier(operation.operands.first()) {
                     if let Some(macro_expr) = self.identifiers.get(macro_name) {
-                        if let ExpressionSpan {
-                            syntactic_type: Expression::Function(macro_func),
-                            span,
-                            ..
-                        } = macro_expr
-                        {
-                            let macro_operands = std::mem::take(&mut operation.operands);
-                            let mut body = macro_func.body.clone();
-
-                            for i in 1..macro_func.parameters.len() {
-                                replace_in_chain(
-                                    &macro_func.parameters[i],
-                                    &macro_operands[i],
-                                    &mut body,
-                                );
-                            }
-                            self.remove_abstracts_in_chain(&mut body)?;
-                            operation.operator.operator = Operator::Call;
-                            let params = vec![macro_func.parameters[0].clone()];
-                            let returned = TypedIdentifier::nameless_any();
-                            let function = Function::new(params, returned, body);
-                            let func_expr =
-                                ExpressionSpan::new_typeless(Expression::Function(function), *span);
-                            operation.operands = vec![func_expr];
+                        if let Some((macro_func, span)) = extract_function(macro_expr) {
+                            self.expand_macro(operation, macro_func.clone(), *span)?;
                         } else {
                             return bug(expected_span(
                                 "macro function-like definition",
@@ -142,6 +118,40 @@ impl MacroExpander {
         Ok(())
     }
 
+    fn expand_macro(
+        &mut self,
+        operation: &mut Operation,
+        macro_func: Function,
+        span: Span,
+    ) -> Result<(), AnyError> {
+        let macro_operands = std::mem::take(&mut operation.operands);
+        let mut body = macro_func.body.clone();
+        let renamed = self.rename(macro_func.parameters[0].name.clone(), &mut body);
+        for i in 1..macro_func.parameters.len() {
+            replace_in_chain(&macro_func.parameters[i], &macro_operands[i], &mut body);
+        }
+
+        self.remove_abstracts_in_chain(&mut body)?;
+        operation.operator.operator = Operator::Call;
+        let mut input = macro_func.parameters[0].clone();
+        input.name = renamed;
+        let params = vec![input];
+        let returned = TypedIdentifier::nameless_any();
+        let function = Function::new(params, returned, body);
+        let func_expr = ExpressionSpan::new_typeless(Expression::Function(function), span);
+        operation.operands = vec![func_expr];
+        Ok(())
+    }
+    fn rename(&mut self, identifier: String, chain: &mut Chain) -> String {
+        if identifier.len() > 0 {
+            self.macro_count += 1;
+            let renamed = format!("{}_{}", self.macro_count, identifier);
+            rename_in_chain(&identifier, &renamed, chain);
+            renamed
+        } else {
+            identifier
+        }
+    }
     fn remove_abstracts(&self, expr: &mut ExpressionSpan) -> Result<(), AnyError> {
         match expr.syn_type_mut() {
             Expression::Nothing => {}
@@ -278,6 +288,75 @@ impl MacroExpander {
     }
 }
 
+fn rename_in_chain(identifier: &String, renamed: &String, chain: &mut Chain) {
+    for operation in &mut chain.operations {
+        for operand in &mut operation.operands {
+            rename_in_expr(identifier, renamed, operand)
+        }
+    }
+}
+fn rename_in_expr(identifier: &String, renamed: &String, expr: &mut ExpressionSpan) {
+    match expr.syn_type_mut() {
+        Expression::Nothing => {}
+        Expression::Value(_) => {}
+        Expression::Identifier(id) => {
+            if *id == *identifier {
+                *id = renamed.clone();
+            }
+        }
+        Expression::Type(_) => {}
+        Expression::TypedIdentifiers(_) => {}
+        Expression::Chain(chain) => rename_in_chain(identifier, renamed, chain),
+        Expression::StaticList { elements } => {
+            for elem in elements {
+                rename_in_expr(identifier, renamed, elem)
+            }
+        }
+        Expression::Function(function) => rename_in_chain(identifier, renamed, &mut function.body),
+        Expression::Composed(composed) => {
+            for chain in composed.chains_mut() {
+                rename_in_chain(identifier, renamed, chain)
+            }
+        }
+        Expression::Abstract(abstract_) => rename_in_abstract(identifier, renamed, abstract_),
+    }
+}
+
+fn rename_in_abstract(identifier: &String, renamed: &String, abstract_: &mut Abstract) {
+    match abstract_ {
+        Abstract::Abstract { nodes, .. } => {
+            for node in nodes {
+                rename_in_abstract(identifier, renamed, node);
+            }
+        }
+        Abstract::Expression(expr) => rename_in_expr(identifier, renamed, expr.as_mut()),
+    }
+}
+
+fn extract_identifier(expr: Option<&ExpressionSpan>) -> Option<(&String, &Span)> {
+    if let Some(ExpressionSpan {
+        syntactic_type: Expression::Identifier(macro_name),
+        span,
+        ..
+    }) = expr
+    {
+        Some((macro_name, span))
+    } else {
+        None
+    }
+}
+fn extract_function(expr: &ExpressionSpan) -> Option<(&Function, &Span)> {
+    if let ExpressionSpan {
+        syntactic_type: Expression::Function(func),
+        span,
+        ..
+    } = expr
+    {
+        Some((func, span))
+    } else {
+        None
+    }
+}
 fn replace_in_chain(param: &TypedIdentifier, value: &ExpressionSpan, chain: &mut Chain) {
     // println!("replacing {} with {}", param, value);
     for operation in &mut chain.operations {
