@@ -160,6 +160,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pisp"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "pipes-rs",
+ "strum",
+ "strum_macros",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"

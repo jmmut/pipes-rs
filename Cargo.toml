@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["interpreter", "language_server", "web_playground"]
+members = ["interpreter", "language_server", "web_playground", "pisp"]
 
 [profile.dev]
 #debug = 0
