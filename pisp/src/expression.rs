@@ -11,3 +11,10 @@ impl Display for Expression {
     }
 }
 
+impl PartialEq for Expression {
+    fn eq(&self, other: &Self) -> bool {
+        self.elements == other.elements
+    }
+}
+
+impl Eq for Expression {}

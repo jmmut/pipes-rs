@@ -1,9 +1,9 @@
 mod expression;
 mod frontend;
 
+use crate::frontend::frontend;
 use pipes_rs::common::AnyError;
 use std::io::Write;
-use crate::frontend::frontend;
 
 pub fn main() {
     loop {
@@ -13,16 +13,23 @@ pub fn main() {
                 if line == "quit" || line == "exit" {
                     break;
                 }
-                println!("bytes: '{:?}'", line.as_bytes());
+                // println!("bytes: '{:?}'", line.as_bytes());
                 let expression = frontend(&line);
-                println!("{}", expression);
+                match expression {
+                    Ok(expression) => {
+                        println!("{}", expression);
+                    }
+                    Err(err) => {
+                        println!("ERROR: {}", err)
+                    }
+                }
             }
             Ok(None) => {
                 println!();
                 break;
             }
-            Err(e) => {
-                println!("ERROR: {}", e)
+            Err(err) => {
+                println!("ERROR: {}", err)
             }
         }
     }
