@@ -1,20 +1,54 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
-#[derive(Debug)]
-pub struct Expression {
-    pub elements: Vec<Expression>,
+#[derive(Eq, PartialEq)]
+pub enum Expression {
+    List(Vec<Expression>),
+    Atom(Atom),
+}
+
+#[derive(Eq, PartialEq)]
+pub enum Atom {
+    Number(i64),
 }
 
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.elements)
+        match self {
+            Expression::List(elements) => {
+                if elements.len() == 0 {
+                    write!(f, "()")
+                } else {
+                    write!(f, "(")?;
+                    let mut iter = elements.iter();
+                    write!(f, "{}", iter.next().unwrap())?;
+                    for elem in iter {
+                        write!(f, " {}", elem)?;
+                    }
+                    write!(f, ")")
+                }
+            }
+            Expression::Atom(atom) => {
+                write!(f, "{}", atom)
+            }
+        }
     }
 }
-
-impl PartialEq for Expression {
-    fn eq(&self, other: &Self) -> bool {
-        self.elements == other.elements
+impl Display for Atom {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Atom::Number(n) => {
+                write!(f, "{}", n)
+            }
+        }
     }
 }
-
-impl Eq for Expression {}
+impl Debug for Expression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+impl Debug for Atom {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
