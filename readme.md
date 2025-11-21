@@ -7,6 +7,22 @@ See syntax below or see examples in `./pipes-programs/demos/`.
 
 This repo contains an interpreter written in rust and a couple related tools, like a web+wasm playground.
 
+## Install and run
+
+The next command will install:
+- "pipes-rs" which is the main interpreter
+- "pipes-check" which is a way of continuously check pipes code as it's written
+```
+cargo install --path interpreter
+pipes-rs --help
+```
+To run while developing, you can do `cargo run -- --help` which will recompile and run the pipes-rs binary.
+
+The next command will install the Language Server Protocol as pipes-lsp
+```
+cargo install --path language_server
+```
+
 ## Roadmap
 
 `[x]` means mostly done, `[/]` means partial support, `[ ]` means not done.
