@@ -1,8 +1,9 @@
+use crate::backend::Environment;
 use pipes_rs::common::AnyError;
 use std::fmt::{Debug, Display, Formatter};
 
 pub type ResExpr = Result<Expression, AnyError>;
-pub type Operation = fn(&[Expression]) -> ResExpr;
+pub type Operation = fn(&mut Environment, &[Expression]) -> ResExpr;
 
 #[derive(Eq, PartialEq, Clone)]
 pub enum Expression {
@@ -15,6 +16,7 @@ pub enum Atom {
     Number(i64),
     Symbol(String),
     NativeOperation(Operation),
+    NonEvaluatingOperation(Operation),
 }
 
 impl Display for Expression {
@@ -50,6 +52,9 @@ impl Display for Atom {
             }
             Atom::NativeOperation(_op) => {
                 write!(f, "<native-function>")
+            }
+            Atom::NonEvaluatingOperation(_op) => {
+                write!(f, "<native-non-evaluating-function>")
             }
         }
     }

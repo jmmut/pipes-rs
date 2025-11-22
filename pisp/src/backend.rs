@@ -4,13 +4,12 @@ use pipes_rs::frontend::sources::token::Operator;
 use std::collections::HashMap;
 
 const DEF: &str = "def";
-const INTRINSICS: &[&str] = &[DEF];
 
 pub fn eval(expression: &Expression) -> ResExpr {
     let mut env = Environment::new();
     env.eval(expression)
 }
-struct Environment {
+pub struct Environment {
     scopes: Vec<HashMap<String, Expression>>,
 }
 
@@ -18,12 +17,14 @@ impl Environment {
     pub fn new() -> Self {
         let mut env = HashMap::new();
         let nat = |op: Operation| Expression::Atom(Atom::NativeOperation(op));
+        let non_eval = |op: Operation| Expression::Atom(Atom::NonEvaluatingOperation(op));
         env.insert(Operator::Add.to_string(), nat(add as Operation));
         env.insert(Operator::Substract.to_string(), nat(substract as Operation));
         env.insert(Operator::Multiply.to_string(), nat(multiply as Operation));
         env.insert(Operator::Divide.to_string(), nat(divide as Operation));
         // native_operations.insert("*".to_string(), multiply as Operation);  // unsupported by the lexer
         // native_operations.insert("/".to_string(), divide as Operation);
+        env.insert(DEF.to_string(), non_eval(apply_def as Operation));
         let scopes = vec![env];
         Self { scopes }
     }
@@ -36,8 +37,6 @@ impl Environment {
         if let Expression::Atom(Atom::Symbol(name)) = expr {
             if let Some(value) = self.get(&name) {
                 Ok(value)
-            } else if INTRINSICS.contains(&name.as_str()) {
-                Ok(Expression::Atom(Atom::Symbol(name)))
             } else {
                 err(format!("undefined symbol: {}", name))
             }
@@ -52,27 +51,19 @@ impl Environment {
 
     fn apply(&mut self, function: &Expression, arguments: &[Expression]) -> ResExpr {
         let function = self.eval(function)?;
-        if let Expression::Atom(Atom::Symbol(symbol)) = function {
-            if symbol == DEF {
-                self.apply_def(arguments)
-            } else {
-                err(format!("undefined operation: {}", symbol))
-            }
-        } else if let Expression::Atom(Atom::NativeOperation(native)) = function {
+        // if let Expression::Atom(Atom::Symbol(symbol)) = function {
+        //     if symbol == DEF {
+        //         apply_def(self, arguments)
+        //     } else {
+        //         err(format!("undefined operation: {}", symbol))
+        //     }
+        // } else
+        if let Expression::Atom(Atom::NativeOperation(native)) = function {
             self.apply_native(native, arguments)
+        } else if let Expression::Atom(Atom::NonEvaluatingOperation(native)) = function {
+            self.apply_non_evaluating(native, arguments)
         } else {
             err(format!("unsupported operation: {}", function))
-        }
-    }
-
-    fn apply_def(&mut self, arguments: &[Expression]) -> ResExpr {
-        if let [Expression::Atom(Atom::Symbol(name)), value] = arguments {
-            Ok(self.set(name.clone(), value.clone()))
-        } else {
-            err(format!(
-                "{} requires 2 arguments, the variable name and value. Got {:?}",
-                DEF, arguments
-            ))
         }
     }
 
@@ -81,7 +72,10 @@ impl Environment {
         for arg in arguments {
             evaluated_args.push(self.eval(arg)?);
         }
-        native(&evaluated_args)
+        native(self, &evaluated_args)
+    }
+    fn apply_non_evaluating(&mut self, native: Operation, arguments: &[Expression]) -> ResExpr {
+        native(self, &arguments)
     }
     fn get(&self, symbol: &str) -> Option<Expression> {
         for scope in self.scopes.iter().rev() {
@@ -102,7 +96,19 @@ impl Environment {
         self.scopes.push(HashMap::new());
     }
 }
-fn add(arguments: &[Expression]) -> ResExpr {
+
+fn apply_def(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    if let [Expression::Atom(Atom::Symbol(name)), value] = arguments {
+        Ok(env.set(name.clone(), value.clone()))
+    } else {
+        err(format!(
+            "{} requires 2 arguments, the variable name and value. Got {:?}",
+            DEF, arguments
+        ))
+    }
+}
+
+fn add(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() == 0 {
         err("Addition needs 1 or more arguments".to_string())
     } else {
@@ -117,7 +123,7 @@ fn add(arguments: &[Expression]) -> ResExpr {
         Ok(Expression::Atom(Atom::Number(accum)))
     }
 }
-fn substract(arguments: &[Expression]) -> ResExpr {
+fn substract(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() == 0 {
         err("Substraction needs 1 or more arguments".to_string())
     } else if arguments.len() == 1 {
@@ -144,7 +150,7 @@ fn substract(arguments: &[Expression]) -> ResExpr {
         Ok(Expression::Atom(Atom::Number(accum)))
     }
 }
-fn multiply(arguments: &[Expression]) -> ResExpr {
+fn multiply(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() == 0 {
         err("Multiplication needs 1 or more arguments".to_string())
     } else {
@@ -159,7 +165,7 @@ fn multiply(arguments: &[Expression]) -> ResExpr {
         Ok(Expression::Atom(Atom::Number(accum)))
     }
 }
-fn divide(arguments: &[Expression]) -> ResExpr {
+fn divide(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     let mut dividend = 0;
     let mut divisor = 0;
     let mut first = true;
