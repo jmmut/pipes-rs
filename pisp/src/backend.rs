@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 const DEF: &str = "def";
 const SCOPE: &str = "scope";
+const IF: &str = "if";
 
 pub fn eval(expression: &Expression) -> ResExpr {
     let mut env = Environment::new();
@@ -27,6 +28,7 @@ impl Environment {
         // native_operations.insert("/".to_string(), divide as Operation);
         env.insert(DEF.to_string(), non_eval(apply_def as Operation));
         env.insert(SCOPE.to_string(), non_eval(apply_scope as Operation));
+        env.insert(IF.to_string(), non_eval(apply_if as Operation));
         let scopes = vec![env];
         Self { scopes }
     }
@@ -127,6 +129,28 @@ fn apply_scope(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
         .into_iter()
         .last()
         .unwrap_or(Expression::Atom(Atom::Nothing)))
+}
+fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    if arguments.len() != 2 && arguments.len() != 3 {
+        err(format!(
+            "{} needs a condition and 1 or 2 expressions, got {}",
+            IF,
+            arguments.len()
+        ))
+    } else if let Expression::Atom(Atom::Bool(cond)) = arguments[0] {
+        if cond {
+            env.eval(&arguments[1])
+        } else if arguments.len() == 3 {
+            env.eval(&arguments[2])
+        } else {
+            Ok(Expression::Atom(Atom::Nothing))
+        }
+    } else {
+        err(format!(
+            "the first argument to 'if' must be bool, got {}",
+            arguments[0]
+        ))
+    }
 }
 
 fn add(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
@@ -287,5 +311,10 @@ mod tests {
         assert_eq!(interpret("(scope (def a 3) a)"), n(3));
         assert_eq!(interpret("(scope (def a 3) (scope (def a 4) a))"), n(4));
         assert_eq!(interpret("(scope (def a 3) (scope (def a 4) a) a)"), n(3));
+    }
+    #[test]
+    fn test_if() {
+        assert_eq!(interpret("(if true 3 a)"), n(3));
+        assert_incorrect("(if false 3 a)");
     }
 }

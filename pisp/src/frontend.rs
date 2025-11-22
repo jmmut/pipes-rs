@@ -1,4 +1,4 @@
-use crate::expression::{Atom, Expression};
+use crate::expression::{Atom, Expression, FALSE_STR, TRUE_STR};
 use pipes_rs::common::{err_span, AnyError};
 use pipes_rs::frontend::parser::reverse_iterative_parser::err_expected_span;
 use pipes_rs::frontend::sources::lexer::{lex_with_eof, TokenizedSource};
@@ -57,7 +57,13 @@ fn parse_tokens(
         }
     } else if let Token::Identifier(name) = &token.token {
         *index += 1;
-        Ok(Expression::Atom(Atom::Symbol(name.to_string())))
+        if name == TRUE_STR {
+            Ok(Expression::Atom(Atom::Bool(true)))
+        } else if name == FALSE_STR {
+            Ok(Expression::Atom(Atom::Bool(false)))
+        } else {
+            Ok(Expression::Atom(Atom::Symbol(name.to_string())))
+        }
     } else if let Token::Keyword(name) = &token.token {
         *index += 1;
         Ok(Expression::Atom(Atom::Symbol(name.name().to_string())))

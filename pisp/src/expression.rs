@@ -5,6 +5,9 @@ use std::fmt::{Debug, Display, Formatter};
 pub type ResExpr = Result<Expression, AnyError>;
 pub type Operation = fn(&mut Environment, &[Expression]) -> ResExpr;
 
+pub const TRUE_STR: &str = "true";
+pub const FALSE_STR: &str = "false";
+
 #[derive(Eq, PartialEq, Clone)]
 pub enum Expression {
     List(Vec<Expression>),
@@ -14,6 +17,7 @@ pub enum Expression {
 #[derive(Eq, Clone)]
 pub enum Atom {
     Nothing,
+    Bool(bool),
     Number(i64),
     Symbol(String),
     NativeOperation(Operation),
@@ -48,6 +52,9 @@ impl Display for Atom {
             Atom::Nothing => {
                 write!(f, "none")
             }
+            Atom::Bool(b) => {
+                write!(f, "{}", if *b { "true" } else { "false" })
+            }
             Atom::Number(n) => {
                 write!(f, "{}", n)
             }
@@ -77,6 +84,7 @@ impl PartialEq for Atom {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Atom::Nothing, Atom::Nothing) => true,
+            (Atom::Bool(n), Atom::Bool(n2)) => n == n2,
             (Atom::Number(n), Atom::Number(n2)) => n == n2,
             (Atom::Symbol(s), Atom::Symbol(s2)) => s == s2,
             _ => false,
