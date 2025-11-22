@@ -95,6 +95,9 @@ impl Environment {
     fn new_env(&mut self) {
         self.scopes.push(HashMap::new());
     }
+    fn drop_env(&mut self) {
+        self.scopes.pop();
+    }
 }
 
 fn apply_def(env: &mut Environment, arguments: &[Expression]) -> ResExpr {

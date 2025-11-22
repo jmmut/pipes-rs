@@ -2,7 +2,7 @@ mod backend;
 mod expression;
 mod frontend;
 
-use crate::backend::eval;
+use crate::backend::{eval, Environment};
 use crate::frontend::frontend;
 use pipes_rs::common::AnyError;
 use rustyline::error::ReadlineError;
@@ -18,9 +18,10 @@ enum ReplResult {
 pub fn main() -> Result<(), AnyError> {
     let mut rl = DefaultEditor::new()?;
     let _ = rl.load_history(HISTORY_FILE);
+    let mut env = Environment::new();
     loop {
         let line = prompt(&mut rl);
-        let result = try_line(line);
+        let result = try_line(line, &mut env);
         if let Err(err) = result {
             println!("ERROR: {}", err)
         } else if let Ok(ReplResult::Exit) = result {
@@ -30,7 +31,10 @@ pub fn main() -> Result<(), AnyError> {
     rl.save_history(HISTORY_FILE)?;
     Ok(())
 }
-fn try_line(line: Result<Option<String>, AnyError>) -> Result<ReplResult, AnyError> {
+fn try_line(
+    line: Result<Option<String>, AnyError>,
+    env: &mut Environment,
+) -> Result<ReplResult, AnyError> {
     match line? {
         Some(line) => {
             if line == "quit" || line == "exit" {
@@ -38,7 +42,7 @@ fn try_line(line: Result<Option<String>, AnyError>) -> Result<ReplResult, AnyErr
             }
             // println!("bytes: '{:?}'", line.as_bytes());
             let expression = frontend(&line)?;
-            let result = eval(&expression)?;
+            let result = env.eval(&expression)?;
             println!("{}", result);
             Ok(ReplResult::Result)
         }
