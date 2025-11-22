@@ -84,21 +84,21 @@ fn expect(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::expression::Atom;
     use pipes_rs::common::unwrap_display;
 
-    fn l(elements: Vec<Expression>) -> Expression {
+    pub fn l(elements: Vec<Expression>) -> Expression {
         Expression::List(elements)
     }
-    fn e() -> Vec<Expression> {
+    pub fn e() -> Vec<Expression> {
         Vec::new()
     }
-    fn n(number: i64) -> Expression {
+    pub fn n(number: i64) -> Expression {
         Expression::Atom(Atom::Number(number))
     }
-    fn s(symbol: &str) -> Expression {
+    pub fn s(symbol: &str) -> Expression {
         Expression::Atom(Atom::Symbol(symbol.to_string()))
     }
     #[test]
