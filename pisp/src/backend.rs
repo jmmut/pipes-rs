@@ -317,4 +317,8 @@ mod tests {
         assert_eq!(interpret("(if true 3 a)"), n(3));
         assert_incorrect("(if false 3 a)");
     }
+    #[test]
+    fn test_function() {
+        assert_eq!(interpret("((fn (a) (+ a 1)) 4)"), n(5));
+    }
 }
