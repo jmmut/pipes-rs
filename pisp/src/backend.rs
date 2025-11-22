@@ -11,19 +11,24 @@ pub fn eval(expression: &Expression) -> ResExpr {
     env.eval(expression)
 }
 struct Environment {
-    native_symbols: HashMap<String, Operation>,
+    native_operations: HashMap<String, Operation>,
+    pisp_symbols: HashMap<String, Expression>,
 }
 
 impl Environment {
     pub fn new() -> Self {
-        let mut native_symbols = HashMap::new();
-        native_symbols.insert(Operator::Add.to_string(), add as Operation);
-        native_symbols.insert(Operator::Substract.to_string(), substract as Operation);
-        native_symbols.insert(Operator::Multiply.to_string(), multiply as Operation);
-        native_symbols.insert(Operator::Divide.to_string(), divide as Operation);
-        // native_symbols.insert("*".to_string(), multiply as Operation);  // unsupported by the lexer
-        // native_symbols.insert("/".to_string(), divide as Operation);
-        Self { native_symbols }
+        let mut native_operations = HashMap::new();
+        native_operations.insert(Operator::Add.to_string(), add as Operation);
+        native_operations.insert(Operator::Substract.to_string(), substract as Operation);
+        native_operations.insert(Operator::Multiply.to_string(), multiply as Operation);
+        native_operations.insert(Operator::Divide.to_string(), divide as Operation);
+        // native_operations.insert("*".to_string(), multiply as Operation);  // unsupported by the lexer
+        // native_operations.insert("/".to_string(), divide as Operation);
+        let mut pisp_symbols = HashMap::new();
+        Self {
+            native_operations,
+            pisp_symbols,
+        }
     }
 
     pub fn eval(&mut self, expression: &Expression) -> ResExpr {
@@ -41,7 +46,7 @@ impl Environment {
     fn apply(&mut self, function: &Expression, arguments: &[Expression]) -> ResExpr {
         let function = self.eval(function)?;
         if let Expression::Atom(Atom::Symbol(symbol)) = function {
-            if let Some(operation) = self.native_symbols.get(&symbol).cloned() {
+            if let Some(operation) = self.native_operations.get(&symbol).cloned() {
                 let mut evaluated_args = Vec::new();
                 for arg in arguments {
                     evaluated_args.push(self.eval(arg)?);
