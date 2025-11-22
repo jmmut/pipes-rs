@@ -50,6 +50,15 @@ fn parse_tokens(
                 elements.push(element);
             }
         }
+    } else if let Token::Identifier(name) = &token.token {
+        *index += 1;
+        Ok(Expression::Atom(Atom::Symbol(name.to_string())))
+    } else if let Token::Keyword(name) = &token.token {
+        *index += 1;
+        Ok(Expression::Atom(Atom::Symbol(name.name().to_string())))
+    } else if let Token::Operator(name) = &token.token {
+        *index += 1;
+        Ok(Expression::Atom(Atom::Symbol(name.to_string())))
     } else {
         return err_expected_span("an atom or list", &token.token, source, token.span);
     }
@@ -89,6 +98,9 @@ mod tests {
     fn n(number: i64) -> Expression {
         Expression::Atom(Atom::Number(number))
     }
+    fn s(symbol: &str) -> Expression {
+        Expression::Atom(Atom::Symbol(symbol.to_string()))
+    }
     #[test]
     fn empty() {
         frontend("").expect_err("should fail");
@@ -118,5 +130,11 @@ mod tests {
     fn nested() {
         let expr = unwrap_display(frontend("(() (6 (7)) 8)"));
         assert_eq!(expr, l(vec![l(e()), l(vec![n(6), l(vec![n(7)])]), n(8)]));
+    }
+
+    #[test]
+    fn symbol() {
+        let expr = unwrap_display(frontend("(+ (6 (a)) 8)"));
+        assert_eq!(expr, l(vec![s("+"), l(vec![n(6), l(vec![s("a")])]), n(8)]));
     }
 }

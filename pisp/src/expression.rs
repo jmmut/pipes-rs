@@ -9,6 +9,7 @@ pub enum Expression {
 #[derive(Eq, PartialEq)]
 pub enum Atom {
     Number(i64),
+    Symbol(String),
 }
 
 impl Display for Expression {
@@ -38,6 +39,9 @@ impl Display for Atom {
         match self {
             Atom::Number(n) => {
                 write!(f, "{}", n)
+            }
+            Atom::Symbol(s) => {
+                write!(f, "{}", s)
             }
         }
     }
