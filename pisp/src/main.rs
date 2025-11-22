@@ -2,7 +2,7 @@ mod backend;
 mod expression;
 mod frontend;
 
-use crate::backend::{eval, Environment};
+use crate::backend::Environment;
 use crate::frontend::frontend;
 use pipes_rs::common::AnyError;
 use rustyline::error::ReadlineError;

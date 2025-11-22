@@ -13,6 +13,7 @@ pub enum Expression {
 
 #[derive(Eq, Clone)]
 pub enum Atom {
+    Nothing,
     Number(i64),
     Symbol(String),
     NativeOperation(Operation),
@@ -44,6 +45,9 @@ impl Display for Expression {
 impl Display for Atom {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Atom::Nothing => {
+                write!(f, "none")
+            }
             Atom::Number(n) => {
                 write!(f, "{}", n)
             }
@@ -72,6 +76,7 @@ impl Debug for Atom {
 impl PartialEq for Atom {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Atom::Nothing, Atom::Nothing) => true,
             (Atom::Number(n), Atom::Number(n2)) => n == n2,
             (Atom::Symbol(s), Atom::Symbol(s2)) => s == s2,
             _ => false,

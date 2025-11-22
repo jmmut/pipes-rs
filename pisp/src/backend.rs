@@ -1,9 +1,10 @@
 use crate::expression::{Atom, Expression, Operation, ResExpr};
-use pipes_rs::common::err;
+use pipes_rs::common::{err, AnyError};
 use pipes_rs::frontend::sources::token::Operator;
 use std::collections::HashMap;
 
 const DEF: &str = "def";
+const SCOPE: &str = "scope";
 
 pub fn eval(expression: &Expression) -> ResExpr {
     let mut env = Environment::new();
@@ -25,6 +26,7 @@ impl Environment {
         // native_operations.insert("*".to_string(), multiply as Operation);  // unsupported by the lexer
         // native_operations.insert("/".to_string(), divide as Operation);
         env.insert(DEF.to_string(), non_eval(apply_def as Operation));
+        env.insert(SCOPE.to_string(), non_eval(apply_scope as Operation));
         let scopes = vec![env];
         Self { scopes }
     }
@@ -68,12 +70,18 @@ impl Environment {
     }
 
     fn apply_native(&mut self, native: Operation, arguments: &[Expression]) -> ResExpr {
+        let evaluated_args = self.eval_several(arguments)?;
+        native(self, &evaluated_args)
+    }
+
+    fn eval_several(&mut self, arguments: &[Expression]) -> Result<Vec<Expression>, AnyError> {
         let mut evaluated_args = Vec::new();
         for arg in arguments {
             evaluated_args.push(self.eval(arg)?);
         }
-        native(self, &evaluated_args)
+        Ok(evaluated_args)
     }
+
     fn apply_non_evaluating(&mut self, native: Operation, arguments: &[Expression]) -> ResExpr {
         native(self, &arguments)
     }
@@ -109,6 +117,16 @@ fn apply_def(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
             DEF, arguments
         ))
     }
+}
+
+fn apply_scope(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    env.new_env();
+    let evaluated = env.eval_several(arguments);
+    env.drop_env();
+    Ok(evaluated?
+        .into_iter()
+        .last()
+        .unwrap_or(Expression::Atom(Atom::Nothing)))
 }
 
 fn add(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
@@ -263,5 +281,11 @@ mod tests {
     #[test]
     fn define() {
         assert_eq!(interpret("(def a 3)"), n(3))
+    }
+    #[test]
+    fn scope() {
+        assert_eq!(interpret("(scope (def a 3) a)"), n(3));
+        assert_eq!(interpret("(scope (def a 3) (scope (def a 4) a))"), n(4));
+        assert_eq!(interpret("(scope (def a 3) (scope (def a 4) a) a)"), n(3));
     }
 }

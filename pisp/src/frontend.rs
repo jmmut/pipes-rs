@@ -44,7 +44,12 @@ fn parse_tokens(
                 *index += 1;
                 return Ok(Expression::List(elements));
             } else if *token == Token::EndOfFile {
-                return err_expected_span("an atom or list", token, source, *span);
+                return err_expected_span(
+                    "another element or closing parenthesis",
+                    token,
+                    source,
+                    *span,
+                );
             } else {
                 let element = parse_tokens(source, tokens, index)?;
                 elements.push(element);
