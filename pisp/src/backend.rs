@@ -27,10 +27,11 @@ impl Environment {
     }
 
     pub fn eval(&mut self, expression: &Expression) -> ResExpr {
-        match expression {
-            Expression::List(list) => self.apply_list(list),
-            Expression::Atom(atom) => Ok(Expression::Atom(atom.clone())),
+        let mut expr = expression.clone();
+        while let Expression::List(list) = expr {
+            expr = self.apply_list(&list)?;
         }
+        Ok(expr)
     }
 
     fn apply_list(&mut self, list: &Vec<Expression>) -> ResExpr {
@@ -38,16 +39,19 @@ impl Environment {
     }
 
     fn apply(&mut self, function: &Expression, arguments: &[Expression]) -> ResExpr {
-        match function {
-            Expression::Atom(Atom::Symbol(symbol)) => {
-                if let Some(operation) = self.native_symbols.get(symbol) {
-                    operation(arguments)
-                } else {
-                    err(format!("undefined operation: {}", symbol))
+        let function = self.eval(function)?;
+        if let Expression::Atom(Atom::Symbol(symbol)) = function {
+            if let Some(operation) = self.native_symbols.get(&symbol).cloned() {
+                let mut evaluated_args = Vec::new();
+                for arg in arguments {
+                    evaluated_args.push(self.eval(arg)?);
                 }
+                operation(&evaluated_args)
+            } else {
+                err(format!("undefined operation: {}", symbol))
             }
-            Expression::List(list) => self.apply_list(list),
-            _ => err(format!("unsupported operation: {}", function)),
+        } else {
+            err(format!("unsupported operation: {}", function))
         }
     }
 }
@@ -195,5 +199,13 @@ mod tests {
     #[test]
     fn division_no_divisor() {
         assert_incorrect("(|/ 5)")
+    }
+
+    #[test]
+    fn nested_eval() {
+        assert_eq!(
+            interpret("(+ 1 (+ 2 3) 4)"),
+            Expression::Atom(Atom::Number(10))
+        );
     }
 }
