@@ -1,5 +1,6 @@
 use crate::backend::Environment;
-use pipes_rs::common::AnyError;
+use pipes_rs::common::{err, AnyError};
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter, Write};
 
 pub type ResExpr = Result<Expression, AnyError>;
@@ -20,10 +21,32 @@ pub enum Expression {
     List(Expressions),
     Function(Function),
 }
+impl Expression {
+    pub fn as_symbol(&self) -> Result<String, AnyError> {
+        if let Expression::Symbol(name) = self {
+            Ok(name.clone())
+        } else {
+            err(format!("expected a symbol but got {}", self))
+        }
+    }
+    pub fn as_exprs(&self) -> Result<Expressions, AnyError> {
+        if let Expression::List(exprs) = self {
+            Ok(exprs.clone())
+        } else {
+            err(format!("expected a list of expressions but got {}", self))
+        }
+    }
+}
 #[derive(Eq, Clone)]
 pub struct Function {
     pub parameters: Box<Expression>,
     pub body: Box<Expression>,
+    pub closure: HashMap<String, Expression>,
+}
+impl Function {
+    pub fn params(&self) -> Result<Expressions, AnyError> {
+        self.parameters.as_exprs()
+    }
 }
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

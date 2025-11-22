@@ -1,7 +1,7 @@
 use crate::expression::{exprs_to_string, Expression, Function, Operation, ResExpr};
 use pipes_rs::common::{err, AnyError};
 use pipes_rs::frontend::sources::token::Operator;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::iter::zip;
 
 const DEF: &str = "def";
@@ -9,10 +9,6 @@ const SCOPE: &str = "scope";
 const IF: &str = "if";
 const FN: &str = "fn";
 
-pub fn eval(expression: &Expression) -> ResExpr {
-    let mut env = Environment::new();
-    env.eval(expression)
-}
 pub struct Environment {
     scopes: Vec<HashMap<String, Expression>>,
 }
@@ -103,6 +99,9 @@ impl Environment {
     fn new_env(&mut self) {
         self.scopes.push(HashMap::new());
     }
+    fn new_env_from_closure(&mut self, closure: HashMap<String, Expression>) {
+        self.scopes.push(closure);
+    }
     fn drop_env(&mut self) {
         self.scopes.pop();
     }
@@ -150,7 +149,7 @@ fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
         ))
     }
 }
-fn apply_new_fn(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+fn apply_new_fn(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() != 2 {
         err(format!(
             "{} needs a parameter list and a body expression, got {}",
@@ -160,7 +159,18 @@ fn apply_new_fn(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     } else {
         let parameters = Box::new(arguments[0].clone());
         let body = Box::new(arguments[1].clone());
-        Ok(Expression::Function(Function { parameters, body }))
+        let closure = HashMap::new();
+        let mut closure_2 = HashMap::new();
+        let mut ignorable = HashMap::new();
+        let mut function = Function {
+            parameters,
+            body,
+            closure,
+        };
+        copy_free_vars_func(&function, &env, &mut closure_2, &mut ignorable)?;
+        std::mem::swap(&mut function.closure, &mut closure_2);
+        let expr = Expression::Function(function);
+        Ok(expr)
     }
 }
 fn apply_user_func(env: &mut Environment, function: Function, arguments: &[Expression]) -> ResExpr {
@@ -169,6 +179,7 @@ fn apply_user_func(env: &mut Environment, function: Function, arguments: &[Expre
             err(format!("to call a function, the number of arguments and parameter must be the same:\nparameters: {}\narguments:  {}", 
                        exprs_to_string(&params), exprs_to_string(arguments)))
         } else {
+            env.new_env_from_closure(function.closure.clone());
             for (param, arg) in zip(params, arguments) {
                 if let Expression::Symbol(name) = param {
                     env.set(name.clone(), arg.clone());
@@ -179,7 +190,9 @@ fn apply_user_func(env: &mut Environment, function: Function, arguments: &[Expre
                     ));
                 }
             }
-            env.eval(&*function.body)
+            let result = env.eval(&*function.body);
+            env.drop_env();
+            result
         }
     } else {
         err(format!(
@@ -188,6 +201,96 @@ fn apply_user_func(env: &mut Environment, function: Function, arguments: &[Expre
         ))
     }
 }
+
+fn copy_free_vars(
+    expr: &Expression,
+    env: &Environment,
+    closure: &mut HashMap<String, Expression>,
+    ignorable: &mut HashMap<String, i32>,
+) -> Result<(), AnyError> {
+    match expr {
+        Expression::Nothing => {}
+        Expression::Bool(_) => {}
+        Expression::Number(_) => {}
+        Expression::Symbol(name) => copy_if_missing(name, env, closure, ignorable)?,
+        Expression::NativeOperation(_) => {}
+        Expression::NonEvaluatingOperation(_) => {}
+        Expression::List(elems) => {
+            let mut to_remove = Vec::new();
+            if let Some(Expression::Symbol(first)) = elems.first() {
+                if first == DEF {
+                    let name = elems[1].as_symbol()?;
+                    *ignorable.entry(name.clone()).or_insert(0) += 1;
+                    to_remove.push(name);
+                } else if first == FN {
+                    for param in elems[1].as_exprs()? {
+                        let name = param.as_symbol()?;
+                        *ignorable.entry(name.clone()).or_insert(0) += 1;
+                        to_remove.push(name);
+                    }
+                }
+            }
+            for elem in elems {
+                copy_free_vars(elem, env, closure, ignorable)?
+            }
+            for removable in to_remove {
+                remove_from_ignorable(&removable, ignorable);
+            }
+        }
+        Expression::Function(func) => {
+            copy_free_vars_func(&func, env, closure, ignorable)?;
+        }
+    }
+    Ok(())
+}
+
+fn copy_free_vars_func(
+    func: &Function,
+    env: &Environment,
+    closure: &mut HashMap<String, Expression>,
+    ignorable: &mut HashMap<String, i32>,
+) -> Result<(), AnyError> {
+    for param in func.params()? {
+        *ignorable.entry(param.as_symbol()?).or_insert(0) += 1;
+    }
+    copy_free_vars(&func.body, env, closure, ignorable)?;
+    for param in func.params()? {
+        let name = param.as_symbol()?;
+        remove_from_ignorable(&name, ignorable);
+    }
+    Ok(())
+}
+
+fn remove_from_ignorable(name: &String, ignorable: &mut HashMap<String, i32>) {
+    let definition_count = ignorable.get_mut(name).unwrap();
+    if *definition_count == 1 {
+        ignorable.remove(name);
+    } else {
+        *definition_count -= 1;
+    }
+}
+
+fn copy_if_missing(
+    name: &String,
+    env: &Environment,
+    closure: &mut HashMap<String, Expression>,
+    ignorable: &mut HashMap<String, i32>,
+) -> Result<(), AnyError> {
+    if !closure.contains_key(name) && !ignorable.contains_key(name) {
+        if let Some(value) = env.get(name) {
+            closure.insert(name.clone(), value);
+            Ok(())
+        } else {
+            err(format!(
+                "can not capture symbol '{}' because it is undefined",
+                name
+            ))
+        }
+    } else {
+        Ok(())
+    }
+}
+
 fn add(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() == 0 {
         err("Addition needs 1 or more arguments".to_string())
@@ -278,6 +381,10 @@ mod tests {
     use crate::frontend::tests::n;
     use pipes_rs::common::unwrap_display;
 
+    fn eval(expression: &Expression) -> ResExpr {
+        let mut env = Environment::new();
+        env.eval(expression)
+    }
     fn interpret(code: &str) -> Expression {
         let expression = unwrap_display(frontend(code));
         let result = unwrap_display(eval(&expression));
@@ -370,4 +477,12 @@ mod tests {
     fn test_function_call() {
         assert_eq!(interpret("((fn (a) (+ a 1)) 4)"), n(5));
     }
+    #[test]
+    fn test_function_closure() {
+        assert_eq!(interpret("( ( (fn (a) (fn (b) (+ a b))) 5) 7)"), n(12));
+    }
+    // #[test]
+    // fn print_env() {
+    //     interpret("(env)");
+    // }
 }
