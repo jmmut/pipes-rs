@@ -1,4 +1,4 @@
-use crate::expression::{Atom, Expression, FALSE_STR, TRUE_STR};
+use crate::expression::{Expression, FALSE_STR, TRUE_STR};
 use pipes_rs::common::{err_span, AnyError};
 use pipes_rs::frontend::parser::reverse_iterative_parser::err_expected_span;
 use pipes_rs::frontend::sources::lexer::{lex_with_eof, TokenizedSource};
@@ -34,7 +34,7 @@ fn parse_tokens(
     let token = &tokens[*index];
     if let Token::Number(number) = token.token {
         *index += 1;
-        Ok(Expression::Atom(Atom::Number(number)))
+        Ok(Expression::Number(number))
     } else if token.token == Token::OpenParenthesis {
         let mut elements = Vec::new();
         *index += 1;
@@ -58,18 +58,18 @@ fn parse_tokens(
     } else if let Token::Identifier(name) = &token.token {
         *index += 1;
         if name == TRUE_STR {
-            Ok(Expression::Atom(Atom::Bool(true)))
+            Ok(Expression::Bool(true))
         } else if name == FALSE_STR {
-            Ok(Expression::Atom(Atom::Bool(false)))
+            Ok(Expression::Bool(false))
         } else {
-            Ok(Expression::Atom(Atom::Symbol(name.to_string())))
+            Ok(Expression::Symbol(name.to_string()))
         }
     } else if let Token::Keyword(name) = &token.token {
         *index += 1;
-        Ok(Expression::Atom(Atom::Symbol(name.name().to_string())))
+        Ok(Expression::Symbol(name.name().to_string()))
     } else if let Token::Operator(name) = &token.token {
         *index += 1;
-        Ok(Expression::Atom(Atom::Symbol(name.to_string())))
+        Ok(Expression::Symbol(name.to_string()))
     } else {
         return err_expected_span("an atom or list", &token.token, source, token.span);
     }
@@ -97,7 +97,6 @@ fn expect(
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::expression::Atom;
     use pipes_rs::common::unwrap_display;
 
     pub fn l(elements: Vec<Expression>) -> Expression {
@@ -107,10 +106,10 @@ pub mod tests {
         Vec::new()
     }
     pub fn n(number: i64) -> Expression {
-        Expression::Atom(Atom::Number(number))
+        Expression::Number(number)
     }
     pub fn s(symbol: &str) -> Expression {
-        Expression::Atom(Atom::Symbol(symbol.to_string()))
+        Expression::Symbol(symbol.to_string())
     }
     #[test]
     fn empty() {

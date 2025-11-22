@@ -8,26 +8,40 @@ pub type Operation = fn(&mut Environment, &[Expression]) -> ResExpr;
 pub const TRUE_STR: &str = "true";
 pub const FALSE_STR: &str = "false";
 
-#[derive(Eq, PartialEq, Clone)]
-pub enum Expression {
-    List(Vec<Expression>),
-    Atom(Atom),
-}
-
 #[derive(Eq, Clone)]
-pub enum Atom {
+pub enum Expression {
     Nothing,
     Bool(bool),
     Number(i64),
     Symbol(String),
     NativeOperation(Operation),
     NonEvaluatingOperation(Operation),
+    List(Vec<Expression>),
 }
 
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        use Expression::*;
         match self {
-            Expression::List(elements) => {
+            Nothing => {
+                write!(f, "none")
+            }
+            Bool(b) => {
+                write!(f, "{}", if *b { "true" } else { "false" })
+            }
+            Number(n) => {
+                write!(f, "{}", n)
+            }
+            Symbol(s) => {
+                write!(f, "{}", s)
+            }
+            NativeOperation(_op) => {
+                write!(f, "<native-function>")
+            }
+            NonEvaluatingOperation(_op) => {
+                write!(f, "<native-non-evaluating-function>")
+            }
+            List(elements) => {
                 if elements.len() == 0 {
                     write!(f, "()")
                 } else {
@@ -40,33 +54,6 @@ impl Display for Expression {
                     write!(f, ")")
                 }
             }
-            Expression::Atom(atom) => {
-                write!(f, "{}", atom)
-            }
-        }
-    }
-}
-impl Display for Atom {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Atom::Nothing => {
-                write!(f, "none")
-            }
-            Atom::Bool(b) => {
-                write!(f, "{}", if *b { "true" } else { "false" })
-            }
-            Atom::Number(n) => {
-                write!(f, "{}", n)
-            }
-            Atom::Symbol(s) => {
-                write!(f, "{}", s)
-            }
-            Atom::NativeOperation(_op) => {
-                write!(f, "<native-function>")
-            }
-            Atom::NonEvaluatingOperation(_op) => {
-                write!(f, "<native-non-evaluating-function>")
-            }
         }
     }
 }
@@ -75,18 +62,14 @@ impl Debug for Expression {
         write!(f, "{}", self)
     }
 }
-impl Debug for Atom {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-impl PartialEq for Atom {
+impl PartialEq for Expression {
     fn eq(&self, other: &Self) -> bool {
+        use Expression::*;
         match (self, other) {
-            (Atom::Nothing, Atom::Nothing) => true,
-            (Atom::Bool(n), Atom::Bool(n2)) => n == n2,
-            (Atom::Number(n), Atom::Number(n2)) => n == n2,
-            (Atom::Symbol(s), Atom::Symbol(s2)) => s == s2,
+            (Nothing, Nothing) => true,
+            (Bool(n), Bool(n2)) => n == n2,
+            (Number(n), Number(n2)) => n == n2,
+            (Symbol(s), Symbol(s2)) => s == s2,
             _ => false,
         }
     }

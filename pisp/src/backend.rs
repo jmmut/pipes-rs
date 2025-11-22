@@ -1,4 +1,4 @@
-use crate::expression::{Atom, Expression, Operation, ResExpr};
+use crate::expression::{Expression, Operation, ResExpr};
 use pipes_rs::common::{err, AnyError};
 use pipes_rs::frontend::sources::token::Operator;
 use std::collections::HashMap;
@@ -18,8 +18,8 @@ pub struct Environment {
 impl Environment {
     pub fn new() -> Self {
         let mut env = HashMap::new();
-        let nat = |op: Operation| Expression::Atom(Atom::NativeOperation(op));
-        let non_eval = |op: Operation| Expression::Atom(Atom::NonEvaluatingOperation(op));
+        let nat = |op: Operation| Expression::NativeOperation(op);
+        let non_eval = |op: Operation| Expression::NonEvaluatingOperation(op);
         env.insert(Operator::Add.to_string(), nat(add as Operation));
         env.insert(Operator::Substract.to_string(), nat(substract as Operation));
         env.insert(Operator::Multiply.to_string(), nat(multiply as Operation));
@@ -38,7 +38,7 @@ impl Environment {
         while let Expression::List(list) = expr {
             expr = self.apply_list(&list)?;
         }
-        if let Expression::Atom(Atom::Symbol(name)) = expr {
+        if let Expression::Symbol(name) = expr {
             if let Some(value) = self.get(&name) {
                 Ok(value)
             } else {
@@ -55,16 +55,16 @@ impl Environment {
 
     fn apply(&mut self, function: &Expression, arguments: &[Expression]) -> ResExpr {
         let function = self.eval(function)?;
-        // if let Expression::Atom(Atom::Symbol(symbol)) = function {
+        // if let Expression::Symbol(symbol)) = function {
         //     if symbol == DEF {
         //         apply_def(self, arguments)
         //     } else {
         //         err(format!("undefined operation: {}", symbol))
         //     }
         // } else
-        if let Expression::Atom(Atom::NativeOperation(native)) = function {
+        if let Expression::NativeOperation(native) = function {
             self.apply_native(native, arguments)
-        } else if let Expression::Atom(Atom::NonEvaluatingOperation(native)) = function {
+        } else if let Expression::NonEvaluatingOperation(native) = function {
             self.apply_non_evaluating(native, arguments)
         } else {
             err(format!("unsupported operation: {}", function))
@@ -111,7 +111,7 @@ impl Environment {
 }
 
 fn apply_def(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
-    if let [Expression::Atom(Atom::Symbol(name)), value] = arguments {
+    if let [Expression::Symbol(name), value] = arguments {
         Ok(env.set(name.clone(), value.clone()))
     } else {
         err(format!(
@@ -125,10 +125,7 @@ fn apply_scope(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     env.new_env();
     let evaluated = env.eval_several(arguments);
     env.drop_env();
-    Ok(evaluated?
-        .into_iter()
-        .last()
-        .unwrap_or(Expression::Atom(Atom::Nothing)))
+    Ok(evaluated?.into_iter().last().unwrap_or(Expression::Nothing))
 }
 fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() != 2 && arguments.len() != 3 {
@@ -137,13 +134,13 @@ fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
             IF,
             arguments.len()
         ))
-    } else if let Expression::Atom(Atom::Bool(cond)) = arguments[0] {
+    } else if let Expression::Bool(cond) = arguments[0] {
         if cond {
             env.eval(&arguments[1])
         } else if arguments.len() == 3 {
             env.eval(&arguments[2])
         } else {
-            Ok(Expression::Atom(Atom::Nothing))
+            Ok(Expression::Nothing)
         }
     } else {
         err(format!(
@@ -159,21 +156,21 @@ fn add(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     } else {
         let mut accum = 0;
         for arg in arguments {
-            if let Expression::Atom(Atom::Number(n)) = arg {
+            if let Expression::Number(n) = arg {
                 accum += n;
             } else {
                 return err(format!("Can not add, not a number: {}", arg));
             }
         }
-        Ok(Expression::Atom(Atom::Number(accum)))
+        Ok(Expression::Number(accum))
     }
 }
 fn substract(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() == 0 {
         err("Substraction needs 1 or more arguments".to_string())
     } else if arguments.len() == 1 {
-        if let Expression::Atom(Atom::Number(n)) = arguments[0] {
-            Ok(Expression::Atom(Atom::Number(-n)))
+        if let Expression::Number(n) = arguments[0] {
+            Ok(Expression::Number(-n))
         } else {
             return err(format!("Can not negate, not a number: {}", arguments[0]));
         }
@@ -181,7 +178,7 @@ fn substract(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
         let mut accum = 0;
         let mut first = true;
         for arg in arguments {
-            if let Expression::Atom(Atom::Number(n)) = arg {
+            if let Expression::Number(n) = arg {
                 if first {
                     first = false;
                     accum += n;
@@ -192,7 +189,7 @@ fn substract(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
                 return err(format!("Can not substract, not a number: {}", arg));
             }
         }
-        Ok(Expression::Atom(Atom::Number(accum)))
+        Ok(Expression::Number(accum))
     }
 }
 fn multiply(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
@@ -201,13 +198,13 @@ fn multiply(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     } else {
         let mut accum = 1;
         for arg in arguments {
-            if let Expression::Atom(Atom::Number(n)) = arg {
+            if let Expression::Number(n) = arg {
                 accum *= n;
             } else {
                 return err(format!("Can not multiply, not a number: {}", arg));
             }
         }
-        Ok(Expression::Atom(Atom::Number(accum)))
+        Ok(Expression::Number(accum))
     }
 }
 fn divide(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
@@ -215,7 +212,7 @@ fn divide(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     let mut divisor = 0;
     let mut first = true;
     for arg in arguments {
-        if let Expression::Atom(Atom::Number(n)) = arg {
+        if let Expression::Number(n) = arg {
             if first {
                 first = false;
                 dividend += n;
@@ -232,7 +229,7 @@ fn divide(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
             Expression::List(arguments.to_vec())
         ))
     } else {
-        Ok(Expression::Atom(Atom::Number(dividend / divisor)))
+        Ok(Expression::Number(dividend / divisor))
     }
 }
 
