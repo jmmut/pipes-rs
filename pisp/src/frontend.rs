@@ -147,4 +147,10 @@ pub mod tests {
         let expr = unwrap_display(frontend("(+ (6 (a)) 8)"));
         assert_eq!(expr, l(vec![s("+"), l(vec![n(6), l(vec![s("a")])]), n(8)]));
     }
+    #[test]
+    fn printing() {
+        let code = "(+ (6 (a)) 8)";
+        let expr = unwrap_display(frontend(code));
+        assert_eq!(expr.to_string(), code)
+    }
 }

@@ -1,4 +1,4 @@
-use crate::expression::{Expression, Operation, ResExpr};
+use crate::expression::{exprs_to_string, Expression, Function, Operation, ResExpr};
 use pipes_rs::common::{err, AnyError};
 use pipes_rs::frontend::sources::token::Operator;
 use std::collections::HashMap;
@@ -6,6 +6,7 @@ use std::collections::HashMap;
 const DEF: &str = "def";
 const SCOPE: &str = "scope";
 const IF: &str = "if";
+const FN: &str = "fn";
 
 pub fn eval(expression: &Expression) -> ResExpr {
     let mut env = Environment::new();
@@ -29,6 +30,7 @@ impl Environment {
         env.insert(DEF.to_string(), non_eval(apply_def as Operation));
         env.insert(SCOPE.to_string(), non_eval(apply_scope as Operation));
         env.insert(IF.to_string(), non_eval(apply_if as Operation));
+        env.insert(FN.to_string(), non_eval(apply_function as Operation));
         let scopes = vec![env];
         Self { scopes }
     }
@@ -115,8 +117,9 @@ fn apply_def(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
         Ok(env.set(name.clone(), value.clone()))
     } else {
         err(format!(
-            "{} requires 2 arguments, the variable name and value. Got {:?}",
-            DEF, arguments
+            "{} requires 2 arguments, the variable name and value. Got {}",
+            DEF,
+            exprs_to_string(arguments)
         ))
     }
 }
@@ -130,9 +133,10 @@ fn apply_scope(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
 fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() != 2 && arguments.len() != 3 {
         err(format!(
-            "{} needs a condition and 1 or 2 expressions, got {}",
+            "{} needs a condition and 1 or 2 expressions, got {}: {}",
             IF,
-            arguments.len()
+            arguments.len(),
+            exprs_to_string(arguments),
         ))
     } else if let Expression::Bool(cond) = arguments[0] {
         if cond {
@@ -147,6 +151,19 @@ fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
             "the first argument to 'if' must be bool, got {}",
             arguments[0]
         ))
+    }
+}
+fn apply_function(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    if arguments.len() != 2 {
+        err(format!(
+            "{} needs a parameter list and a body expression, got {}",
+            FN,
+            exprs_to_string(arguments)
+        ))
+    } else {
+        let parameters = Box::new(arguments[0].clone());
+        let body = Box::new(arguments[1].clone());
+        Ok(Expression::Function(Function { parameters, body }))
     }
 }
 
@@ -246,9 +263,6 @@ mod tests {
         result
     }
     fn assert_incorrect(code: &str) {
-        // frontend(code)
-        //     .map(|expr| eval(&expr))
-        //     .expect_err("should fail");
         frontend(code)
             .and_then(|expr| eval(&expr))
             .expect_err("should fail, but got");
@@ -316,6 +330,11 @@ mod tests {
     }
     #[test]
     fn test_function() {
+        let func = "(fn (a) (+ a 1))";
+        assert_eq!(interpret(func).to_string(), func);
+    }
+    #[test]
+    fn test_function_call() {
         assert_eq!(interpret("((fn (a) (+ a 1)) 4)"), n(5));
     }
 }

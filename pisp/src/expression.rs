@@ -1,9 +1,10 @@
 use crate::backend::Environment;
 use pipes_rs::common::AnyError;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Write};
 
 pub type ResExpr = Result<Expression, AnyError>;
 pub type Operation = fn(&mut Environment, &[Expression]) -> ResExpr;
+pub type Expressions = Vec<Expression>;
 
 pub const TRUE_STR: &str = "true";
 pub const FALSE_STR: &str = "false";
@@ -16,9 +17,14 @@ pub enum Expression {
     Symbol(String),
     NativeOperation(Operation),
     NonEvaluatingOperation(Operation),
-    List(Vec<Expression>),
+    List(Expressions),
+    Function(Function),
 }
-
+#[derive(Eq, Clone)]
+pub struct Function {
+    pub parameters: Box<Expression>,
+    pub body: Box<Expression>,
+}
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         use Expression::*;
@@ -41,22 +47,33 @@ impl Display for Expression {
             NonEvaluatingOperation(_op) => {
                 write!(f, "<native-non-evaluating-function>")
             }
-            List(elements) => {
-                if elements.len() == 0 {
-                    write!(f, "()")
-                } else {
-                    write!(f, "(")?;
-                    let mut iter = elements.iter();
-                    write!(f, "{}", iter.next().unwrap())?;
-                    for elem in iter {
-                        write!(f, " {}", elem)?;
-                    }
-                    write!(f, ")")
-                }
+            List(elements) => fmt_expressions(elements, f),
+            Function(func) => {
+                write!(f, "(fn {} {})", func.parameters, func.body)
             }
         }
     }
 }
+
+fn fmt_expressions(exprs: &[Expression], f: &mut impl Write) -> std::fmt::Result {
+    if exprs.len() == 0 {
+        write!(f, "()")
+    } else {
+        write!(f, "(")?;
+        let mut iter = exprs.iter();
+        write!(f, "{}", iter.next().unwrap())?;
+        for elem in iter {
+            write!(f, " {}", elem)?;
+        }
+        write!(f, ")")
+    }
+}
+pub fn exprs_to_string(exprs: &[Expression]) -> String {
+    let mut buf = String::new();
+    fmt_expressions(exprs, &mut buf).unwrap();
+    buf
+}
+
 impl Debug for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
@@ -70,7 +87,14 @@ impl PartialEq for Expression {
             (Bool(n), Bool(n2)) => n == n2,
             (Number(n), Number(n2)) => n == n2,
             (Symbol(s), Symbol(s2)) => s == s2,
+            (List(l), List(l2)) => l == l2,
             _ => false,
         }
+    }
+}
+
+impl PartialEq for Function {
+    fn eq(&self, _other: &Self) -> bool {
+        false
     }
 }
