@@ -1,9 +1,10 @@
 use crate::expression::{exprs_to_string, Expression, Function, Operation, ResExpr};
 use pipes_rs::common::{err, AnyError};
 use pipes_rs::frontend::sources::token::Operator;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::iter::zip;
 
+const ENV: &str = "env";
 const DEF: &str = "def";
 const SCOPE: &str = "scope";
 const IF: &str = "if";
@@ -22,6 +23,7 @@ impl Environment {
         env.insert(Operator::Substract.to_string(), nat(substract as Operation));
         env.insert(Operator::Multiply.to_string(), nat(multiply as Operation));
         env.insert(Operator::Divide.to_string(), nat(divide as Operation));
+        env.insert(ENV.to_string(), nat(return_env as Operation));
         // native_operations.insert("*".to_string(), multiply as Operation);  // unsupported by the lexer
         // native_operations.insert("/".to_string(), divide as Operation);
         env.insert(DEF.to_string(), non_eval(apply_def as Operation));
@@ -34,7 +36,7 @@ impl Environment {
 
     pub fn eval(&mut self, expression: &Expression) -> ResExpr {
         let mut expr = expression.clone();
-        while let Expression::List(list) = expr {
+        if let Expression::List(list) = expr {
             expr = self.apply_list(&list)?;
         }
         if let Expression::Symbol(name) = expr {
@@ -291,6 +293,25 @@ fn copy_if_missing(
     }
 }
 
+fn return_env(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    if arguments.len() != 0 {
+        return err(format!("{} does not take any arguments", ENV));
+    }
+    let mut union = BTreeSet::new();
+    for scope in &env.scopes {
+        for key in scope.keys() {
+            union.insert(key);
+        }
+    }
+
+    let mut list = Vec::new();
+    for key in union {
+        let pair = vec![Expression::Symbol(key.clone()), env.get(key).unwrap()];
+        list.push(Expression::List(pair));
+    }
+    Ok(Expression::List(list))
+}
+
 fn add(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() == 0 {
         err("Addition needs 1 or more arguments".to_string())
@@ -481,8 +502,8 @@ mod tests {
     fn test_function_closure() {
         assert_eq!(interpret("( ( (fn (a) (fn (b) (+ a b))) 5) 7)"), n(12));
     }
-    // #[test]
-    // fn print_env() {
-    //     interpret("(env)");
-    // }
+    #[test]
+    fn print_env() {
+        interpret("(env)");
+    }
 }
