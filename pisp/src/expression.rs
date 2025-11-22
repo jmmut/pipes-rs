@@ -1,12 +1,12 @@
 use std::fmt::{Debug, Display, Formatter};
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum Expression {
     List(Vec<Expression>),
     Atom(Atom),
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum Atom {
     Number(i64),
     Symbol(String),
