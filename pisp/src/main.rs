@@ -5,16 +5,21 @@ mod frontend;
 use crate::backend::eval;
 use crate::frontend::frontend;
 use pipes_rs::common::AnyError;
-use std::io::Write;
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
+
+const HISTORY_FILE: &'static str = "pisp-history.txt";
 
 enum ReplResult {
     Result,
     Exit,
 }
 
-pub fn main() {
+pub fn main() -> Result<(), AnyError> {
+    let mut rl = DefaultEditor::new()?;
+    let _ = rl.load_history(HISTORY_FILE);
     loop {
-        let line = prompt();
+        let line = prompt(&mut rl);
         let result = try_line(line);
         if let Err(err) = result {
             println!("ERROR: {}", err)
@@ -22,6 +27,8 @@ pub fn main() {
             break;
         }
     }
+    rl.save_history(HISTORY_FILE)?;
+    Ok(())
 }
 fn try_line(line: Result<Option<String>, AnyError>) -> Result<ReplResult, AnyError> {
     match line? {
@@ -35,25 +42,19 @@ fn try_line(line: Result<Option<String>, AnyError>) -> Result<ReplResult, AnyErr
             println!("{}", result);
             Ok(ReplResult::Result)
         }
-        None => {
-            println!();
-            Ok(ReplResult::Exit)
-        }
+        None => Ok(ReplResult::Exit),
     }
 }
 
-fn prompt() -> Result<Option<String>, AnyError> {
-    let mut line = "".to_string();
-    print!("> ");
-    std::io::stdout().flush()?;
-    std::io::stdin().read_line(&mut line)?;
-    if line.len() == 0 {
-        // this is what happens if you do CTRL-D
-        Ok(None)
-    } else {
-        if line.ends_with("\n") {
-            line.pop();
+fn prompt(rl: &mut DefaultEditor) -> Result<Option<String>, AnyError> {
+    let readline = rl.readline("> ");
+    match readline {
+        Ok(line) => {
+            rl.add_history_entry(line.as_str())?;
+            Ok(Some(line))
         }
-        Ok(Some(line))
+        Err(ReadlineError::Interrupted) => Ok(None),
+        Err(ReadlineError::Eof) => Ok(None),
+        Err(err) => Err(err.into()),
     }
 }

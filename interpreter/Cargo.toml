@@ -14,4 +14,4 @@ clap = {version = "=4.4.7", features = ["derive"]} # for CLI parsing
 wasm-bindgen = { version = "=0.2.89", features = ["std"], default-features = false } # for targeting WebAssembly
 strum = { version = "=0.26.1", default-features = false } # QoL iterating enums
 strum_macros = "=0.26.1" # QoL iterating enums
-libc = { version = "=0.2.152", default-features = false } # for preventing error messages when piping output (in bash)
+libc = { version = "=0.2.177", default-features = false } # for preventing error messages when piping output (in bash)

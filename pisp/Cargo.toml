@@ -9,3 +9,4 @@ clap = {version = "=4.4.7", features = ["derive"]} # for CLI parsing
 strum = { version = "=0.26.1", default-features = false } # QoL iterating enums
 strum_macros = "=0.26.1" # QoL iterating enums
 pipes-rs = { path = "../interpreter" }
+rustyline = { version = "=17.0.2", features = ["with-file-history"] } # QoL in the REPL (arrows, history, etc)
