@@ -2,6 +2,7 @@ use crate::expression::{exprs_to_string, Expression, Function, Operation, ResExp
 use pipes_rs::common::{err, AnyError};
 use pipes_rs::frontend::sources::token::Operator;
 use std::collections::HashMap;
+use std::iter::zip;
 
 const DEF: &str = "def";
 const SCOPE: &str = "scope";
@@ -30,7 +31,7 @@ impl Environment {
         env.insert(DEF.to_string(), non_eval(apply_def as Operation));
         env.insert(SCOPE.to_string(), non_eval(apply_scope as Operation));
         env.insert(IF.to_string(), non_eval(apply_if as Operation));
-        env.insert(FN.to_string(), non_eval(apply_function as Operation));
+        env.insert(FN.to_string(), non_eval(apply_new_fn as Operation));
         let scopes = vec![env];
         Self { scopes }
     }
@@ -57,17 +58,12 @@ impl Environment {
 
     fn apply(&mut self, function: &Expression, arguments: &[Expression]) -> ResExpr {
         let function = self.eval(function)?;
-        // if let Expression::Symbol(symbol)) = function {
-        //     if symbol == DEF {
-        //         apply_def(self, arguments)
-        //     } else {
-        //         err(format!("undefined operation: {}", symbol))
-        //     }
-        // } else
         if let Expression::NativeOperation(native) = function {
             self.apply_native(native, arguments)
         } else if let Expression::NonEvaluatingOperation(native) = function {
             self.apply_non_evaluating(native, arguments)
+        } else if let Expression::Function(function) = function {
+            apply_user_func(self, function, arguments)
         } else {
             err(format!("unsupported operation: {}", function))
         }
@@ -114,7 +110,8 @@ impl Environment {
 
 fn apply_def(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if let [Expression::Symbol(name), value] = arguments {
-        Ok(env.set(name.clone(), value.clone()))
+        let evaluated = env.eval(value)?;
+        Ok(env.set(name.clone(), evaluated))
     } else {
         err(format!(
             "{} requires 2 arguments, the variable name and value. Got {}",
@@ -153,7 +150,7 @@ fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
         ))
     }
 }
-fn apply_function(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+fn apply_new_fn(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() != 2 {
         err(format!(
             "{} needs a parameter list and a body expression, got {}",
@@ -166,7 +163,31 @@ fn apply_function(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
         Ok(Expression::Function(Function { parameters, body }))
     }
 }
-
+fn apply_user_func(env: &mut Environment, function: Function, arguments: &[Expression]) -> ResExpr {
+    if let Expression::List(params) = &*function.parameters {
+        if params.len() != arguments.len() {
+            err(format!("to call a function, the number of arguments and parameter must be the same:\nparameters: {}\narguments:  {}", 
+                       exprs_to_string(&params), exprs_to_string(arguments)))
+        } else {
+            for (param, arg) in zip(params, arguments) {
+                if let Expression::Symbol(name) = param {
+                    env.set(name.clone(), arg.clone());
+                } else {
+                    return err(format!(
+                        "to call a function all parameters must be symbols, got: {}",
+                        param
+                    ));
+                }
+            }
+            env.eval(&*function.body)
+        }
+    } else {
+        err(format!(
+            "to call a function the parameters must be a list, got: {}",
+            function.parameters
+        ))
+    }
+}
 fn add(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() == 0 {
         err("Addition needs 1 or more arguments".to_string())
@@ -315,7 +336,17 @@ mod tests {
 
     #[test]
     fn define() {
-        assert_eq!(interpret("(def a 3)"), n(3))
+        assert_eq!(interpret("(def a 3)"), n(3));
+        assert_eq!(interpret("(def a (+ 3 4))"), n(7));
+    }
+    #[test]
+    fn define_evaluates_value() {
+        let expression = unwrap_display(frontend("(def a (+ 3 4))"));
+        let mut env = Environment::new();
+        let _result = unwrap_display(env.eval(&expression));
+        let expression = unwrap_display(frontend("a"));
+        let result = unwrap_display(env.eval(&expression));
+        assert_eq!(result, n(7))
     }
     #[test]
     fn scope() {
@@ -327,6 +358,8 @@ mod tests {
     fn test_if() {
         assert_eq!(interpret("(if true 3 a)"), n(3));
         assert_incorrect("(if false 3 a)");
+        assert_eq!(interpret("(if true 3)"), n(3));
+        assert_eq!(interpret("(if false 3)"), Expression::Nothing);
     }
     #[test]
     fn test_function() {
