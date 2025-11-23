@@ -18,8 +18,9 @@ pub enum Expression {
     Symbol(String),
     NativeOperation(Operation),
     NonEvaluatingOperation(Operation),
-    List(Expressions),
     Function(Function),
+    NonEvaluatingFunction(Function),
+    List(Expressions),
 }
 impl Expression {
     pub fn as_symbol(&self) -> Result<String, AnyError> {
@@ -80,6 +81,9 @@ impl Display for Expression {
                 //     func.body,
                 //     closure_to_string(&func.closure)
                 // )
+            }
+            NonEvaluatingFunction(func) => {
+                write!(f, "(macro {} {})", func.parameters, func.body)
             }
         }
     }

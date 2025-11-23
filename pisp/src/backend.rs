@@ -6,9 +6,11 @@ use std::iter::zip;
 
 const ENV: &str = "env";
 const DEF: &str = "def";
+// const DEF_NON_EVAL: &str = "def_non_eval";
 const SCOPE: &str = "scope";
 const IF: &str = "if";
 const FN: &str = "fn";
+const MACRO: &str = "macro";
 const EVAL: &str = "eval";
 const LIST: &str = "list";
 
@@ -32,10 +34,15 @@ impl Environment {
         // native_operations.insert("*".to_string(), multiply as Operation);  // unsupported by the lexer
         // native_operations.insert("/".to_string(), divide as Operation);
 
+        // env.insert(
+        //     DEF_NON_EVAL.to_string(),
+        //     non_eval(apply_def_non_eval as Operation),
+        // );
         env.insert(DEF.to_string(), non_eval(apply_def as Operation));
         env.insert(SCOPE.to_string(), non_eval(apply_scope as Operation));
         env.insert(IF.to_string(), non_eval(apply_if as Operation));
         env.insert(FN.to_string(), non_eval(apply_new_fn as Operation));
+        env.insert(MACRO.to_string(), non_eval(apply_new_macro as Operation));
         let scopes = vec![env];
         Self { scopes }
     }
@@ -62,10 +69,12 @@ impl Environment {
 
     fn apply(&mut self, function: &Expression, arguments: &[Expression]) -> ResExpr {
         let function = self.eval(function)?;
-        if let Expression::NativeOperation(native) = function {
-            self.apply_native(native, arguments)
-        } else if let Expression::NonEvaluatingOperation(native) = function {
+        if let Expression::NonEvaluatingOperation(native) = function {
             self.apply_non_evaluating(native, arguments)
+        } else if let Expression::NonEvaluatingFunction(function) = function {
+            apply_user_func_non_eval(self, function, arguments.to_vec())
+        } else if let Expression::NativeOperation(native) = function {
+            self.apply_native(native, arguments)
         } else if let Expression::Function(function) = function {
             apply_user_func(self, function, arguments)
         } else {
@@ -164,10 +173,21 @@ fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     }
 }
 fn apply_new_fn(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    new_fn(env, arguments, FN, Expression::Function)
+}
+fn apply_new_macro(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    new_fn(env, arguments, MACRO, Expression::NonEvaluatingFunction)
+}
+fn new_fn(
+    env: &mut Environment,
+    arguments: &[Expression],
+    name: &str,
+    ctor: fn(Function) -> Expression,
+) -> ResExpr {
     if arguments.len() != 2 {
         err(format!(
             "{} needs a parameter list and a body expression, got {}",
-            FN,
+            name,
             exprs_to_string(arguments)
         ))
     } else {
@@ -183,20 +203,31 @@ fn apply_new_fn(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
         };
         copy_free_vars_func(&function, &env, &mut closure_2, &mut ignorable)?;
         std::mem::swap(&mut function.closure, &mut closure_2);
-        let expr = Expression::Function(function);
+        let expr = ctor(function);
         Ok(expr)
     }
 }
 fn apply_user_func(env: &mut Environment, function: Function, arguments: &[Expression]) -> ResExpr {
+    let mut evaluated_args = Vec::new();
+    for arg in arguments {
+        evaluated_args.push(env.eval(arg)?);
+    }
+    apply_user_func_non_eval(env, function, evaluated_args)
+}
+
+fn apply_user_func_non_eval(
+    env: &mut Environment,
+    function: Function,
+    evaluated_args: Vec<Expression>,
+) -> ResExpr {
     if let Expression::List(params) = &*function.parameters {
-        if params.len() != arguments.len() {
-            err(format!("to call a function, the number of arguments and parameter must be the same:\nparameters: {}\narguments:  {}", 
-                       exprs_to_string(&params), exprs_to_string(arguments)))
+        if params.len() != evaluated_args.len() {
+            err(format!("to call a function, the number of arguments and parameter must be the same:\nparameters: {}\narguments:  {}",
+                        exprs_to_string(&params), exprs_to_string(&evaluated_args)))
         } else {
             env.new_env_from_closure(function.closure.clone());
-            for (param, arg) in zip(params, arguments) {
+            for (param, evaluated_arg) in zip(params, evaluated_args) {
                 if let Expression::Symbol(name) = param {
-                    let evaluated_arg = env.eval(arg)?;
                     env.set(name.clone(), evaluated_arg);
                 } else {
                     return err(format!(
@@ -237,13 +268,14 @@ fn copy_free_vars(
                     let name = elems[1].as_symbol()?;
                     *ignorable.entry(name.clone()).or_insert(0) += 1;
                     to_remove.push(name);
-                } else if first == FN {
+                } else if first == FN || first == MACRO {
                     for param in elems[1].as_exprs()? {
                         let name = param.as_symbol()?;
                         *ignorable.entry(name.clone()).or_insert(0) += 1;
                         to_remove.push(name);
                     }
                 }
+                // TODO: should we ignore the bodies of an if?
             }
             for elem in elems {
                 copy_free_vars(elem, env, closure, ignorable)?
@@ -253,6 +285,9 @@ fn copy_free_vars(
             }
         }
         Expression::Function(func) => {
+            copy_free_vars_func(&func, env, closure, ignorable)?;
+        }
+        Expression::NonEvaluatingFunction(func) => {
             copy_free_vars_func(&func, env, closure, ignorable)?;
         }
     }
@@ -571,5 +606,15 @@ mod tests {
     fn test_eval() {
         let code = "(scope (def mal_prog (list + 1 2)) (eval mal_prog))";
         assert_eq!(interpret(&code), n(3));
+    }
+    #[test]
+    fn test_macro_if_not() {
+        let def_not = "(def not (fn (b) (if b false true)))";
+        let def_if_not = "(def if_not (macro (c a b) (if (not c) a b)))";
+        let code = format!(
+            "(scope {} {} (if_not false 5 (non_existing)))",
+            def_not, def_if_not
+        );
+        assert_eq!(interpret(&code), n(5));
     }
 }
