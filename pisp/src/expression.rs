@@ -73,6 +73,13 @@ impl Display for Expression {
             List(elements) => fmt_expressions(elements, f),
             Function(func) => {
                 write!(f, "(fn {} {})", func.parameters, func.body)
+                // write!(
+                //     f,
+                //     "<compiled>(fn {} {})<closure>{}",
+                //     func.parameters,
+                //     func.body,
+                //     closure_to_string(&func.closure)
+                // )
             }
         }
     }
@@ -95,6 +102,16 @@ pub fn exprs_to_string(exprs: &[Expression]) -> String {
     let mut buf = String::new();
     fmt_expressions(exprs, &mut buf).unwrap();
     buf
+}
+
+#[allow(unused)]
+fn closure_to_string(closure: &HashMap<String, Expression>) -> String {
+    let mut list = Vec::new();
+    for (key, expr) in closure {
+        let pair = vec![Expression::Symbol(key.clone()), expr.clone()];
+        list.push(Expression::List(pair));
+    }
+    Expression::List(list).to_string()
 }
 
 impl Debug for Expression {

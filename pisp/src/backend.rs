@@ -1,6 +1,6 @@
 use crate::expression::{exprs_to_string, Expression, Function, Operation, ResExpr};
 use pipes_rs::common::{err, AnyError};
-use pipes_rs::frontend::sources::token::Operator;
+use pipes_rs::frontend::sources::token::{Operator, EQUALS_ALT};
 use std::collections::{BTreeSet, HashMap};
 use std::iter::zip;
 
@@ -23,6 +23,7 @@ impl Environment {
         env.insert(Operator::Substract.to_string(), nat(substract as Operation));
         env.insert(Operator::Multiply.to_string(), nat(multiply as Operation));
         env.insert(Operator::Divide.to_string(), nat(divide as Operation));
+        env.insert(EQUALS_ALT.to_string(), nat(equals as Operation));
         env.insert(ENV.to_string(), nat(return_env as Operation));
         // native_operations.insert("*".to_string(), multiply as Operation);  // unsupported by the lexer
         // native_operations.insert("/".to_string(), divide as Operation);
@@ -111,6 +112,9 @@ impl Environment {
 
 fn apply_def(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if let [Expression::Symbol(name), value] = arguments {
+        // env.set(name.clone(), value.clone());
+        // let evaluated = env.eval(value)?;
+        // env.set(name.clone(), evaluated); // reserve name for recursive definitions to find themselves
         let evaluated = env.eval(value)?;
         Ok(env.set(name.clone(), evaluated))
     } else {
@@ -136,19 +140,22 @@ fn apply_if(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
             arguments.len(),
             exprs_to_string(arguments),
         ))
-    } else if let Expression::Bool(cond) = arguments[0] {
-        if cond {
-            env.eval(&arguments[1])
-        } else if arguments.len() == 3 {
-            env.eval(&arguments[2])
-        } else {
-            Ok(Expression::Nothing)
-        }
     } else {
-        err(format!(
-            "the first argument to 'if' must be bool, got {}",
-            arguments[0]
-        ))
+        let evaluated = env.eval(&arguments[0])?;
+        if let Expression::Bool(cond) = evaluated {
+            if cond {
+                env.eval(&arguments[1])
+            } else if arguments.len() == 3 {
+                env.eval(&arguments[2])
+            } else {
+                Ok(Expression::Nothing)
+            }
+        } else {
+            err(format!(
+                "the first argument to 'if' must be bool, got {}",
+                arguments[0]
+            ))
+        }
     }
 }
 fn apply_new_fn(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
@@ -184,7 +191,8 @@ fn apply_user_func(env: &mut Environment, function: Function, arguments: &[Expre
             env.new_env_from_closure(function.closure.clone());
             for (param, arg) in zip(params, arguments) {
                 if let Expression::Symbol(name) = param {
-                    env.set(name.clone(), arg.clone());
+                    let evaluated_arg = env.eval(arg)?;
+                    env.set(name.clone(), evaluated_arg);
                 } else {
                     return err(format!(
                         "to call a function all parameters must be symbols, got: {}",
@@ -293,7 +301,7 @@ fn copy_if_missing(
     }
 }
 
-fn return_env(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+pub fn return_env(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() != 0 {
         return err(format!("{} does not take any arguments", ENV));
     }
@@ -395,6 +403,26 @@ fn divide(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     }
 }
 
+fn equals(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    if arguments.len() < 2 {
+        err("Equality needs 2 or more arguments".to_string())
+    } else {
+        let mut test = Expression::Nothing;
+        let mut first = true;
+        for arg in arguments {
+            if first {
+                first = false;
+                test = arg.clone();
+            } else {
+                if *arg != test {
+                    return Ok(Expression::Bool(false));
+                }
+            }
+        }
+        Ok(Expression::Bool(true))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -488,6 +516,7 @@ mod tests {
         assert_incorrect("(if false 3 a)");
         assert_eq!(interpret("(if true 3)"), n(3));
         assert_eq!(interpret("(if false 3)"), Expression::Nothing);
+        assert_eq!(interpret("(if (== 1 0) 3 4)"), n(4));
     }
     #[test]
     fn test_function() {
@@ -505,5 +534,20 @@ mod tests {
     #[test]
     fn print_env() {
         interpret("(env)");
+    }
+    #[test]
+    #[ignore]
+    fn recursive() {
+        let fib =
+            "(def fib (fn (N) (if (== N 0) 1 (if (== N 1) 1 (+ (fib (- N 1)) (fib (- N 2)))))))";
+        let code = format!("(scope {} (fib 4))", fib);
+        assert_eq!(interpret(&code), n(5));
+    }
+    #[test]
+    fn almost_recursive() {
+        let fib =
+            "(def fib (fn (self N) (if (== N 0) 1 (if (== N 1) 1 (+ (self self (- N 1)) (self self (- N 2)))))))";
+        let code = format!("(scope {} (fib fib 4))", fib);
+        assert_eq!(interpret(&code), n(5));
     }
 }
