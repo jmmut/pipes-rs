@@ -70,21 +70,20 @@ impl Environment {
     fn apply(&mut self, function: &Expression, arguments: &[Expression]) -> ResExpr {
         let function = self.eval(function)?;
         if let Expression::NonEvaluatingOperation(native) = function {
-            self.apply_non_evaluating(native, arguments)
+            native(self, &arguments)
         } else if let Expression::NonEvaluatingFunction(function) = function {
-            apply_user_func_non_eval(self, function, arguments.to_vec())
-        } else if let Expression::NativeOperation(native) = function {
-            self.apply_native(native, arguments)
-        } else if let Expression::Function(function) = function {
-            apply_user_func(self, function, arguments)
+            let result = apply_user_func_non_eval(self, function, arguments.to_vec())?;
+            self.eval(&result)
         } else {
-            err(format!("unsupported operation: {}", function))
+            let evaluated_args = self.eval_several(arguments)?;
+            if let Expression::NativeOperation(native) = function {
+                native(self, &evaluated_args)
+            } else if let Expression::Function(function) = function {
+                apply_user_func_non_eval(self, function, evaluated_args)
+            } else {
+                err(format!("unsupported operation: {}", function))
+            }
         }
-    }
-
-    fn apply_native(&mut self, native: Operation, arguments: &[Expression]) -> ResExpr {
-        let evaluated_args = self.eval_several(arguments)?;
-        native(self, &evaluated_args)
     }
 
     fn eval_several(&mut self, arguments: &[Expression]) -> Result<Vec<Expression>, AnyError> {
@@ -95,9 +94,6 @@ impl Environment {
         Ok(evaluated_args)
     }
 
-    fn apply_non_evaluating(&mut self, native: Operation, arguments: &[Expression]) -> ResExpr {
-        native(self, &arguments)
-    }
     fn get(&self, symbol: &str) -> Option<Expression> {
         for scope in self.scopes.iter().rev() {
             if let Some(symbol) = scope.get(symbol) {
@@ -206,13 +202,6 @@ fn new_fn(
         let expr = ctor(function);
         Ok(expr)
     }
-}
-fn apply_user_func(env: &mut Environment, function: Function, arguments: &[Expression]) -> ResExpr {
-    let mut evaluated_args = Vec::new();
-    for arg in arguments {
-        evaluated_args.push(env.eval(arg)?);
-    }
-    apply_user_func_non_eval(env, function, evaluated_args)
 }
 
 fn apply_user_func_non_eval(
@@ -612,7 +601,7 @@ mod tests {
         let def_not = "(def not (fn (b) (if b false true)))";
         let def_if_not = "(def if_not (macro (c a b) (if (not c) a b)))";
         let code = format!(
-            "(scope {} {} (if_not false 5 (non_existing)))",
+            "(scope {} {} (if_not false (+ 2 3) (non_existing)))",
             def_not, def_if_not
         );
         assert_eq!(interpret(&code), n(5));
