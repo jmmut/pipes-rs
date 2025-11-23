@@ -9,6 +9,8 @@ const DEF: &str = "def";
 const SCOPE: &str = "scope";
 const IF: &str = "if";
 const FN: &str = "fn";
+const EVAL: &str = "eval";
+const LIST: &str = "list";
 
 pub struct Environment {
     scopes: Vec<HashMap<String, Expression>>,
@@ -25,8 +27,11 @@ impl Environment {
         env.insert(Operator::Divide.to_string(), nat(divide as Operation));
         env.insert(EQUALS_ALT.to_string(), nat(equals as Operation));
         env.insert(ENV.to_string(), nat(return_env as Operation));
+        env.insert(EVAL.to_string(), nat(apply_eval as Operation));
+        env.insert(LIST.to_string(), nat(apply_list as Operation));
         // native_operations.insert("*".to_string(), multiply as Operation);  // unsupported by the lexer
         // native_operations.insert("/".to_string(), divide as Operation);
+
         env.insert(DEF.to_string(), non_eval(apply_def as Operation));
         env.insert(SCOPE.to_string(), non_eval(apply_scope as Operation));
         env.insert(IF.to_string(), non_eval(apply_if as Operation));
@@ -320,6 +325,18 @@ pub fn return_env(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     Ok(Expression::List(list))
 }
 
+pub fn apply_eval(env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    let mut result = Expression::Nothing;
+    for arg in arguments {
+        result = env.eval(arg)?;
+    }
+    Ok(result)
+}
+
+pub fn apply_list(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
+    Ok(Expression::List(arguments.to_vec()))
+}
+
 fn add(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
     if arguments.len() == 0 {
         err("Addition needs 1 or more arguments".to_string())
@@ -549,5 +566,10 @@ mod tests {
             "(def fib (fn (self N) (if (== N 0) 1 (if (== N 1) 1 (+ (self self (- N 1)) (self self (- N 2)))))))";
         let code = format!("(scope {} (fib fib 4))", fib);
         assert_eq!(interpret(&code), n(5));
+    }
+    #[test]
+    fn test_eval() {
+        let code = "(scope (def mal_prog (list + 1 2)) (eval mal_prog))";
+        assert_eq!(interpret(&code), n(3));
     }
 }
