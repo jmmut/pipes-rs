@@ -64,7 +64,11 @@ impl Environment {
     }
 
     fn apply_list(&mut self, list: &Vec<Expression>) -> ResExpr {
-        self.apply(&list[0], &list[1..])
+        if list.len() == 0 {
+            Ok(Expression::List(list.clone()))
+        } else {
+            self.apply(&list[0], &list[1..])
+        }
     }
 
     fn apply(&mut self, function: &Expression, arguments: &[Expression]) -> ResExpr {
@@ -468,7 +472,7 @@ fn equals(_env: &mut Environment, arguments: &[Expression]) -> ResExpr {
 mod tests {
     use super::*;
     use crate::frontend::frontend;
-    use crate::frontend::tests::n;
+    use crate::frontend::tests::{l, n};
     use pipes_rs::common::unwrap_display;
 
     fn eval(expression: &Expression) -> ResExpr {
@@ -529,6 +533,10 @@ mod tests {
     #[test]
     fn nested_eval() {
         assert_eq!(interpret("(+ 1 (+ 2 3) 4)"), n(10));
+    }
+    #[test]
+    fn empty_list() {
+        assert_eq!(interpret("()"), l(vec![]));
     }
 
     #[test]
