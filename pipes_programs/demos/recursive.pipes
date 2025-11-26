@@ -1,0 +1,64 @@
+
+;30
+=N
+
+// recursive functions are not directly supported, but pipes support just enough self-references so
+// that you can do this trick of passing the fib function to itself
+;function (n self) {
+    n ==0 |branch {
+        1
+    } {
+        n ==1 | branch {
+            1
+        } {
+            n -1 |self self
+            +{n -2 |self self}
+        }
+    }
+}
+=fib_non_rec
+
+//;N |fib_non_rec fib_non_rec |to_str |print
+
+;function (n) {
+    |fib_non_rec fib_non_rec
+}
+=fib
+;N |fib |to_str |print
+//
+//
+//// the above trick is an inlined version of using the Y combinator, which uses constant memory.
+//// the version below uses the Y combinator explicitly but is much slower and the memory used depends on N
+//;function (f) {
+//    function(recur) {
+//        function (x) {
+//            x |{recur |recur}
+//        }
+//        |f
+//    }
+//    |function (g) {g |g}
+//}
+//=Y
+//
+//;function(recur) {
+//    function(n) {
+//        n ==0 |branch {
+//            1
+//        } {
+//            n ==1 | branch {
+//                1
+//            } {
+//                n -1 |recur
+//                +{n -2 |recur}
+//            }
+//        }
+//    }
+//}
+//=fib_closure
+//
+//;fib_closure |Y
+//=fib_Y
+//
+//;N |fib_Y |to_str |print
+
+;
