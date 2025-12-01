@@ -1,0 +1,6 @@
+
+;0|read_lines
+|map(line) {
+    |i64/parse_or 0
+}
+|array_i64/sum
