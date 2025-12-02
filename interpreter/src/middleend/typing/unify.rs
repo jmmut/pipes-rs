@@ -12,6 +12,8 @@ use crate::middleend::intrinsics::BuiltinType;
 /// This is similar to "second" being an interface that "first" implements. In other words,
 /// if this function returns some type, you can pass a "first" to a function taking a "second"
 /// and it will behave as expected.
+/// TODO: this "interface" idea doesn't seem to hold based on tests like :i64 doesn't unify with :or(:i64 :nothing)
+/// TODO: consider splitting :any into :any (interface of all types) and :unknown (unifyable with everything)
 pub fn unify(first: &Type, second: &Type) -> Option<Type> {
     let first_name = first.name();
     let second_name = second.name();

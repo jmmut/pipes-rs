@@ -1,0 +1,188 @@
+
+//operands are list(expression), can't express recursive types yet
+;public tuple(operator :list(:i64)  operands :list(:any))
+=operation
+
+;public tuple(
+    num :or(:i64 :nothing)
+    name :or(:list(:i64) :nothing)
+    operatn :or(:macros2/operation :nothing )
+)
+=expression
+
+
+;public function(n) (:expression) {
+    [n none none]
+    |cast(:any)
+}
+=num
+
+;public function(name) (:expression) {
+    [none name none]
+    |cast(:any)
+}
+=name
+
+
+;public function(x :expression) {
+    x .name
+    |something(name) {1} {0}
+}
+=is_identifier
+
+;public is_identifier
+=is_variable
+
+;public function(v1 :expression  v2 :expression) {
+    [
+        {v1 |is_variable}
+        {v2 |is_variable}
+        {
+            v1 .name |something(v1) {
+                v2 .name |something (v2) {
+                    v1 |str/eq v2
+                } {0}
+            } {0}
+        }
+    ]
+    |core/and
+}
+=is_same_variable
+
+;public function(x :expression) {
+    .operatn
+    |something(e) {
+        |cast(:macros2/operation)
+        .operator
+        |str/eq "+" |branch {1} {0}
+    } {0}
+}
+=is_sum
+
+;public function(x :expression) {
+    x .num
+    |something(num) {1} {0}
+}
+=is_number
+
+
+;public function(x :expression) {
+    .operatn
+    |something(e) {
+        |cast(:macros2/operation)
+        .operands #0 |cast(:expression)
+    } {none}
+}
+=addend
+
+;public function(x :expression) {
+    .operatn
+    |something(e) {
+        |cast(:macros2/operation)
+        .operands #1 |cast(:expression)
+    } {none}
+}
+=augend
+
+;public function(addends :list(:macros2/expression)) (:expression) {
+    [none none {
+        [ { "+" } { addends } ]
+        |cast(:macros2/operation)
+    }]
+    :tuple(:nothing :nothing :macros2/operation)
+    |cast(:any)
+}
+=make_sum
+
+
+
+
+
+;public function(exp :expression self var :expression)(:expression) {
+    |is_number
+    |branch {0 |num} {
+        exp |is_variable
+        |branch {
+            exp |is_same_variable var
+            |branch {1} {0}
+            |num
+        } {
+            exp |is_sum
+            |branch {
+                [
+                    {exp |addend |self self var}
+                    {exp |augend |self self var}
+                ]
+                |make_sum
+            } {
+                "unknown expr type" |print
+                ;0 |num
+            }
+        }
+    }
+}
+=deriv_partial
+
+;public function(exp :expression  var :expression) {
+    exp |deriv_partial deriv_partial var
+}
+=deriv
+
+;public function(expr :expression  self) {
+    |is_number
+    |branch {
+        expr .num |something(e) {|to_str} {"error"}
+    } {
+        expr |is_variable
+        |branch {
+            expr .name |something(e) {} {"error"}
+        } {
+            expr |is_sum
+            |branch {
+                expr .operatn |something(op) {
+                    ;"("
+                    ++{op .operator}
+                    " " {op .operands #0 |self self}
+                    " " {op .operands #1 |self self}
+                    ")"
+                } { "error" }
+            } { "error" }
+        }
+    }
+}
+=expr_to_str_partial
+
+;public function(expr :expression) {
+    |expr_to_str_partial expr_to_str_partial
+}
+=expr_to_str
+
+;[
+    {5 |num |is_number |assert/eq 1}
+    {5 |num |is_variable |assert/eq 0}
+    {"some name" |name |is_variable |assert/eq 1}
+    {"some name" |name |is_number |assert/eq 0}
+    {[{2 |num} {3 |num}] |make_sum |is_sum |assert/eq 1}
+    {
+        [{2 |num} {3 |num}] |make_sum
+        |addend
+        |something(n) {|cast(:expression) .num |assert/eq 2} {0 |assert/eq 1}
+    } {
+        [{2 |num} {3 |num}] |make_sum
+        |augend
+        |something(n) {|cast(:expression) .num |assert/eq 3} {0 |assert/eq 1}
+    }
+    {
+        [{"x" |name} {3 |num}] |make_sum
+        |expr_to_str
+        |assert/str_eq "(+ x 3)"
+    }
+    {
+        [{"x" |name} {3 |num}] |make_sum
+        |deriv {"x" |name}
+        |expr_to_str
+        |assert/str_eq "(+ 1 0)"
+    }
+] |test/count_named "macros"
+
+;

@@ -31,7 +31,7 @@
 }
 =vector3d
 
-;"z: " ++{{} |vector3d .z |to_str} |print
+;"z: " ++{|vector3d .z |to_str} |print
 
 
 // a function can take anonymous structs

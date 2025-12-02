@@ -13,7 +13,8 @@
     |branch {
         ANSI_BOLD_BRIGHT_GREEN ++"All " total " tests passed" name_paren
     } {
-        ANSI_BOLD_BRIGHT_RED ++{failed |to_str} "/" total " test(s) failed" name_paren
+        ;tests |array/find_indexes 0 =indexes
+        ;ANSI_BOLD_BRIGHT_RED ++{failed |to_str} "/" total " test(s) failed" name_paren ". Failed test indexes: "{indexes |array_i64/to_str}
     }
     ++ANSI_CLEAR
     |print

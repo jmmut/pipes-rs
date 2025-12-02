@@ -67,6 +67,26 @@
 }] |test/count_named "find"
 
 
+;public function(list :list  to_find)(:list(index :i64)) {
+    ;{0 -1} =i
+    ;list |map(e) {
+        ;i +1 => i
+        ;[i e]
+    }
+    |filter(pair) {
+        pair #1 ==to_find
+    }
+    |map(pair) {
+        #0
+    }
+}
+=find_indexes
+
+;[{
+    [ 2 3 4 3 4 5 4 6] |find_indexes 4 |assert/array_eq [2 4 6]
+}] |test/count_named "find_indexes"
+
+
 
 ;public function (index_and_value) {
     function(list) {
@@ -191,14 +211,19 @@
 }
 =eq
 
-;"asdf"
-|eq "asdf"
-|assert/eq 1
-
-;"asdf"
-|eq "qwer"
-|assert/eq 0
-
+;[{
+    ;[1 2 3]
+    |eq [1 2 3]
+    |assert/eq 1
+}{
+    ;[1 2 3]
+    |eq [1 5 3]
+    |assert/eq 0
+}{
+    ;[1 2 3]
+    |eq [1 2]
+    |assert/eq 0
+}] |test/count_named "array/eq"
 
 ;public function(nested :list(:list)) {
     ;[] =accum

@@ -32,9 +32,11 @@
     ;start_trimmed |array/subrange [0 end]
 }
 =trim
-;"   as df   "
-|trim
-|assert/array_eq "as df"
+;[{
+    ;"   as df   "
+    |trim
+    |assert/array_eq "as df"
+}] |test/count_named "str/trim"
 
 
 ;public function(list :list) {
@@ -47,5 +49,16 @@
     }
 }
 =quote
-;"asdf" |quote |assert/array_eq "\"asdf\""
+;[{"asdf" |quote |assert/array_eq "\"asdf\""}]
+|test/count_named "quote"
+
+
+;public array/eq
+=eq
+;[
+    {"asdf" |eq "asdf" |assert/eq 1}
+    {"qwer" |eq "asdf" |assert/eq 0}
+]
+|test/count_named "eq"
+
 ;

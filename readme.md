@@ -49,7 +49,7 @@ Typechecking:
 Metaprogramming:
 - [ ] type parameters (aka generics or templates)
 - [/] eval (execute strings that contain code)
-- [ ] hygienic macros
+- [/] hygienic macros
 
 Tooling
 - [x] web playground (https://jmmut.itch.io/pipes)
@@ -119,6 +119,14 @@ With these operations:
 
 - [ ] be able to print call stacks in pipes code
 - [ ] const
+
+### Bugs
+
+- [ ] type unification seems incomplete when dealing with `|something` and `:or(:any :nothing)`.
+- [ ] some type info seems lost around struct names in `|something(e: some_struct)`.
+- [ ] struct constructors as `|cast(:any)` breaks type safety in ways that create bugs
+- [ ] the debugger can't access function parameters, or `|something(x)` params.
+- [ ] Bug: attempted to print source code 'macros2.pipes' but we didn't store it. Assuming it's the main source file.
 
 ### Simplified Grammar
 
