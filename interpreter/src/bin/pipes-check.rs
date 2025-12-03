@@ -40,7 +40,12 @@ struct Args {
 fn main() {
     let args = Args::parse();
     loop {
-        if let Err(e) = interpret(&args, std::io::stdin(), std::io::stdout()) {
+        if let Err(e) = interpret(
+            &args,
+            std::io::stdin(),
+            std::io::stdout(),
+            std::io::stderr(),
+        ) {
             clear_terminal(args.no_clear);
             println!("Error: {}", e);
         }
@@ -48,7 +53,12 @@ fn main() {
     }
 }
 
-fn interpret<R: Read, W: Write>(args: &Args, read_src: R, print_dst: W) -> Result<(), AnyError> {
+fn interpret<R: Read, W: Write, W2: Write>(
+    args: &Args,
+    read_src: R,
+    print_dst: W,
+    print_err: W2,
+) -> Result<(), AnyError> {
     let Args {
         input_file,
         evaluate_string,
@@ -65,7 +75,7 @@ fn interpret<R: Read, W: Write>(args: &Args, read_src: R, print_dst: W) -> Resul
     put_types(&mut program)?;
 
     if !check {
-        let result = Runtime::evaluate(program, read_src, print_dst)?;
+        let result = Runtime::evaluate(program, read_src, print_dst, print_err)?;
         clear_terminal(*no_clear);
         if result != NOTHING {
             println!("{}", result);

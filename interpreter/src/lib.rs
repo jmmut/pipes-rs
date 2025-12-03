@@ -28,8 +28,9 @@ fn interpret_in_web_fallible(code: &str) -> Result<(GenericValue, String), AnyEr
     put_types(&mut program)?;
 
     let mut print_output = Vec::<u8>::new();
+    let mut print_err = Vec::<u8>::new();
     let read_input: &[u8] = &[];
-    let result = Runtime::evaluate(program, read_input, &mut print_output)?;
+    let result = Runtime::evaluate(program, read_input, &mut print_output, &mut print_err)?;
     Ok((result, String::from_utf8(print_output)?))
 }
 

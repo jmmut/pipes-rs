@@ -18,6 +18,7 @@ struct Args {
     input_file: Option<PathBuf>,
 
     /// Optional initial value that the script will receive
+    #[arg(short, long)]
     initial_value: Option<i64>,
 
     /// Inline pipes code to be interpreted. Either this or the input file must be provided
@@ -38,12 +39,22 @@ struct Args {
 }
 
 fn main() {
-    if let Err(e) = interpret(Args::parse(), std::io::stdin(), std::io::stdout()) {
+    if let Err(e) = interpret(
+        Args::parse(),
+        std::io::stdin(),
+        std::io::stdout(),
+        std::io::stderr(),
+    ) {
         println!("Error: {}", e);
     }
 }
 
-fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result<(), AnyError> {
+fn interpret<R: Read, W: Write, W2: Write>(
+    args: Args,
+    read_src: R,
+    print_dst: W,
+    print_err: W2,
+) -> Result<(), AnyError> {
     reset_sigpipe();
     let Args {
         evaluate_string,
@@ -69,7 +80,8 @@ fn interpret<R: Read, W: Write>(args: Args, read_src: R, print_dst: W) -> Result
     }
 
     if !check {
-        let result = Runtime::evaluate_with_initial(program, initial_value, read_src, print_dst)?;
+        let result =
+            Runtime::evaluate_with_initial(program, initial_value, read_src, print_dst, print_err)?;
         if result != NOTHING {
             println!("{}", result);
         }
@@ -101,6 +113,7 @@ mod tests {
     #[test]
     fn test_read_file() {
         let mut print_dst = Vec::<u8>::new();
+        let mut print_err = Vec::<u8>::new();
         let args = Args {
             evaluate_string: None,
             check: false,
@@ -109,7 +122,12 @@ mod tests {
             debug_ast: false,
             prettify: false,
         };
-        unwrap_display(interpret(args, std::io::stdin(), &mut print_dst));
+        unwrap_display(interpret(
+            args,
+            std::io::stdin(),
+            &mut print_dst,
+            &mut print_err,
+        ));
         assert_eq!(
             String::from_utf8(print_dst).unwrap().as_str(),
             "Hello World!\n"

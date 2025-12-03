@@ -10,13 +10,19 @@ use crate::frontend::sources::location::Span;
 use crate::frontend::sources::token::{Keyword, Operator};
 use crate::frontend::sources::Sources;
 use crate::middleend::intrinsics::builtin_types;
-use std::io::{stdin, stdout, Stdin, Stdout};
+use std::io::{stderr, stdin, stdout, Stderr, Stdin, Stdout};
 
 pub fn rewrite(program: Program) -> Result<Program, AnyError> {
     let (main, identifiers, sources) = program.take();
     let runtime = context(
         "Comptime evaluation setup",
-        Runtime::new(stdin(), stdout(), identifiers.clone(), sources.clone()),
+        Runtime::new(
+            stdin(),
+            stdout(),
+            stderr(),
+            identifiers.clone(),
+            sources.clone(),
+        ),
     )?;
     let rewriter = Rewriter {
         runtime,
@@ -27,7 +33,7 @@ pub fn rewrite(program: Program) -> Result<Program, AnyError> {
 }
 
 struct Rewriter {
-    runtime: Runtime<Stdin, Stdout>,
+    runtime: Runtime<Stdin, Stdout, Stderr>,
     pub identifiers: Identifiers,
     pub sources: Sources,
 }

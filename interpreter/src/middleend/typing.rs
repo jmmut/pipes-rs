@@ -1590,7 +1590,8 @@ mod tests {
         assert_ok(put_types(&mut main));
         let read_input: &[u8] = &[];
         let print_output = Vec::<u8>::new();
-        let result = Runtime::evaluate(main, read_input, print_output);
+        let print_err = Vec::<u8>::new();
+        let result = Runtime::evaluate(main, read_input, print_output, print_err);
         assert_eq!(result.unwrap(), 5);
 
         let mut main = lex_and_parse_with_identifiers("increment", lib).unwrap();

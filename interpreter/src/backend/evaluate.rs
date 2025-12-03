@@ -69,14 +69,14 @@ impl Closure {
     }
 }
 
-impl<R: Read, W: Write> Runtime<R, W> {
+impl<R: Read, W: Write, W2: Write> Runtime<R, W, W2> {
     /// Executes a given program with a given standard input and output.
     ///
     /// To use the regular stdin and stdout of the interpreter process, use:
     /// ```no_run
     /// use pipes_rs::{backend::Runtime, frontend::{program::Program, lex_and_parse}};
     /// let program = lex_and_parse(r#""Hello World!" |print"#).unwrap();
-    /// Runtime::evaluate(program, std::io::stdin(), std::io::stdout()).unwrap();
+    /// Runtime::evaluate(program, std::io::stdin(), std::io::stdout(), std::io::stderr()).unwrap();
     /// ```
     /// To use in-memory buffers (useful for providing input or capturing output in tests),
     /// you can do this, because `&[u8]` implements Read and `&mut Vec<u8>` implements Write:
@@ -85,7 +85,8 @@ impl<R: Read, W: Write> Runtime<R, W> {
     /// let expression = lex_and_parse("'5' |print_char ;0 |read_char").unwrap();
     /// let input = "7".as_bytes();
     /// let mut out = Vec::<u8>::new();
-    /// let result = Runtime::evaluate(expression, input, &mut out);
+    /// let mut err = Vec::<u8>::new();
+    /// let result = Runtime::evaluate(expression, input, &mut out, &mut err);
     /// assert_eq!(result.unwrap() as u8, '7' as u8);
     /// assert_eq!(out, "5".as_bytes());
     /// ```
@@ -93,9 +94,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
         program: Program,
         read_input: R,
         print_output: W,
+        print_err: W2,
     ) -> Result<GenericValue, AnyError> {
         let (main, identifiers, sources) = program.take();
-        let mut runtime = Self::new(read_input, print_output, identifiers, sources)?;
+        let mut runtime = Self::new(read_input, print_output, print_err, identifiers, sources)?;
         context("Runtime", runtime.evaluate_recursive(&main))
     }
     pub fn evaluate_with_initial(
@@ -103,9 +105,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
         initial_value: Option<i64>,
         read_input: R,
         print_output: W,
+        print_err: W2,
     ) -> Result<GenericValue, AnyError> {
         let (main, identifiers, sources) = program.take();
-        let mut runtime = Self::new(read_input, print_output, identifiers, sources)?;
+        let mut runtime = Self::new(read_input, print_output, print_err, identifiers, sources)?;
         let (initial, _type) = if let Some(initial) = initial_value {
             (initial, &builtin_types::I64)
         } else {
@@ -120,9 +123,10 @@ impl<R: Read, W: Write> Runtime<R, W> {
     pub fn new(
         read_input: R,
         print_output: W,
+        print_err: W2,
         identifiers: HashMap<String, ExpressionSpan>,
         sources: Sources,
-    ) -> Result<Runtime<R, W>, AnyError> {
+    ) -> Result<Runtime<R, W, W2>, AnyError> {
         let (static_identifiers, functions) = Self::build_intrinsics();
         let mut runtime = Runtime {
             lists: HashMap::new(),
@@ -133,6 +137,7 @@ impl<R: Read, W: Write> Runtime<R, W> {
             static_identifiers,
             read_input: Some(read_input),
             print_output: Some(print_output),
+            print_err: Some(print_err),
             _sources: sources,
             extra_inputs: HashMap::new(),
         };
@@ -998,7 +1003,7 @@ impl<'a> TypeView for RuntimeTypeView<'a> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::path::PathBuf;
 
     use crate::backend::evaluate::*;
@@ -1018,17 +1023,31 @@ mod tests {
         //     println!("{:#?}", ident);
         // }
         // println!("{:#?}", program.main);
-        let result = Runtime::evaluate(program, std::io::stdin(), std::io::stdout());
+        let result = Runtime::evaluate(
+            program,
+            std::io::stdin(),
+            std::io::stdout(),
+            std::io::stderr(),
+        );
         unwrap_display(result)
     }
     fn interpret_fallible(code_text: &str) -> Result<GenericValue, AnyError> {
         let expression = lex_and_parse(code_text)?;
-        let result = Runtime::evaluate(expression, std::io::stdin(), std::io::stdout());
+        let result = Runtime::evaluate(
+            expression,
+            std::io::stdin(),
+            std::io::stdout(),
+            std::io::stderr(),
+        );
         result
     }
-    fn interpret_io<S: Into<SourceCode>>(code_text: S, read_input: &str) -> (GenericValue, String) {
+    pub fn interpret_io<S: Into<SourceCode>>(
+        code_text: S,
+        read_input: &str,
+    ) -> (GenericValue, String, String) {
         let read_input = read_input.bytes().collect::<Vec<u8>>();
         let mut print_output = Vec::<u8>::new();
+        let mut print_err = Vec::<u8>::new();
         let code = code_text.into();
         // println!("before lex/parse: {}", code.text);
         let program = unwrap_display(lex_and_parse(code));
@@ -1037,10 +1056,16 @@ mod tests {
         // println!("after rewrite: {}", program.main);
         unwrap_display(put_types(&mut program));
         // println!("after typing: {}", program.main);
-        let result = Runtime::evaluate(program, read_input.as_slice(), &mut print_output);
+        let result = Runtime::evaluate(
+            program,
+            read_input.as_slice(),
+            &mut print_output,
+            &mut print_err,
+        );
         (
             unwrap_display(result),
             String::from_utf8(print_output).unwrap(),
+            String::from_utf8(print_err).unwrap(),
         )
     }
 
@@ -1185,13 +1210,13 @@ mod tests {
     }
     #[test]
     fn test_intrinsics() {
-        let (result, print_output) = interpret_io("'5' |print_char; 0|read_char", &"72");
+        let (result, print_output, _) = interpret_io("'5' |print_char; 0|read_char", &"72");
         assert_eq!(result, '7' as u8 as GenericValue);
         assert_eq!(print_output, "5");
     }
     #[test]
     fn test_read_lines() {
-        let (result, print_output) = interpret_io(
+        let (result, print_output, _) = interpret_io(
             "0 |read_lines |function(lines) {lines #1 |print |size |to_str |print;lines |size}",
             &"asdf\nqwer\nzxcv\n",
         );
@@ -1211,7 +1236,7 @@ mod tests {
     #[test]
     fn test_pass_intrinsics() {
         let code = " print_char |function(f) { 5 +48 |f }";
-        let (result, print_output) = interpret_io(code, "");
+        let (result, print_output, _) = interpret_io(code, "");
         assert_eq!(result, 53);
         assert_eq!(print_output, "5");
     }
@@ -1226,7 +1251,7 @@ mod tests {
             }
             |print_char     // print 54: '6'
             ";
-        let (result, print_output) = interpret_io(code, "");
+        let (result, print_output, _) = interpret_io(code, "");
         assert_eq!(result, 54);
         assert_eq!(print_output, "6");
     }
@@ -1250,12 +1275,12 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let (_result, print_output) = interpret_io("{}|loop {\" \"|print}", "");
+        let (_result, print_output, _) = interpret_io("{}|loop {\" \"|print}", "");
         assert_eq!(print_output, " \n")
     }
     #[test]
     fn test_loop_3_times() {
-        let (result, print_output) = interpret_io(
+        let (result, print_output, _) = interpret_io(
             "0 =i;{}|loop {i +1 =>i |`core/inspect (x) {|to_str |print} =? 3 |branch {i}{}} :i64",
             "",
         );
@@ -1264,17 +1289,19 @@ mod tests {
     }
     #[test]
     fn test_browse() {
-        let (result, print_output) = interpret_io("[10 11] |browse(n :i64) {n|to_str |print;}", "");
+        let (result, print_output, _) =
+            interpret_io("[10 11] |browse(n :i64) {n|to_str |print;}", "");
         assert_eq!(result, NOTHING);
         assert_eq!(print_output, "10\n11\n");
-        let (result, print_output) = interpret_io("[10 11] |browse(n :i64) {|to_str |print;}", "");
+        let (result, print_output, _) =
+            interpret_io("[10 11] |browse(n :i64) {|to_str |print;}", "");
         assert_eq!(result, NOTHING);
         assert_eq!(print_output, "10\n11\n");
     }
 
     #[test]
     fn test_browse_broken() {
-        let (result, print_output) =
+        let (result, print_output, _) =
             interpret_io("[10 11] |browse(n :i64) {n |to_str |print; 5}", "");
         assert_eq!(result, 5);
         assert_eq!(print_output, "10\n")
@@ -1433,21 +1460,30 @@ mod tests {
         // using abs to check imports. this fails because all imports need to happen before rewriting
         let code = ";0 -3 |`m_inspect (n) {n +1 |i64/abs |to_str |print}";
         let full_code = format!("{}{}", INSPECT, code);
-        assert_eq!(interpret_io(full_code, ""), (-3, "2\n".to_string()));
+        assert_eq!(
+            interpret_io(full_code, ""),
+            (-3, "2\n".to_string(), "".to_string())
+        );
     }
     #[test]
     fn test_inspect_inner_shadow() {
         // using a parameter t from the macro inside the body should put the number, not put the types
         let code = ";3 |`m_inspect (t) {t +1 |to_str |print}";
         let full_code = format!("{}{}", INSPECT, code);
-        assert_eq!(interpret_io(full_code, ""), (3, "4\n".to_string()));
+        assert_eq!(
+            interpret_io(full_code, ""),
+            (3, "4\n".to_string(), "".to_string())
+        );
     }
     #[test]
     fn test_inspect_hygienic() {
         // using a variable from the macro with a collision outside should use the outside value
         let code = ";4 =input ;10 |`m_inspect (x) {input |to_str |print}";
         let full_code = format!("{}{}", INSPECT, code);
-        assert_eq!(interpret_io(full_code, ""), (10, "4\n".to_string()));
+        assert_eq!(
+            interpret_io(full_code, ""),
+            (10, "4\n".to_string(), "".to_string())
+        );
     }
 
     const INSPECT_ASSIGN: &str =
@@ -1457,7 +1493,10 @@ mod tests {
         // using a variable from the macro with a collision outside should use the outside value
         let code = ";4 =input ;10 |`m_inspect (x) {input |to_str |print}";
         let full_code = format!("{}{}", INSPECT_ASSIGN, code);
-        assert_eq!(interpret_io(full_code, ""), (10, "4\n".to_string()));
+        assert_eq!(
+            interpret_io(full_code, ""),
+            (10, "4\n".to_string(), "".to_string())
+        );
     }
 
     const INSPECT_FUNCTION: &str = ";function(input f) {|f ;input} =m_inspect_2";
@@ -1466,7 +1505,10 @@ mod tests {
         // using a function instead of a macro to compare. A macro should be more convenient.
         let code = ";3 |m_inspect_2 function (n) {n+1 |to_str |print}";
         let full_code = format!("{}{}", INSPECT_FUNCTION, code);
-        assert_eq!(interpret_io(full_code, ""), (3, "4\n".to_string()));
+        assert_eq!(
+            interpret_io(full_code, ""),
+            (3, "4\n".to_string(), "".to_string())
+        );
     }
     // function x {x}
     // fn {}
@@ -1517,7 +1559,7 @@ mod tests {
     fn test_eval_identifiers() {
         let main_path = PathBuf::from("../pipes_programs/demos/structs.pipes");
         let code = SourceCode::new(main_path).unwrap();
-        let (result, out) = interpret_io(code, "");
+        let (result, out, _) = interpret_io(code, "");
         assert_eq!(result, 5);
         assert_eq!(out, "x: 5\ny: 5\nz: 3\na: 8\n6\n126\n");
     }
