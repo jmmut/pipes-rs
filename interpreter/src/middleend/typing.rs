@@ -1470,7 +1470,7 @@ mod tests {
     fn test_or_function() {
         assert_type_eq(
             "function {0|branch {} {0}}",
-            "function()(:or(:nothing :i64))",
+            "function()(:or(:i64  :nothing))",
         );
     }
 
@@ -1663,8 +1663,8 @@ mod tests {
     fn test_branch() {
         assert_type_eq("1 |branch {1} {0}", "i64");
         assert_type_eq("1 |branch {[]} {0}", "or(:array(:any) :i64)");
-        assert_type_eq("1 |branch {[0]} {0}", "or(:tuple(:i64) :i64)");
-        assert_type_eq("1 |branch {} {0}", "or(:nothing :i64)");
+        assert_type_eq("1 |branch {[0]} {0}", "or(:i64 :tuple(:i64) )");
+        assert_type_eq("1 |branch {} {0}", "or(:i64 :nothing)");
     }
 
     #[test]

@@ -108,36 +108,27 @@ fn sort_typed_identifiers(typed_identifiers: &mut TypedIdentifiers) {
 }
 
 pub fn join_or(first: &Type, second: &Type) -> Type {
-    let (or_children, other) = if first.name() == BuiltinType::Or.name() {
-        if let Type::Nested { children, .. } = first {
-            (children, second)
-        } else {
-            panic!("Found a :or without inner types. Not sure if this should be allowed");
-        }
-    } else if second.name() == BuiltinType::Or.name() {
-        if let Type::Nested { children, .. } = second {
-            (children, first)
+    let mut set = HashSet::new();
+    insert_simple_or_children_of_or(first, &mut set);
+    insert_simple_or_children_of_or(second, &mut set);
+
+    let mut sorted = set.into_iter().collect();
+    sort_typed_identifiers(&mut sorted);
+    Type::from(BuiltinType::Or.name(), sorted)
+}
+
+fn insert_simple_or_children_of_or(type_: &Type, set: &mut HashSet<TypedIdentifier>) {
+    if type_.name() == BuiltinType::Or.name() {
+        if let Type::Nested { children, .. } = type_ {
+            for child in children {
+                set.insert(child.clone());
+            }
         } else {
             panic!("Found a :or without inner types. Not sure if this should be allowed");
         }
     } else {
-        return Type::from_nameless(BuiltinType::Or.name(), vec![first.clone(), second.clone()]);
-    };
-    // let mut sorted = or_children.clone();
-    // sorted.push(TypedIdentifier::nameless(other.clone()));
-    // sort_typed_identifiers(&mut sorted);
-    // for i in 1..sorted.len() {
-    //
-    // }
-
-    let mut set = HashSet::new();
-    set.insert(TypedIdentifier::nameless(other.clone()));
-    for child in or_children {
-        set.insert(child.clone());
+        set.insert(TypedIdentifier::nameless(type_.clone()));
     }
-    let mut sorted = set.into_iter().collect();
-    sort_typed_identifiers(&mut sorted);
-    Type::from(BuiltinType::Or.name(), sorted)
 }
 
 pub fn is_something_or_nothing(type_: &Type) -> Option<TypedIdentifier> {
@@ -491,5 +482,12 @@ mod tests {
         assert_eq!(joined_nested.to_string(), joined.to_string());
         let joined_nested = join_or(&joined, &parse_type("i64"));
         assert_eq!(joined_nested.to_string(), joined.to_string());
+
+        let other_joined = join_or(&parse_type("function"), &parse_type("nothing"));
+        let joined_nested = join_or(&joined, &other_joined);
+        assert_eq!(
+            joined_nested.to_string(),
+            "or(:function()(:any)  :i64  :nothing)"
+        );
     }
 }
