@@ -17,9 +17,22 @@
     ;0 =result
     ;array
     |browse(x) {
-        +result => result
+        +result =>result
         ;
     }
     ;result
 }
 =sum
+
+// end is inclusive
+;public function (nums :tuple(start :i64  end_inc :i64)) (:list(:i64)) {
+    ;0 -1 =i
+    ;nums .end_inc -{nums .start} +1
+    =all_count
+    |new_array
+    |replace(e) {
+        ;1 +i =>i
+        +{nums .start}
+    }
+}
+=generate_range

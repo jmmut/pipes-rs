@@ -6,12 +6,15 @@
 }
 =eq_old
 
-;public function(actual expected) {
+
+;public function(actual expected message) {
     actual =?expected
     |branch {
         1
     } {
-        "Assertion failed:\n  actual  : "
+        "Assertion failed: "
+        ++message
+        ++"\n  actual  : "
         ++ {actual |to_str}
         ++ "\n  expected: "
         ++ {expected |to_str}
@@ -19,8 +22,12 @@
         ;0
     }
 }
-=eq
+=eq_msg
 
+;public function(actual expected) {
+    |eq_msg expected ""
+}
+=eq
 
 ;public function(expected :array(:i64)) {
     function(actual :array(:i64)) {
@@ -79,5 +86,22 @@
     actual |array_eq_printer expected function(list) {|str/quote}
 }
 =str_eq
+
+;public function(:list f)(bool :i64){
+    |map (x) {
+        |f |assert/eq_msg 1{"value " ++{x |to_str} " failed predicate"}
+    }
+    |core/and
+}
+=all
+
+// TODO: macro or eval
+;public function(:list f)(bool :i64){
+    |map (x) {
+        |f |assert/eq_msg 0 {"value " ++{x |to_str} " failed predicate"}
+    }
+    |core/and
+}
+=no_one
 
 ;

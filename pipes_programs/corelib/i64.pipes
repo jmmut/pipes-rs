@@ -53,4 +53,9 @@
 }
 =abs
 
+;public function(n :i64  name :list(:i64))(:i64) {
+    name ++": " {n |to_str} |print
+    ;n
+}
+=debug
 ;

@@ -29,9 +29,10 @@
 //;[0 1 0] |or |assert/eq 1
 //;[0 0 0] |or |assert/eq 0
 
-//;public function(x) {
-//
-//}
+;public function(x) {
+    |branch {0} {1}
+}
+=negate
 
 ;public macro(:any types chain) {
     =input // needs something like ={0|new_unique_variable_name}

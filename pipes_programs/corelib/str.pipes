@@ -61,4 +61,11 @@
 ]
 |test/count_named "eq"
 
+
+;public function(value :list(:i64)  name :list(:i64))(:list(:i64)) {
+    name ++": " value |print
+    ;value
+}
+=debug
+
 ;

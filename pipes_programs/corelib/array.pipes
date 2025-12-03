@@ -43,6 +43,11 @@
 |subrange [8 15]
 |assert/array_eq "my long"
 
+;public function(list :list(:any)  new_start :i64) (:array) {
+    |subrange [new_start {list |size}]
+}
+=subrange_end
+
 ;public function(list :list  to_find)(:or(index :i64  if_not_found :nothing)) {
     list |size
     |times_or(i) {
