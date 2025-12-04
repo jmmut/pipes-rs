@@ -59,12 +59,31 @@ fn try_or(first: &Type, second: &Type) -> Option<Type> {
         if let (Type::Nested { children: or_1, .. }, Type::Nested { children: or_2, .. }) =
             (first, second)
         {
-            let mut sorted_1 = or_1.clone();
-            sort_typed_identifiers(&mut sorted_1);
-            let mut sorted_2 = or_2.clone();
-            sort_typed_identifiers(&mut sorted_2);
-            if let Some(unified) = unify_typed_identifiers(&sorted_1, &sorted_2) {
-                return Some(Type::from(BuiltinType::Or.name(), unified));
+            let (sorted_1, unknown_1) = extract_unknown(or_1.clone());
+            let (sorted_2, unknown_2) = extract_unknown(or_2.clone());
+            let mut matched_1 = vec![false; sorted_1.len()];
+            let mut matched_2 = vec![false; sorted_2.len()];
+            let mut unifieds = TypedIdentifiers::new();
+            for (i_1, t_1) in sorted_1.iter().enumerate() {
+                if matched_1[i_1] == false {
+                    for (i_2, t_2) in sorted_2.iter().enumerate() {
+                        if matched_2[i_2] == false {
+                            if let Some(unified) = unify_typed_identifier(t_1, t_2) {
+                                matched_1[i_1] = true;
+                                matched_2[i_2] = true;
+                                unifieds.push(unified);
+                            }
+                        }
+                    }
+                }
+            }
+            let remaining_1 = add_unknown(sorted_1, unknown_1, matched_1);
+            let remaining_2 = add_unknown(sorted_2, unknown_2, matched_2);
+
+            if let Some(unified) = unify_typed_identifiers(&remaining_1, &remaining_2) {
+                let mut all = [unifieds, unified].concat();
+                sort_typed_identifiers(&mut all);
+                return Some(Type::from(BuiltinType::Or.name(), all));
             }
         } else {
             panic!("Found a :or without inner types. Not sure if this should be allowed");
@@ -83,6 +102,40 @@ fn try_or(first: &Type, second: &Type) -> Option<Type> {
     None
 }
 
+fn add_unknown(
+    sorted_1: TypedIdentifiers,
+    unknown: Option<TypedIdentifier>,
+    matched: Vec<bool>,
+) -> Vec<TypedIdentifier> {
+    let mut remaining = sorted_1
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _t)| matched[*i] == false)
+        .map(|(_i, t)| t)
+        .collect::<Vec<_>>();
+    sort_typed_identifiers(&mut remaining);
+    if let Some(unknown) = unknown {
+        remaining.push(unknown);
+    }
+    remaining
+}
+
+fn extract_unknown(
+    mut typed_identifiers: TypedIdentifiers,
+) -> (TypedIdentifiers, Option<TypedIdentifier>) {
+    let mut unknown = None;
+    let mut unknown_index = None;
+    for (index, typed_identifier) in typed_identifiers.iter().enumerate() {
+        if typed_identifier.type_ == builtin_types::UNKNOWN {
+            unknown_index = Some(index);
+        }
+    }
+    if let Some(index) = unknown_index {
+        unknown = Some(typed_identifiers.remove(index));
+    }
+    sort_typed_identifiers(&mut typed_identifiers);
+    (typed_identifiers, unknown)
+}
 fn children_unify_to(nested: &Type, simple: &Type) -> Option<Option<Type>> {
     if let Type::Nested { children, .. } = nested {
         if let Some(unified) = all_unify_to(&children, simple.clone()) {
