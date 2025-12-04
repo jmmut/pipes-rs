@@ -251,7 +251,7 @@ fn read_typed_identifier(iter: &mut TokenIter, code: &SourceCode) -> Result<Node
             }
         } else {
             Ok(Node::TypedIdentifier {
-                typed_identifier: TypedIdentifier::any(name),
+                typed_identifier: TypedIdentifier::unknown(name),
                 span: *span,
             })
         }

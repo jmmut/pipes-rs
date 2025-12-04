@@ -6,7 +6,7 @@
 /// a function can return custom types
 ;function (a :i64)(:point) {
     [a a]
-    |cast(:any) // sadly, to construct tuples you have to cast them.
+    |cast(:point) // sadly, to construct tuples you have to cast them to your type or to `:unknown`
 }
 =diagonal
 
@@ -27,7 +27,7 @@
 
 // a function can return anonymous structs
 ;function()(:tuple(x :i64  y :i64  z :i64)) {
-    [1 2 3] |cast(:any)
+    [1 2 3] |cast(:unknown)
 }
 =vector3d
 
@@ -39,7 +39,7 @@
     "a: " ++{t .a |to_str} |print
 }
 =print_first
-;[8 9] |cast(:any) |print_first
+;[8 9] |cast(:unknown) |print_first
 
 
 // you can access a field of the first anonymous parameter
@@ -47,12 +47,12 @@
     .x
 }
 =get_first
-;[6 7] |cast(:any) |get_first |to_str |print
+;[6 7] |cast(:unknown) |get_first |to_str |print
 
 
 // identifiers (including types like 'point') are available inside evaluated strings,
 // but at the moment need to be fully-qualified (like 'structs/point', where 'structs' is the current filename)
 ;public function(x){+100} =plus_100
-;"[26 27] |cast(:any) |function(:structs/point) {.x} |structs/plus_100 |to_str |print" |eval
+;"[26 27] |cast(:unknown) |function(:structs/point) {.x} |structs/plus_100 |to_str |print" |eval
 
 ;5

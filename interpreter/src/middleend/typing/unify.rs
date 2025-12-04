@@ -2,12 +2,12 @@ use std::collections::HashSet;
 
 use crate::frontend::expression::{Type, TypedIdentifier, TypedIdentifiers};
 use crate::middleend::intrinsics::builtin_types::NOTHING;
-use crate::middleend::intrinsics::BuiltinType;
+use crate::middleend::intrinsics::{builtin_types, BuiltinType};
 
 /// Compare types semantically and merge them.
-/// In summary, the Any type can be casted implicitly to any type, and this function
-/// can be used to infer types. For example, the types `function(:i64) (:any)` and
-/// `function(:any) (:i64)` are compatible, and this function would return `function(:i64) (:i64)`.
+/// In summary, the `unknown` type can be casted implicitly to all types, and this function
+/// can be used to infer types. For example, the types `function(:i64) (:unknown)` and
+/// `function(:unknown) (:i64)` are compatible, and this function would return `function(:i64) (:i64)`.
 /// Order is significant: this function returns a specialization of "second" where any "first" will work.
 /// This is similar to "second" being an interface that "first" implements. In other words,
 /// if this function returns some type, you can pass a "first" to a function taking a "second"
@@ -17,10 +17,12 @@ use crate::middleend::intrinsics::BuiltinType;
 pub fn unify(first: &Type, second: &Type) -> Option<Type> {
     let first_name = first.name();
     let second_name = second.name();
-    if first_name == BuiltinType::Any.name() {
+    if first_name == BuiltinType::Unknown.name() {
         return Some(second.clone());
-    } else if second_name == BuiltinType::Any.name() {
+    } else if second_name == BuiltinType::Unknown.name() {
         return Some(first.clone());
+    } else if first_name == BuiltinType::Any.name() || second_name == BuiltinType::Any.name() {
+        return Some(builtin_types::ANY);
     } else if let Some(unified) = try_or(first, second) {
         return Some(unified);
     } else if let Some(unified) = try_list(first, second) {
@@ -40,7 +42,9 @@ pub fn unify(first: &Type, second: &Type) -> Option<Type> {
             Type::Function { parameters: param_1, returned: returned_1 },
             Type::Function { parameters: param_2, returned: returned_2 },
         ) => {
+            //TODO reverse? if param1 is an interface of param2, then f1 can be used in all places (and more) where f2 is used
             let parameters = unify_typed_identifiers(param_1, param_2)?;
+
             let returned = Box::new(unify_typed_identifier(returned_1, returned_2)?);
             Some(Type::Function { parameters, returned })
         }
@@ -396,21 +400,23 @@ mod tests {
     #[test]
     fn test_list() {
         assert_unifies("list(:i64)", "array(:i64)");
-        assert_unifies("list(:any)", "array(:i64)");
+        assert_unifies("list(:unknown)", "array(:i64)");
         assert_unifies("list", "array");
         assert_unifies("array(:i64)", "list(:i64)");
-        assert_unifies_to("array(:i64)", "list(:any)", "list(:i64)");
+        assert_unifies_to("array(:i64)", "list(:unknown)", "list(:i64)");
+        assert_unifies_to("array(:i64)", "list(:any)", "list(:any)");
         assert_unifies_to("array(:i64)", "list", "list(:i64)");
 
         assert_no_unify("list(:i64)", "tuple(:i64)");
-        assert_no_unify("list(:any)", "tuple(:i64)");
+        assert_no_unify("list(:unknown)", "tuple(:i64)");
         assert_no_unify("list", "tuple");
         assert_unifies("tuple(:i64)", "list(:i64)");
         assert_unifies("tuple(:i64 :i64)", "list(:i64)");
-        assert_unifies_to("tuple(:i64 :i64)", "list(:any)", "list(:i64)");
+        assert_unifies_to("tuple(:i64 :i64)", "list(:any)", "list(:any)");
+        assert_unifies_to("tuple(:i64 :i64)", "list(:unknown)", "list(:i64)");
         assert_unifies_to("tuple(:i64 :i64)", "list", "list(:i64)");
 
-        assert_no_unify("tuple(:i64 :function)", "list");
+        assert_unifies("tuple(:i64 :function)", "list(:any)");
     }
 
     #[test]
@@ -423,7 +429,7 @@ mod tests {
         let second = Type::children(
             "mystruct",
             vec![
-                TypedIdentifier::nameless(builtin_types::ANY),
+                TypedIdentifier::nameless(builtin_types::UNKNOWN),
                 TypedIdentifier::nameless(builtin_types::I64),
             ],
         );
@@ -432,7 +438,7 @@ mod tests {
                 "mystruct",
                 vec![
                     TypedIdentifier::nameless(builtin_types::I64),
-                    TypedIdentifier::nameless(builtin_types::ANY),
+                    TypedIdentifier::nameless(builtin_types::UNKNOWN),
                 ],
             ),
             &second,
@@ -456,10 +462,13 @@ mod tests {
         assert_unifies_to(i64_or_nothing, i64_or_nothing, i64_or_nothing);
         assert_unifies_to(i64_or_nothing, "or(:nothing :i64)", i64_or_nothing);
         assert_unifies_to("or(:nothing :i64)", i64_or_nothing, i64_or_nothing);
+        assert_unifies_to(i64_or_nothing, "or(:nothing :unknown)", i64_or_nothing);
     }
     #[test]
     fn test_simplify_or() {
         let tuple_or_array = "or(:tuple(:i64) :array(:any))";
+        assert_unifies_to(tuple_or_array, "list", "list(:any)");
+        let tuple_or_array = "or(:tuple(:i64) :array(:unknown))";
         assert_unifies_to(tuple_or_array, "list", "list(:i64)");
     }
 
@@ -487,7 +496,13 @@ mod tests {
         let joined_nested = join_or(&joined, &other_joined);
         assert_eq!(
             joined_nested.to_string(),
-            "or(:function()(:any)  :i64  :nothing)"
+            "or(:function()(:unknown)  :i64  :nothing)"
         );
+    }
+
+    #[test]
+    fn test_unify_complex_or() {
+        let concrete = "or(:nothing  :tuple(:i64  :i64))";
+        assert_unifies_to(concrete, "or(:unknown  :nothing)", concrete);
     }
 }

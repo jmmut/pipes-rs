@@ -41,8 +41,8 @@ impl Intrinsic {
                 "function(reserved :i64) (lines :array(line :array(letter :i64)))"
             }
             Intrinsic::ToStr => "function(number :i64) (number_str :array(digit_char :i64))",
-            Intrinsic::NewArray => "function(size :i64) (:array(:any))",
-            Intrinsic::Size => "function(:list(:any)) (:i64)",
+            Intrinsic::NewArray => "function(size :i64) (:array(:unknown))",
+            Intrinsic::Size => "function(:list(:unknown)) (:i64)", // TODO: this could be list(any) but type propagation backwards is not ready, would propagate :any backwards and then forwards
             Intrinsic::Breakpoint => "function(t  file_descriptor :i64) (t)",
             Intrinsic::Eval => "function(code :list(char :i64)) (result :i64)",
         };

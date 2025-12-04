@@ -88,7 +88,7 @@ impl<'a> Typer<'a> {
         typed_identifiers: Identifiers,
     ) -> Result<Program, AnyError> {
         let (mut typer, main) = Typer::new_with_identifiers(program, typed_identifiers)?;
-        let typed_main = typer.add_types_with_initial(&mut builtin_types::I64.clone(), main)?;
+        let typed_main = typer.add_types_with_initial(&mut builtin_types::I64.clone(), main)?; // TODO: other parts of the code assume a 'none' initial value
         Ok(Program::new_from(
             typed_main,
             typer.new_typed_identifiers,
@@ -399,7 +399,7 @@ impl<'a> Typer<'a> {
         function: &Function,
         span: Span,
     ) -> Result<ExpressionSpan, AnyError> {
-        self.check_type_function_with_input(&builtin_types::ANY, function, span)
+        self.check_type_function_with_input(&builtin_types::UNKNOWN, function, span)
     }
     fn check_type_function_with_input(
         &mut self,
@@ -458,7 +458,7 @@ impl<'a> Typer<'a> {
         body: &Chain,
         span: Span,
     ) -> Result<(TypedIdentifiers, ExpressionSpan), AnyError> {
-        self.check_types_scope_with_input(builtin_types::ANY, parameters, body, span)
+        self.check_types_scope_with_input(builtin_types::UNKNOWN, parameters, body, span)
     }
     fn check_types_scope_with_input(
         &mut self,
@@ -572,7 +572,7 @@ impl<'a> Typer<'a> {
             // Operator::MacroCall => Ok(Operation::several(
             //     operator,
             //     operands.clone(),
-            //     builtin_types::ANY,
+            //     builtin_types::UNKNOWN,
             // )),
             Operator::MacroCall => bug_span(
                 "macro calls should not reach the typing stage. Macro call",
@@ -580,7 +580,7 @@ impl<'a> Typer<'a> {
                 operator.span,
             ),
             Operator::Get => {
-                let array = list_any();
+                let array = list_unknown();
                 let unified_input = self.is_castable_to(input, &array, operator)?;
                 let single_elem = unified_input.single_element()?.type_;
                 *input = unified_input;
@@ -613,7 +613,7 @@ impl<'a> Typer<'a> {
                 input.clone(),
             )),
             Operator::Concatenate => {
-                let array = list_any();
+                let array = list_unknown();
                 let mut unified_input = self.assert_type_unifies(input, &array, operator)?;
                 let mut typed_operands = Vec::new();
                 for operand in operands {
@@ -887,7 +887,7 @@ impl<'a> Typer<'a> {
                 something,
                 nothing,
             }) => {
-                let expected_input = join_or(&builtin_types::ANY, &builtin_types::NOTHING);
+                let expected_input = join_or(&builtin_types::UNKNOWN, &builtin_types::NOTHING);
                 let unified_elem =
                     self.assert_type_unifies(input_type, &expected_input, operator_span)?;
                 let (_, typed_something) =
@@ -1018,7 +1018,7 @@ impl<'a> Typer<'a> {
         iteration_elem: &TypedIdentifier,
         span: Span,
     ) -> Result<TypedIdentifier, AnyError> {
-        let expected_input = list_any();
+        let expected_input = list_unknown();
         let operator_span = OperatorSpan {
             operator: Operator::Call,
             span,
@@ -1096,7 +1096,7 @@ impl<'a> Typer<'a> {
         }
         let expected_function = Type::function(
             actual_params.clone(),
-            TypedIdentifier::nameless(builtin_types::ANY),
+            TypedIdentifier::nameless(builtin_types::UNKNOWN),
         );
         match unify(&expected_function, typed_callable.sem_type()) {
             Some(func_type) => {
@@ -1284,10 +1284,10 @@ fn get_source<'a>(sources: &'a Sources, current_source: &Option<String>) -> &'a 
     }
 }
 
-fn list_any() -> Type {
+fn list_unknown() -> Type {
     let expected_input = Type::from(
         BuiltinType::List.name(),
-        vec![TypedIdentifier::nameless(builtin_types::ANY)],
+        vec![TypedIdentifier::nameless(builtin_types::UNKNOWN)],
     );
     expected_input
 }
@@ -1462,7 +1462,7 @@ mod tests {
     fn test_empty_function() {
         assert_eq!(
             parse_type("function"),
-            Type::function(vec![], TypedIdentifier::nameless_any())
+            Type::function(vec![], TypedIdentifier::nameless_unknown())
         );
         assert_type_eq("{} |function {0}", "i64");
     }
@@ -1498,7 +1498,7 @@ mod tests {
     fn test_basic_array() {
         assert_types_ok("[1 2] :tuple(:i64 :i64)");
         assert_type_eq("[1 2]", "tuple(:i64 :i64)");
-        assert_eq!(parse_type("array"), parse_type("array(:any)"));
+        assert_eq!(parse_type("array"), parse_type("array(:unknown)"));
     }
     #[test]
     fn test_basic_tuple() {
@@ -1662,7 +1662,7 @@ mod tests {
     #[test]
     fn test_branch() {
         assert_type_eq("1 |branch {1} {0}", "i64");
-        assert_type_eq("1 |branch {[]} {0}", "or(:array(:any) :i64)");
+        assert_type_eq("1 |branch {[]} {0}", "or(:array(:unknown) :i64)");
         assert_type_eq("1 |branch {[0]} {0}", "or(:i64 :tuple(:i64) )");
         assert_type_eq("1 |branch {} {0}", "or(:i64 :nothing)");
     }
@@ -1673,6 +1673,14 @@ mod tests {
         assert_type_eq("1 |branch {1 |branch {0}{0}} { }", "or(:i64 :nothing)");
         assert_type_eq("1 |branch {1 |branch { }{0}} {0}", "or(:i64 :nothing)");
         assert_type_eq("1 |branch {1 |branch {0}{0}} {0}", "i64");
+    }
+
+    #[test]
+    fn test_something() {
+        assert_type_eq(
+            "1 |branch {[1 2] :tuple(:i64 :i64)} { } |something(a) {a} {}",
+            "or(:nothing  :tuple(:i64  :i64))",
+        );
     }
 
     #[test]
@@ -1726,7 +1734,7 @@ mod tests {
     #[test]
     fn test_propagate_type_to_unnamed_parameter() {
         assert_type_eq("function (x) {+1}", "function(x :i64)(:i64)");
-        assert_type_eq("function (x) {#1}", "function(x :list)(:any)");
+        assert_type_eq("function (x) {#1}", "function(x :list)(:unknown)");
         assert_type_eq(
             "function (s) {++[] \"asdf\"}",
             "function(s :list(:i64))(:list(:i64))",
@@ -1738,7 +1746,7 @@ mod tests {
     #[ignore] // TODO
     fn test_propagate_type_to_parameter() {
         assert_type_eq("function (x) {x+1}", "function(x :i64)(:i64)");
-        assert_type_eq("function (x) {x#1}", "function(x :list)(:any)");
+        assert_type_eq("function (x) {x#1}", "function(x :list)(:unknown)");
         assert_type_eq(
             "function (s) {s++[] \"asdf\"}",
             "function(s :list(:i64))(:list(:i64))",

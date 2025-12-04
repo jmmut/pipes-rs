@@ -1,7 +1,7 @@
 
 ;public function
     (str :list(:i64))
-    (:or (:i64 :nothing))
+    (:or(:i64 :nothing))
 {
     |size =?0 |branch {
         ;none

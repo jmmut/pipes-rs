@@ -1,3 +1,7 @@
 ;public tuple(x :i64  y :i64) =coord
 
-;[3 5] |cast(:any) :coord .x
+;[3 5]
+|cast(:coord)
+//|cast(:unknown)
+//:coord
+.x

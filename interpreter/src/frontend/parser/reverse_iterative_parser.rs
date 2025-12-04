@@ -428,7 +428,7 @@ fn construct_function(
     let (returned, return_span, elem) = extract_single_child_type_or(
         accumulated,
         elem,
-        TypedIdentifier::nameless(builtin_types::ANY),
+        TypedIdentifier::nameless(builtin_types::UNKNOWN),
     );
 
     match chain(elem) {
@@ -825,7 +825,7 @@ fn construct_children_types(
                 ..
             })) => {
                 if let Some(previous_name) = name_opt {
-                    types.push(TypedIdentifier::any(previous_name));
+                    types.push(TypedIdentifier::unknown(previous_name));
                 }
                 name_opt = Some(name)
             }
@@ -846,10 +846,7 @@ fn construct_children_types(
                 {
                     let typed_identifier = if let Some(previous_name) = name_opt {
                         name_opt = None;
-                        TypedIdentifier {
-                            name: previous_name,
-                            type_: type_,
-                        }
+                        TypedIdentifier::new(previous_name, type_)
                     } else {
                         TypedIdentifier::nameless(type_)
                     };
@@ -860,7 +857,7 @@ fn construct_children_types(
             }
             Some(PartialExpression::CloseParenthesis(span)) => {
                 if let Some(previous_name) = name_opt {
-                    types.push(TypedIdentifier::any(previous_name));
+                    types.push(TypedIdentifier::unknown(previous_name));
                 }
                 return Ok(PartialExpression::Expression(ExpressionSpan::new_typeless(
                     Expression::TypedIdentifiers(types),

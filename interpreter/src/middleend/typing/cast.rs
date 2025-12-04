@@ -9,9 +9,9 @@ use crate::middleend::typing::unify::{all_same_type, try_list};
 pub fn cast(first: &Type, second: &Type) -> Option<Type> {
     let first_name = first.name();
     let second_name = second.name();
-    if first_name == BuiltinType::Any.name() {
+    if first_name == BuiltinType::Unknown.name() {
         return Some(second.clone());
-    } else if second_name == BuiltinType::Any.name() {
+    } else if second_name == BuiltinType::Unknown.name() {
         return Some(first.clone());
     } else if let Some(unified) = try_list(first, second) {
         return Some(unified);
@@ -59,8 +59,8 @@ fn cast_nested(
             && second_name == BuiltinType::Array.name()
         {
             if all_same_type(children_1) {
-                let any = TypedIdentifier::nameless(builtin_types::ANY);
-                let tuple_type = children_1.last().unwrap_or(&any);
+                let unknown = TypedIdentifier::nameless(builtin_types::UNKNOWN);
+                let tuple_type = children_1.last().unwrap_or(&unknown);
                 let array_type = children_2.last().unwrap();
                 if let Some(unified_inner) = cast_typed_identifier(tuple_type, array_type) {
                     Some(Type::from(second_name, vec![unified_inner]))

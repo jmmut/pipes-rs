@@ -292,7 +292,7 @@ mod tests {
     #[test]
     fn test_display_function_type() {
         assert_type_displayed("function(param_name :param_type)(return_name :return_type)");
-        assert_eq!(parse_type("function").to_string(), "function()(:any)");
+        assert_eq!(parse_type("function").to_string(), "function()(:unknown)");
         assert_type_displayed("function()(:i64)");
     }
 

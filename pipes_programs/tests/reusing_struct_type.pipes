@@ -1,2 +1,2 @@
 // this shows how mentioning a qualified type in a type annotation automatically imports it
-;[3 5] |cast(:any) :unqualified_struct/coord .x
+;[3 5] |cast(:unknown) :unqualified_struct/coord .x

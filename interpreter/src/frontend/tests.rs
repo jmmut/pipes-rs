@@ -83,7 +83,7 @@ fn list(expressions: &[Expression]) -> Expression {
     Expression::list(to_expr_span_vec(expressions))
 }
 fn func(parameters: &[(&str, &str)], body: impl Into<Chain>) -> Expression {
-    Expression::function_any_return(
+    Expression::function_unknown_return(
         parameters.into_iter().map(|p| (*p).into()).collect(),
         body.into(),
     )
@@ -268,7 +268,7 @@ mod types {
                 val(5),
                 &[op(
                     Operator::Type,
-                    nested_type("tuple", &[("x", "any"), ("y", "any")]),
+                    nested_type("tuple", &[("x", "unknown"), ("y", "unknown")]),
                 )],
             ),
         );
@@ -302,7 +302,7 @@ mod function {
     }
     #[test]
     fn test_function_arg() {
-        assert_expr_eq("function(x) {5}", func(&[("x", "any")], 5));
+        assert_expr_eq("function(x) {5}", func(&[("x", "unknown")], 5));
     }
     #[test]
     fn test_function_return() {
@@ -318,7 +318,7 @@ fn test_loop() {
     assert_expr_eq(
         "browse(x) {5}",
         Expression::Composed(Composed::Browse(Browse {
-            iteration_elem: ("x", "any").into(),
+            iteration_elem: ("x", "unknown").into(),
             body: 5.into(),
         })),
     );

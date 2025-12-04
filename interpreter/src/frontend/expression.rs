@@ -253,10 +253,10 @@ impl Expression {
     }
     #[allow(unused)]
     pub fn function_single(parameter: TypedIdentifier, body: Chain) -> Self {
-        Self::Function(Function::any_return(vec![parameter], body))
+        Self::Function(Function::unknown_return(vec![parameter], body))
     }
-    pub fn function_any_return(parameters: TypedIdentifiers, body: Chain) -> Self {
-        Self::Function(Function::any_return(parameters, body))
+    pub fn function_unknown_return(parameters: TypedIdentifiers, body: Chain) -> Self {
+        Self::Function(Function::unknown_return(parameters, body))
     }
     pub fn function(parameters: TypedIdentifiers, returned: TypedIdentifier, body: Chain) -> Self {
         Self::Function(Function::new(parameters, returned, body))
@@ -410,7 +410,7 @@ impl Type {
         {
             Type::children(
                 type_name,
-                vec![TypedIdentifier::nameless(builtin_types::ANY)],
+                vec![TypedIdentifier::nameless(builtin_types::UNKNOWN)],
             )
         } else {
             let type_name = TypeName::new(type_name);
@@ -653,10 +653,10 @@ impl Function {
             is_macro: true,
         }
     }
-    pub fn any_return(parameters: TypedIdentifiers, body: Chain) -> Self {
+    pub fn unknown_return(parameters: TypedIdentifiers, body: Chain) -> Self {
         Self {
             parameters,
-            returned: TypedIdentifier::nameless_any(),
+            returned: TypedIdentifier::nameless_unknown(),
             body,
             is_macro: false,
         }
@@ -687,28 +687,16 @@ impl TypedIdentifier {
         Self { name, type_ }
     }
     pub fn nothing() -> Self {
-        Self {
-            name: "".to_string(),
-            type_: Type::nothing(),
-        }
+        Self::nameless(builtin_types::NOTHING)
     }
-    pub fn unknown() -> Self {
-        Self {
-            name: "".to_string(),
-            type_: builtin_types::UNKNOWN,
-        }
+    pub fn unknown(name: String) -> Self {
+        Self::new(name, builtin_types::UNKNOWN)
     }
-    pub fn unknown_type(name: String) -> Self {
-        Self {
-            name,
-            type_: builtin_types::UNKNOWN,
-        }
+    pub fn nameless_unknown() -> Self {
+        Self::nameless(builtin_types::UNKNOWN)
     }
     pub fn any(name: String) -> Self {
-        Self {
-            name,
-            type_: builtin_types::ANY,
-        }
+        Self::new(name, builtin_types::ANY)
     }
     pub fn nameless_any() -> Self {
         Self::nameless(builtin_types::ANY)
