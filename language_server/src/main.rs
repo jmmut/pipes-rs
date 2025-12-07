@@ -3,7 +3,7 @@ use crate::response::response;
 use clap::Parser;
 use pipes_rs::common::AnyError;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Stderr};
 use std::io::Write;
 
 mod analyzer;
@@ -26,18 +26,44 @@ fn main() {
     }
 }
 
-fn try_main() -> Result<(), AnyError> {
-    let args = Args::parse();
-    let mut log: Option<File> = None;
-    if let Some(log_path) = args.log_file {
-        match File::create(&log_path) {
-            Ok(file) => log = Some(file),
+pub struct Logger<W: Write> {
+    out: W,
+}
+impl Logger<File> {
+    pub fn new_file(log_path: &str) -> Result<Self, AnyError> {
+        let out = match File::create(&log_path) {
+            Ok(file) => file,
             Err(e) => {
                 eprintln!("Failed to open log file: {}", e);
                 std::process::exit(1);
             }
+        };
+        Ok(Self {
+            out,
+        })
+    }
+}
+impl Logger<Stderr> {
+    pub fn new_stderr() -> Self {
+        Self {
+            out: std::io::stderr(),
         }
     }
+}
+impl<W: Write> Logger<W> {
+    pub fn log<S: AsRef<str>>(&mut self, s: S) -> Result<(), AnyError> {
+        write!(self.out, "{}", s.as_ref())?;
+        Ok(())
+    }
+}
+fn try_main() -> Result<(), AnyError> {
+    let args = Args::parse();
+    let mut log: Option<File> = None;
+    let logger = if let Some(log_path) = args.log_file {
+        Logger::new_file(log_path)
+    } else {
+        Logger::new_stderr()
+    };
 
     let mut message_buffer = MessageBuffer::new();
     let stdin = std::io::stdin();
@@ -48,28 +74,29 @@ fn try_main() -> Result<(), AnyError> {
         let c = buf[0];
 
         if let Some(log_file) = log.as_mut() {
-            let _ = write!(log_file, "{}", c as char);
+            write!(log_file, "{}", c as char)?;
+            // log_file.flush()?;
         }
 
         message_buffer.handle_char(c)?;
 
         if message_buffer.is_message_complete() {
             if let Some(log_file) = log.as_mut() {
-                let _ = writeln!(
+                writeln!(
                     log_file,
                     "\n\n###### request body:\n{}",
                     message_buffer.body()?
-                );
+                )?;
             }
 
             match response(&message_buffer.body()?) {
                 Ok(answer) => {
                     if let Some(log_file) = log.as_mut() {
-                        let _ = writeln!(
+                        writeln!(
                             log_file,
                             "\n\n###### answer:\n{:?}\n\n###### waiting for next request:",
                             answer
-                        );
+                        )?;
                     }
                     if let Some(answer) = answer {
                         print!("{}", answer);
@@ -78,7 +105,7 @@ fn try_main() -> Result<(), AnyError> {
                 }
                 Err(e) => {
                     if let Some(log_file) = log.as_mut() {
-                        let _ = writeln!(log_file, "\n\n###### exception: {}", e);
+                        writeln!(log_file, "\n\n###### exception: {}", e)?;
                     }
                 }
             }

@@ -153,6 +153,7 @@ pub fn choose_response(request: &Request) -> Result<Option<String>, AnyError> {
         Method::Initialized => Ok(None),
         Method::Hover => Ok(Some(generate_response_hover(request)?)),
         Method::Shutdown => Ok(Some(generate_response_shutdown(request.id()?))),
+        Method::DidChangeConfiguration => Ok(None),
     }
 }
 

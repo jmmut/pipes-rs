@@ -9,6 +9,7 @@ pub enum Method {
     Initialized,
     Hover,
     Shutdown,
+    DidChangeConfiguration,
 }
 
 impl FromStr for Method {
@@ -20,6 +21,7 @@ impl FromStr for Method {
             "initialized" => Ok(Method::Initialized),
             "textDocument/hover" => Ok(Method::Hover),
             "shutdown" => Ok(Method::Shutdown),
+            "workspace/didChangeConfiguration" => Ok(Method::DidChangeConfiguration),
             _ => Ok(Method::Unknown),
         }
     }
@@ -33,6 +35,7 @@ impl fmt::Display for Method {
             Method::Initialized => "INITIALIZED",
             Method::Hover => "HOVER",
             Method::Shutdown => "SHUTDOWN",
+            Method::DidChangeConfiguration => "workspace/didChangeConfiguration",
         };
         write!(f, "{}", s)
     }
